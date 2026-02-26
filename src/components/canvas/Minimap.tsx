@@ -39,7 +39,6 @@ export function Minimap() {
     []
   );
 
-  // Pre-render claimed blocks into an ImageData once (expensive, but only on block changes)
   const rebuildBg = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -49,24 +48,33 @@ export function Minimap() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = MAP_W * dpr;
     canvas.height = MAP_H * dpr;
-    ctx.scale(dpr, dpr);
 
-    const sx = MAP_W / WORLD_W;
-    const sy = MAP_H / WORLD_H;
+    const sx = MAP_W / WORLD_W * dpr;
+    const sy = MAP_H / WORLD_H * dpr;
 
-    ctx.fillStyle = "#0d0d0d";
-    ctx.fillRect(0, 0, MAP_W, MAP_H);
+    const imgData = ctx.createImageData(canvas.width, canvas.height);
+    const data = imgData.data;
+    const w = canvas.width;
 
-    ctx.fillStyle = "rgba(139,92,246,0.45)";
-    const tw = Math.max(1, TILE_WIDTH * sx);
-    const th = Math.max(1, TILE_HEIGHT * sy);
+    // Fill background dark
+    for (let i = 3; i < data.length; i += 4) {
+      data[i - 3] = 13; data[i - 2] = 13; data[i - 1] = 13; data[i] = 255;
+    }
 
-    useBlocksStore.getState().blocks.forEach((b) => {
+    // Plot claimed blocks directly into pixel buffer (much faster than fillRect per block)
+    const blocks = useBlocksStore.getState().blocks;
+    blocks.forEach((b) => {
       if (b.status !== "claimed") return;
-      ctx.fillRect(b.x * TILE_WIDTH * sx, b.y * TILE_HEIGHT * sy, tw, th);
+      const px = Math.round(b.x * TILE_WIDTH * sx);
+      const py = Math.round(b.y * TILE_HEIGHT * sy);
+      if (px >= 0 && px < w && py >= 0 && py < canvas.height) {
+        const off = (py * w + px) * 4;
+        data[off] = 139; data[off + 1] = 92; data[off + 2] = 246; data[off + 3] = 180;
+      }
     });
 
-    bgImageRef.current = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    ctx.putImageData(imgData, 0, 0);
+    bgImageRef.current = imgData;
   }, []);
 
   useEffect(() => {

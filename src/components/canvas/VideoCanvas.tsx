@@ -2,11 +2,11 @@
 
 import { useRef, useEffect } from "react";
 import { useCanvasStore } from "@/stores/canvas-store";
-import { useBlocksStore, type Block } from "@/stores/blocks-store";
+import { useBlocksStore, type Block, SpatialIndex } from "@/stores/blocks-store";
 import {
-  TILE_WIDTH, TILE_HEIGHT, GRID_COLS, GRID_ROWS, isAdSlot,
+  TILE_WIDTH, TILE_HEIGHT, GRID_COLS, GRID_ROWS, isAdSlot, getAdRingIndex,
 } from "@/lib/constants";
-import { TileRenderer, cropUV, type ImgTile, type SolidTile } from "./TileRenderer";
+import { TileRenderer, cropUV, type ImgTile, type SolidTile, type BorderTile } from "./TileRenderer";
 import { getCachedImage, loadImage } from "./ImageCache";
 
 const HOVER_SCALE = 1.08;
@@ -21,9 +21,17 @@ const MAX_VISIBLE_TILES = 8000;
 
 function lerp(a: number, b: number, t: number) { return a + (b - a) * t; }
 
+const RING_BORDERS: Array<{ r: number; g: number; b: number }> = [
+  { r: 0.85, g: 0.65, b: 0.13 },  // gold
+  { r: 0.75, g: 0.75, b: 0.78 },  // silver
+  { r: 0.80, g: 0.50, b: 0.20 },  // bronze
+];
+const BORDER_WIDTH = 3.0;
+
 // Pre-allocated arrays reused every frame — zero GC pressure
 const imgTiles: ImgTile[] = [];
 const solidTiles: SolidTile[] = [];
+const borderTiles: BorderTile[] = [];
 
 export function VideoCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -31,6 +39,7 @@ export function VideoCanvas() {
 
   const vp = useRef({ x: 0, y: 0, z: 0.6, sw: 0, sh: 0 });
   const blocksRef = useRef<Map<number, Block>>(new Map());
+  const spatialRef = useRef<SpatialIndex>(new SpatialIndex());
 
   const mouseScreen = useRef({ x: -9999, y: -9999, inside: false });
   const hoveredCell = useRef({ col: -1, row: -1, id: -1 });
@@ -54,10 +63,12 @@ export function VideoCanvas() {
     });
     const unsub2 = useBlocksStore.subscribe((s) => {
       blocksRef.current = s.blocks;
+      spatialRef.current = s.spatial;
     });
     const cs = useCanvasStore.getState();
     vp.current = { x: cs.viewportX, y: cs.viewportY, z: cs.zoom, sw: cs.screenWidth, sh: cs.screenHeight };
     blocksRef.current = useBlocksStore.getState().blocks;
+    spatialRef.current = useBlocksStore.getState().spatial;
     return () => { unsub1(); unsub2(); };
   }, []);
 
@@ -143,52 +154,74 @@ export function VideoCanvas() {
         else s.current = lerp(s.current, s.target, ANIM_SPEED);
       }
 
-      // --- Build tile lists (reuse arrays, zero alloc) ---
+      // --- Build tile lists from spatial index (only occupied blocks) ---
       const blocks = blocksRef.current;
       imgTiles.length = 0;
       solidTiles.length = 0;
+      borderTiles.length = 0;
       let loads = 0;
 
-      for (let row = r0; row <= r1; row += step) {
-        for (let col = c0; col <= c1; col += step) {
-          const id = row * GRID_COLS + col;
-          const block = blocks.get(id);
-          const isClaimed = block && block.status !== "empty";
+      const visibleIds = spatialRef.current.queryRange(c0, r0, c1, r1);
 
-          const url = block?.thumbnailUrl || block?.adImageUrl || null;
+      for (let i = 0; i < visibleIds.length; i++) {
+        const id = visibleIds[i];
+        const block = blocks.get(id);
+        if (!block) continue;
 
-          if (url) {
-            const img = getCachedImage(url);
-            if (img) {
-              const sc = scaleMap.current.get(id);
-              const [u0, v0, u1, v1] = cropUV(img.naturalWidth, img.naturalHeight);
-              imgTiles.push({ col, row, img, scale: sc ? sc.current : 1, u0, v0, u1, v1 });
-            } else {
-              if (canLoadImages && loads < MAX_LOADS_PER_FRAME && !pendingLoads.current.has(url)) {
-                loads++;
-                pendingLoads.current.add(url);
-                loadImage(url).then(() => pendingLoads.current.delete(url));
-              }
-              solidTiles.push({ col, row, r: 0.12, g: 0.10, b: 0.14 });
+        const col = block.x;
+        const row = block.y;
+        if (col < c0 || col > c1 || row < r0 || row > r1) continue;
+        if (step > 1 && ((col - c0) % step !== 0 || (row - r0) % step !== 0)) continue;
+
+        const url = block.thumbnailUrl || block.adImageUrl || null;
+
+        if (url) {
+          const img = getCachedImage(url);
+          if (img) {
+            const sc = scaleMap.current.get(id);
+            const [u0, v0, u1, v1] = cropUV(img.naturalWidth, img.naturalHeight);
+            imgTiles.push({ col, row, img, scale: sc ? sc.current : 1, u0, v0, u1, v1 });
+          } else {
+            if (canLoadImages && loads < MAX_LOADS_PER_FRAME && !pendingLoads.current.has(url)) {
+              loads++;
+              pendingLoads.current.add(url);
+              loadImage(url).then(() => pendingLoads.current.delete(url));
             }
-          } else if (isClaimed) {
-            if (block.status === "ad") {
-              solidTiles.push({ col, row, r: 0.27, g: 0.10, b: 0.42 });
+            solidTiles.push({ col, row, r: 0.12, g: 0.10, b: 0.14 });
+          }
+        } else if (block.status === "ad") {
+          solidTiles.push({ col, row, r: 0.22, g: 0.22, b: 0.24 });
+        } else if (block.status !== "empty") {
+          solidTiles.push({ col, row, r: 0.10, g: 0.10, b: 0.12 });
+        }
+
+        const ringIdx = getAdRingIndex(col, row);
+        if (ringIdx >= 0 && ringIdx < RING_BORDERS.length) {
+          const c = RING_BORDERS[ringIdx];
+          borderTiles.push({ col, row, r: c.r, g: c.g, b: c.b, width: BORDER_WIDTH });
+        }
+      }
+
+      // Empty-cell grid background (only at high zoom when few cells visible)
+      if (showEmpty && totalVis <= MAX_VISIBLE_TILES) {
+        for (let row = r0; row <= r1; row += step) {
+          for (let col = c0; col <= c1; col += step) {
+            const id = row * GRID_COLS + col;
+            if (blocks.has(id)) continue;
+            if (isAdSlot(col, row)) {
+              solidTiles.push({ col, row, r: 0.22, g: 0.22, b: 0.24 });
             } else {
-              solidTiles.push({ col, row, r: 0.10, g: 0.10, b: 0.12 });
+              solidTiles.push({ col, row, r: 0.067, g: 0.067, b: 0.067 });
             }
-          } else if (isAdSlot(col, row)) {
-            solidTiles.push({ col, row, r: 0.20, g: 0.06, b: 0.32 });
-          } else if (showEmpty) {
-            solidTiles.push({ col, row, r: 0.067, g: 0.067, b: 0.067 });
           }
         }
       }
 
-      // --- Draw: solids first (background), then textured on top ---
+      // --- Draw: solids first, textured on top, then ring borders on top of everything ---
       const hoverSc = hId >= 0 ? (scaleMap.current.get(hId)?.current ?? 1) : 1;
       renderer.drawSolid(solidTiles, v.x, v.y, zoom);
       renderer.draw(imgTiles, v.x, v.y, zoom, hCol, hRow, hoverAlpha.current, hoverSc);
+      renderer.drawBorders(borderTiles, v.x, v.y, zoom);
     };
 
     rafRef.current = requestAnimationFrame(frame);

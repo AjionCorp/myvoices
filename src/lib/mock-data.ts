@@ -40,6 +40,34 @@ const YOUTUBE_IDS = [
   "btPJPFnesV4", "M11SvDtPBhA", "Pkh8UtuejGw", "1VQ_3sBZEm0",
 ];
 
+const YOUTUBE_SHORT_IDS = [
+  "ZTjoppSiEPA", "gQlMMD0e5Q0", "HZ5GjRJqLCo", "vTJdVE_gjI0",
+  "xvFZjo5PgG0", "3AtDnEC4zak", "PNjG22Gp6m0", "CD-E-LDc384",
+  "0e3GPea1Zrg", "pXRviuL6vMY", "GD3Oak4jZxQ", "Kbj2Zss-5GY",
+  "dNL6RwymoNg", "Sj_9CiNkkn4", "tQ0yjYUFKAE", "W6NZfDfJ1DU",
+  "a3ICNMQW7Ok", "7P0JM3h1IQk", "wXhTHyIgQ_U", "4K6Sh1tsKRs",
+  "2IK3DFHRFfw", "NLqAF9hrVbY", "EG6jlBMnDOo", "nIjVOBGUx1Q",
+  "rJSfVpb3A1E", "grd-K33tOSM", "V2LyhJTHIEg", "6xJGQR3cFhE",
+  "s7L2PVdrb_8", "0JgF4CMXU9M", "X9tV6MjlBMA", "2lAe1cqCOXo",
+  "lGaneyDfyls", "6Nqf5MbHFDk", "HgiYpSqGKOc", "tTc3hRYBqnU",
+  "YnopHCL1Jk8", "LXb3EKWsInQ", "QwZT7T-TXT0", "cV2gBU6hKfY",
+  "GPYzY9I78CI", "q0hyYWKXF0Q", "3jWRrafhO7M", "SqcY0GlETPk",
+  "F1B9Fk_SgI0", "x7Krla_UxRg", "U4oB28CRwAo", "8vNxjwt2AqY",
+  "mXB7GRWMzUc", "bE1lHGDqxqA", "X4QYV5GTz7o", "TeeJvaEIyVo",
+  "7lCDEYXw3mM", "YRT4GmjBmZY", "xTjLjErS03I", "1SfxAvCJv0Y",
+  "ZgkNGF2qBd0", "5K1RcKJVbHA", "KZvsrvraSwA", "Wd1Btl3U27s",
+  "j4BkXJLfN_c", "B09kHlOhTJE", "YOBGcG0d9LY", "jLZ3gMHTEP0",
+  "8SoTaJsiA_s", "dUp1XJ40yDE", "qQzdAsjWGPg", "6o6ahJJx2MI",
+  "r-MdRNHfNpU", "OaHrS7aMfDY", "kpGo2_d3oYE", "RjwKj12LAHY",
+  "TJIfnNBqjMQ", "m2uTFF_3MaA", "WfVcFkWbEDc", "fIkZOLsnoqY",
+  "QYbV04b3Ajs", "sZLGXQfHPYo", "HNJhn4_vM9c", "epQkEnOAhbA",
+  "j7EYxMeK36Y", "ULwUzF1q5w4", "5H_aRMODvIo", "E4pgGBRmtsA",
+  "SLsTskCmFRU", "Ej3mKZbGOgg", "Kx8DOGT3gVA", "lYkPrmBOTeI",
+  "Wy1SYXLHIOE", "wBQlsQ4GNLI", "RXNsGlXknPA", "P0oCBixCqxA",
+  "ck3OF8L6jCQ", "Dxv7EwR_fKo", "E7a5N6kRj7Q", "N5MMi_eC-qU",
+  "bY9dT7GOagI", "QxEkPuzYE7c", "ILCw1jhSCmI", "VVqEBMIGmPM",
+];
+
 const FIRST_NAMES = [
   "Alex", "Jordan", "Mira", "Taylor", "Casey", "Riley", "Morgan", "Quinn",
   "Sage", "Avery", "Dakota", "Finley", "Harper", "Kai", "Luna", "Nova",
@@ -49,6 +77,14 @@ const FIRST_NAMES = [
   "Zion", "Ari", "Briar", "Cruz", "Dylan", "Ellis", "Fern", "Greer",
   "Hollis", "Jude", "Lennox", "Milan", "Nico", "Onyx", "Palmer", "Reign",
   "Scout", "True", "Uri", "Winter", "Xan", "Yael", "Zara", "Beau",
+  "Rowan", "Emery", "Hayden", "Kendall", "Logan", "Micah", "Reese", "Shiloh",
+  "Tatum", "Sage", "Armani", "Bellamy", "Cleo", "Darcy", "Ezra", "Flynn",
+  "Gio", "Harlow", "Ira", "Jax", "Kenji", "Lior", "Maddox", "Nola",
+  "Orion", "Presley", "Quincy", "Rory", "Salem", "Thea", "Uma", "Vesper",
+  "Wilder", "Xiomara", "Yuki", "Zen", "Amara", "Bodhi", "Cedar", "Dax",
+  "Elio", "Felix", "Gemma", "Heath", "Ivy", "Juno", "Koa", "Laken",
+  "Mars", "Nyx", "Otto", "Piper", "Quill", "Rex", "Soren", "Tova",
+  "Umber", "Veda", "Wynn", "Xena", "York", "Zephyr", "Arden", "Bliss",
 ];
 
 const LAST_NAMES = [
@@ -56,10 +92,15 @@ const LAST_NAMES = [
   "Tanaka", "Costa", "Russo", "Novak", "Johansson", "Andersen", "Okafor",
   "Nguyen", "Patel", "Santos", "Meyer", "Yamamoto", "Rivera", "Kowalski",
   "Larsen", "Dubois", "Torres", "Fischer", "Nakamura", "Ferreira", "Weber",
-  "Sato", "Ivanov", "Moreau", "Hansen", "Rossi", "Berg",
+  "Sato", "Ivanov", "Moreau", "Hansen", "Rossi", "Berg", "Volkov", "Ortiz",
+  "Hernandez", "Schmidt", "Takahashi", "Petrov", "Kato", "Bianchi", "Lam",
+  "Eriksson", "Popov", "Suzuki", "Jansen", "Fernandez", "Nilsson", "Aoki",
+  "Greco", "Medvedev", "Watanabe", "Hartmann", "Delgado", "Morita", "Kozlov",
+  "Colombo", "Lindgren", "Shimizu", "Sousa", "Bergman", "Inoue", "Strauss",
 ];
 
-const VIDEO_COUNT = 10_000;
+const SHORTS_RATIO = 0.35;
+const VIDEO_COUNT = 30_000;
 const SEED = 42;
 
 export function generateMockBlocks(): Block[] {
@@ -69,16 +110,20 @@ export function generateMockBlocks(): Block[] {
   const raw: Array<{
     vid: string; firstName: string; lastName: string;
     likes: number; dislikes: number; claimedAt: number;
+    isShort: boolean;
   }> = [];
 
   for (let i = 0; i < VIDEO_COUNT; i++) {
-    const vid = YOUTUBE_IDS[Math.floor(rng() * YOUTUBE_IDS.length)];
+    const isShort = rng() < SHORTS_RATIO;
+    const vid = isShort
+      ? YOUTUBE_SHORT_IDS[Math.floor(rng() * YOUTUBE_SHORT_IDS.length)]
+      : YOUTUBE_IDS[Math.floor(rng() * YOUTUBE_IDS.length)];
     const firstName = FIRST_NAMES[Math.floor(rng() * FIRST_NAMES.length)];
     const lastName = LAST_NAMES[Math.floor(rng() * LAST_NAMES.length)];
     const likes = Math.floor(rng() * 50_000);
     const dislikes = Math.floor(rng() * likes * 0.3);
     const claimedAt = Date.now() - Math.floor(rng() * 86_400_000 * 30);
-    raw.push({ vid, firstName, lastName, likes, dislikes, claimedAt });
+    raw.push({ vid, firstName, lastName, likes, dislikes, claimedAt, isShort });
   }
 
   // 2. Sort by net score descending — highest score goes to center
@@ -89,7 +134,7 @@ export function generateMockBlocks(): Block[] {
   const coords = batchSpiralCoordinates(raw.length);
 
   for (let i = 0; i < raw.length; i++) {
-    const { vid, firstName, lastName, likes, dislikes, claimedAt } = raw[i];
+    const { vid, firstName, lastName, likes, dislikes, claimedAt, isShort } = raw[i];
     const coord = coords[i];
     const gx = coord.x;
     const gy = coord.y;
@@ -99,9 +144,11 @@ export function generateMockBlocks(): Block[] {
       id,
       x: gx,
       y: gy,
-      videoUrl: `https://youtube.com/watch?v=${vid}`,
+      videoUrl: isShort
+        ? `https://youtube.com/shorts/${vid}`
+        : `https://youtube.com/watch?v=${vid}`,
       thumbnailUrl: `https://img.youtube.com/vi/${vid}/mqdefault.jpg`,
-      platform: Platform.YouTube,
+      platform: isShort ? Platform.YouTubeShort : Platform.YouTube,
       ownerIdentity: `user_${i}`,
       ownerName: `${firstName} ${lastName}`,
       likes,

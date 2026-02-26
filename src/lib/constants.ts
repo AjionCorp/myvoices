@@ -45,9 +45,10 @@ export enum ContestStatus {
 // Ads form rectangular rings around the content spiral.
 // Ring distances from center (in grid cells). Each ring places ads
 // at corners and evenly along edges of a rectangle at that distance.
+// Rings are tightly spaced so ads surround content at each level.
 
-const AD_RING_DISTANCES = [8, 16, 25, 35, 50];
-const AD_EDGE_SPACING = 6;
+export const AD_RING_DISTANCES = [4, 8, 13, 19, 26, 34, 43, 53, 64, 76];
+const AD_EDGE_SPACING = 3;
 
 function buildAdSlots(): Set<string> {
   const slots = new Set<string>();
@@ -85,4 +86,17 @@ export function getAdSlots(): Array<{ col: number; row: number }> {
     result.push({ col: c, row: r });
   }
   return result;
+}
+
+/**
+ * Returns the 0-based ad ring index for a given cell, or -1 if not an ad slot.
+ * Ring 0 is the innermost (closest to center).
+ */
+export function getAdRingIndex(col: number, row: number): number {
+  if (!AD_SLOT_SET.has(`${col},${row}`)) return -1;
+  const cheb = Math.max(Math.abs(col - CENTER_X), Math.abs(row - CENTER_Y));
+  for (let i = 0; i < AD_RING_DISTANCES.length; i++) {
+    if (AD_RING_DISTANCES[i] === cheb) return i;
+  }
+  return -1;
 }

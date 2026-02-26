@@ -16,7 +16,7 @@ in vec2 a_off;
 in float a_slot;
 in float a_scale;
 in vec4 a_col;
-in vec4 a_uv; // u0, v0, u1, v1
+in vec4 a_uv;
 uniform vec2 u_scr, u_pan, u_tile;
 uniform float u_zoom;
 out vec2 v_uv;
@@ -367,10 +367,9 @@ export class TileRenderer {
         this.iData[o]     = t.col * TILE_WIDTH + TILE_GAP * 0.5;
         this.iData[o + 1] = t.row * TILE_HEIGHT + TILE_GAP * 0.5;
         this.iData[o + 2] = -1;
-        this.iData[o + 3] = 1;
+        this.iData[o + 3] = t.scale ?? 1;
         this.iData[o + 4] = t.r; this.iData[o + 5] = t.g;
         this.iData[o + 6] = t.b; this.iData[o + 7] = 1;
-        // UV not used for solid tiles, but must fill the stride
         this.iData[o + 8] = 0; this.iData[o + 9] = 0;
         this.iData[o + 10] = 1; this.iData[o + 11] = 1;
       }
@@ -401,6 +400,33 @@ export class TileRenderer {
     gl.uniform1f(this.hBw, 1.5);
     gl.bindVertexArray(this.hVao);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.bindVertexArray(null);
+  }
+
+  drawBorders(
+    borders: readonly BorderTile[],
+    panX: number, panY: number, zoom: number,
+  ) {
+    if (borders.length === 0) return;
+    const gl = this.gl;
+    const cw = this.canvas.width, ch = this.canvas.height;
+    const d = this.dpr;
+    gl.useProgram(this.hProg);
+    gl.uniform2f(this.hScr, cw, ch);
+    gl.uniform2f(this.hPan, panX * d, panY * d);
+    gl.uniform1f(this.hZoom, zoom * d);
+    gl.uniform2f(this.hTile, INNER_W, INNER_H);
+    gl.bindVertexArray(this.hVao);
+
+    for (const b of borders) {
+      gl.uniform2f(this.hOff, b.col * TILE_WIDTH + TILE_GAP * 0.5, b.row * TILE_HEIGHT + TILE_GAP * 0.5);
+      gl.uniform1f(this.hScale, 1.0);
+      gl.uniform1f(this.hAlpha, 1.0);
+      gl.uniform4f(this.hBc, b.r, b.g, b.b, 1.0);
+      gl.uniform1f(this.hBw, b.width);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
+
     gl.bindVertexArray(null);
   }
 
@@ -440,4 +466,12 @@ export interface SolidTile {
   col: number;
   row: number;
   r: number; g: number; b: number;
+  scale?: number;
+}
+
+export interface BorderTile {
+  col: number;
+  row: number;
+  r: number; g: number; b: number;
+  width: number;
 }

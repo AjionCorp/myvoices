@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useBlocksStore } from "@/stores/blocks-store";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { Platform } from "@/lib/constants";
+import { Platform, CENTER_X, CENTER_Y, GRID_COLS } from "@/lib/constants";
 import { getYouTubeEmbedUrl, extractYouTubeId } from "@/lib/utils/youtube";
 import { getTikTokEmbedUrl, extractTikTokId } from "@/lib/utils/tiktok";
 
@@ -141,7 +141,10 @@ export function BlockDetailPanel() {
       <div className="pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={close}>
         <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
           <div className="mb-3 flex items-center justify-between">
-            <span className="rounded-md bg-yellow-500/20 px-2 py-0.5 text-xs font-medium text-yellow-400">Sponsored</span>
+            <div className="flex items-center gap-2">
+              <span className="rounded-md bg-yellow-500/20 px-2 py-0.5 text-xs font-medium text-yellow-400">Sponsored</span>
+              <span className="text-[11px] text-muted">({block.x - CENTER_X}, {block.y - CENTER_Y}) &middot; Ring {Math.max(Math.abs(block.x - CENTER_X), Math.abs(block.y - CENTER_Y))}</span>
+            </div>
             <CloseBtn onClick={close} />
           </div>
           {block.adImageUrl && <img src={block.adImageUrl} alt="Ad" className="mb-3 w-full rounded-lg" />}
@@ -199,7 +202,7 @@ export function BlockDetailPanel() {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-foreground">{block.ownerName || "Anonymous"}</p>
               <p className="text-xs text-muted">
-                Block #{block.id} &middot; {block.platform?.replace("_", " ")} &middot; Score {(block.likes - block.dislikes).toLocaleString()}
+                Block #{block.id} &middot; ({block.x - CENTER_X}, {block.y - CENTER_Y}) &middot; Ring {Math.max(Math.abs(block.x - CENTER_X), Math.abs(block.y - CENTER_Y))} &middot; {block.platform?.replace("_", " ")} &middot; Score {(block.likes - block.dislikes).toLocaleString()}
               </p>
             </div>
             <a href={block.videoUrl || "#"} target="_blank" rel="noopener noreferrer"

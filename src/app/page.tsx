@@ -42,15 +42,27 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    const mockBlocks = generateMockBlocks();
-    setBlocks(mockBlocks);
+    let cancelled = false;
+    const { setLoading } = useBlocksStore.getState();
+    setLoading(true);
 
-    const claimed = mockBlocks.filter((b) => b.status === BlockStatus.Claimed);
-    const totalLikes = claimed.reduce((sum, b) => sum + b.likes, 0);
-    setStats(claimed.length, totalLikes);
+    // Defer heavy generation so the first paint + event listeners are set up first
+    requestAnimationFrame(() => {
+      if (cancelled) return;
+      const mockBlocks = generateMockBlocks();
+      if (cancelled) return;
+      setBlocks(mockBlocks);
 
-    const top = [...claimed].sort((a, b) => (b.likes - b.dislikes) - (a.likes - a.dislikes)).slice(0, 10);
-    setTopBlocks(top);
+      const claimed = mockBlocks.filter((b) => b.status === BlockStatus.Claimed);
+      const totalLikes = claimed.reduce((sum, b) => sum + b.likes, 0);
+      setStats(claimed.length, totalLikes);
+
+      const top = [...claimed].sort((a, b) => (b.likes - b.dislikes) - (a.likes - a.dislikes)).slice(0, 10);
+      setTopBlocks(top);
+      setLoading(false);
+    });
+
+    return () => { cancelled = true; };
   }, [setBlocks, setStats, setTopBlocks]);
 
   useEffect(() => {

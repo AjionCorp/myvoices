@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { videoUrlSchema, detectPlatform } from "@/lib/utils/validation";
-import { GRID_COLS } from "@/lib/constants";
+import { GRID_COLS, CENTER_X, CENTER_Y } from "@/lib/constants";
 import { extractYouTubeId, getYouTubeThumbnail, isYouTubeShort } from "@/lib/utils/youtube";
 import { isTikTokUrl } from "@/lib/utils/tiktok";
 
@@ -134,7 +134,7 @@ export function SubmissionModal() {
               Claim Block #{submissionBlockId}
             </h2>
             <p className="text-xs text-muted">
-              Position ({submissionBlockId % GRID_COLS}, {Math.floor(submissionBlockId / GRID_COLS)})
+              Position ({submissionBlockId % GRID_COLS - CENTER_X}, {Math.floor(submissionBlockId / GRID_COLS) - CENTER_Y})
             </p>
           </div>
           <button

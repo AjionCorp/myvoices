@@ -7,8 +7,8 @@ const GRID_ROWS: i32 = 800;
 const CENTER_X: i32 = GRID_COLS / 2;
 const CENTER_Y: i32 = GRID_ROWS / 2;
 
-const AD_RING_DISTANCES: &[i32] = &[8, 16, 25, 35, 50];
-const AD_EDGE_SPACING: i32 = 6;
+const AD_RING_DISTANCES: &[i32] = &[4, 8, 13, 19, 26, 34, 43, 53, 64, 76];
+const AD_EDGE_SPACING: i32 = 3;
 
 fn is_ad_slot(col: i32, row: i32) -> bool {
     for &d in AD_RING_DISTANCES {
