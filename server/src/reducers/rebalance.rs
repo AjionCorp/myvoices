@@ -1,5 +1,4 @@
-use spacetimedb::reducer;
-use spacetimedb::ReducerContext;
+use spacetimedb::{reducer, ReducerContext, Table};
 use crate::tables::*;
 
 const GRID_COLS: i32 = 1250;
@@ -12,13 +11,11 @@ const AD_EDGE_SPACING: i32 = 3;
 
 fn is_ad_slot(col: i32, row: i32) -> bool {
     for &d in AD_RING_DISTANCES {
-        // Corners
         if (col == CENTER_X - d || col == CENTER_X + d)
             && (row == CENTER_Y - d || row == CENTER_Y + d)
         {
             return true;
         }
-        // Top and bottom edges
         if row == CENTER_Y - d || row == CENTER_Y + d {
             let dx = col - CENTER_X;
             if dx > -d + AD_EDGE_SPACING
@@ -28,7 +25,6 @@ fn is_ad_slot(col: i32, row: i32) -> bool {
                 return true;
             }
         }
-        // Left and right edges
         if col == CENTER_X - d || col == CENTER_X + d {
             let dy = row - CENTER_Y;
             if dy > -d + AD_EDGE_SPACING
@@ -42,7 +38,6 @@ fn is_ad_slot(col: i32, row: i32) -> bool {
     false
 }
 
-/// Spiral coordinate generator that skips ad-reserved positions.
 fn spiral_coord_skip_ads(index: usize) -> (i32, i32) {
     let mut x: i32 = 0;
     let mut y: i32 = 0;
@@ -55,7 +50,6 @@ fn spiral_coord_skip_ads(index: usize) -> (i32, i32) {
     let cx = CENTER_X;
     let cy = CENTER_Y;
 
-    // Check position 0 (center)
     let mut placed = 0usize;
     if !is_ad_slot(cx, cy) {
         if placed == index {
@@ -97,11 +91,9 @@ fn spiral_coord_skip_ads(index: usize) -> (i32, i32) {
     (cx, cy)
 }
 
-/// Rebalances claimed blocks by net score (likes - dislikes),
-/// placing highest-scored at center, skipping ad slots.
 #[reducer]
 pub fn rebalance_layout(ctx: &ReducerContext, batch_size: u32) -> Result<(), String> {
-    let caller = ctx.sender().to_hex();
+    let caller = ctx.sender().to_hex().to_string();
     let user = ctx.db.user_profile().identity().find(caller);
     if !user.map(|u| u.is_admin).unwrap_or(false) {
         return Err("Only admins can trigger rebalance".to_string());
@@ -125,11 +117,11 @@ pub fn rebalance_layout(ctx: &ReducerContext, batch_size: u32) -> Result<(), Str
         let (new_x, new_y) = spiral_coord_skip_ads(i);
         if block.x != new_x || block.y != new_y {
             ctx.db.block().id().delete(block.id);
-            ctx.db.block().insert(Block {
+            ctx.db.block().try_insert(Block {
                 x: new_x,
                 y: new_y,
                 ..block.clone()
-            });
+            }).map_err(|e| format!("Insert failed: {e}"))?;
         }
     }
 

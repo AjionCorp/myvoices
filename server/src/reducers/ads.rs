@@ -1,8 +1,11 @@
-use spacetimedb::reducer;
-use spacetimedb::ReducerContext;
+use spacetimedb::{reducer, ReducerContext, Table};
 use crate::tables::*;
 
 const GRID_COLS: u32 = 1250;
+
+fn now_micros(ctx: &ReducerContext) -> u64 {
+    ctx.timestamp.to_micros_since_unix_epoch() as u64
+}
 
 #[reducer]
 pub fn place_ad(
@@ -12,7 +15,7 @@ pub fn place_ad(
     ad_link_url: String,
     duration_days: u64,
 ) -> Result<(), String> {
-    let caller = ctx.sender().to_hex();
+    let caller = ctx.sender().to_hex().to_string();
     let user = ctx
         .db
         .user_profile()
@@ -36,10 +39,10 @@ pub fn place_ad(
         }
     }
 
-    let now = ctx.timestamp.to_micros_since_epoch();
+    let now = now_micros(ctx);
     let expires = now + duration_days * 86_400_000_000;
 
-    ctx.db.ad_placement().insert(AdPlacement {
+    ctx.db.ad_placement().try_insert(AdPlacement {
         id: 0,
         block_ids_json: block_ids_json.clone(),
         ad_image_url: ad_image_url.clone(),
@@ -48,11 +51,11 @@ pub fn place_ad(
         paid: false,
         created_at: now,
         expires_at: expires,
-    });
+    }).map_err(|e| format!("Insert failed: {e}"))?;
 
     for &bid in &block_ids {
         ctx.db.block().id().delete(bid);
-        ctx.db.block().insert(Block {
+        ctx.db.block().try_insert(Block {
             id: bid,
             x: (bid % GRID_COLS) as i32,
             y: (bid / GRID_COLS) as i32,
@@ -67,7 +70,7 @@ pub fn place_ad(
             ad_image_url: ad_image_url.clone(),
             ad_link_url: ad_link_url.clone(),
             claimed_at: now,
-        });
+        }).map_err(|e| format!("Insert failed: {e}"))?;
     }
 
     Ok(())
@@ -75,7 +78,7 @@ pub fn place_ad(
 
 #[reducer]
 pub fn remove_ad(ctx: &ReducerContext, ad_id: u64) -> Result<(), String> {
-    let caller = ctx.sender().to_hex();
+    let caller = ctx.sender().to_hex().to_string();
     let user = ctx.db.user_profile().identity().find(caller);
     if !user.map(|u| u.is_admin).unwrap_or(false) {
         return Err("Only admins can remove ads".to_string());
@@ -93,7 +96,7 @@ pub fn remove_ad(ctx: &ReducerContext, ad_id: u64) -> Result<(), String> {
 
     for &bid in &block_ids {
         ctx.db.block().id().delete(bid);
-        ctx.db.block().insert(Block {
+        ctx.db.block().try_insert(Block {
             id: bid,
             x: (bid % GRID_COLS) as i32,
             y: (bid / GRID_COLS) as i32,
@@ -108,7 +111,7 @@ pub fn remove_ad(ctx: &ReducerContext, ad_id: u64) -> Result<(), String> {
             ad_image_url: String::new(),
             ad_link_url: String::new(),
             claimed_at: 0,
-        });
+        }).map_err(|e| format!("Insert failed: {e}"))?;
     }
 
     ctx.db.ad_placement().id().delete(ad_id);
@@ -117,7 +120,7 @@ pub fn remove_ad(ctx: &ReducerContext, ad_id: u64) -> Result<(), String> {
 
 #[reducer]
 pub fn mark_ad_paid(ctx: &ReducerContext, ad_id: u64) -> Result<(), String> {
-    let caller = ctx.sender().to_hex();
+    let caller = ctx.sender().to_hex().to_string();
     let user = ctx.db.user_profile().identity().find(caller);
     if !user.map(|u| u.is_admin).unwrap_or(false) {
         return Err("Only admins can mark ads as paid".to_string());
@@ -131,10 +134,10 @@ pub fn mark_ad_paid(ctx: &ReducerContext, ad_id: u64) -> Result<(), String> {
         .ok_or("Ad not found")?;
 
     ctx.db.ad_placement().id().delete(ad_id);
-    ctx.db.ad_placement().insert(AdPlacement {
+    ctx.db.ad_placement().try_insert(AdPlacement {
         paid: true,
         ..ad
-    });
+    }).map_err(|e| format!("Insert failed: {e}"))?;
 
     Ok(())
 }

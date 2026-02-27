@@ -1,4 +1,4 @@
-use spacetimedb::{table, Identity, Timestamp};
+use spacetimedb::table;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Platform {
@@ -22,7 +22,8 @@ pub enum ContestStatus {
     Completed,
 }
 
-#[table(name = block, public)]
+#[table(accessor = block, public)]
+#[derive(Clone)]
 pub struct Block {
     #[primary_key]
     pub id: u32,
@@ -41,7 +42,8 @@ pub struct Block {
     pub claimed_at: u64,
 }
 
-#[table(name = user_profile, public)]
+#[table(accessor = user_profile, public)]
+#[derive(Clone)]
 pub struct UserProfile {
     #[primary_key]
     pub identity: String,
@@ -53,7 +55,7 @@ pub struct UserProfile {
     pub created_at: u64,
 }
 
-#[table(name = like_record, public)]
+#[table(accessor = like_record, public)]
 pub struct LikeRecord {
     #[primary_key]
     #[auto_inc]
@@ -63,7 +65,7 @@ pub struct LikeRecord {
     pub created_at: u64,
 }
 
-#[table(name = dislike_record, public)]
+#[table(accessor = dislike_record, public)]
 pub struct DislikeRecord {
     #[primary_key]
     #[auto_inc]
@@ -73,7 +75,8 @@ pub struct DislikeRecord {
     pub created_at: u64,
 }
 
-#[table(name = ad_placement, public)]
+#[table(accessor = ad_placement, public)]
+#[derive(Clone)]
 pub struct AdPlacement {
     #[primary_key]
     #[auto_inc]
@@ -87,7 +90,8 @@ pub struct AdPlacement {
     pub expires_at: u64,
 }
 
-#[table(name = contest, public)]
+#[table(accessor = contest, public)]
+#[derive(Clone)]
 pub struct Contest {
     #[primary_key]
     #[auto_inc]
@@ -98,7 +102,7 @@ pub struct Contest {
     pub status: String,
 }
 
-#[table(name = transaction_log, public)]
+#[table(accessor = transaction_log, public)]
 pub struct TransactionLog {
     #[primary_key]
     #[auto_inc]
@@ -112,7 +116,19 @@ pub struct TransactionLog {
     pub created_at: u64,
 }
 
-#[table(name = contest_winner, public)]
+#[table(accessor = comment, public)]
+pub struct Comment {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub block_id: u32,
+    pub user_identity: String,
+    pub user_name: String,
+    pub text: String,
+    pub created_at: u64,
+}
+
+#[table(accessor = contest_winner, public)]
 pub struct ContestWinner {
     #[primary_key]
     #[auto_inc]

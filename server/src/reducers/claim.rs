@@ -1,8 +1,11 @@
-use spacetimedb::reducer;
-use spacetimedb::ReducerContext;
+use spacetimedb::{reducer, ReducerContext, Table};
 use crate::tables::*;
 
 const GRID_COLS: u32 = 1250;
+
+fn now_micros(ctx: &ReducerContext) -> u64 {
+    ctx.timestamp.to_micros_since_unix_epoch() as u64
+}
 
 #[reducer]
 pub fn claim_block(
@@ -13,7 +16,7 @@ pub fn claim_block(
     platform: String,
     owner_name: String,
 ) -> Result<(), String> {
-    let caller = ctx.sender().to_hex();
+    let caller = ctx.sender().to_hex().to_string();
 
     let existing = ctx.db.block().id().find(block_id);
     if let Some(block) = existing {
@@ -23,7 +26,7 @@ pub fn claim_block(
         ctx.db.block().id().delete(block_id);
     }
 
-    ctx.db.block().insert(Block {
+    ctx.db.block().try_insert(Block {
         id: block_id,
         x: (block_id % GRID_COLS) as i32,
         y: (block_id / GRID_COLS) as i32,
@@ -37,15 +40,15 @@ pub fn claim_block(
         status: "claimed".to_string(),
         ad_image_url: String::new(),
         ad_link_url: String::new(),
-        claimed_at: ctx.timestamp.to_micros_since_epoch(),
-    });
+        claimed_at: now_micros(ctx),
+    }).map_err(|e| format!("Insert failed: {e}"))?;
 
     Ok(())
 }
 
 #[reducer]
 pub fn unclaim_block(ctx: &ReducerContext, block_id: u32) -> Result<(), String> {
-    let caller = ctx.sender().to_hex();
+    let caller = ctx.sender().to_hex().to_string();
 
     let block = ctx
         .db
@@ -62,7 +65,7 @@ pub fn unclaim_block(ctx: &ReducerContext, block_id: u32) -> Result<(), String> 
     }
 
     ctx.db.block().id().delete(block_id);
-    ctx.db.block().insert(Block {
+    ctx.db.block().try_insert(Block {
         id: block_id,
         x: block.x,
         y: block.y,
@@ -77,7 +80,7 @@ pub fn unclaim_block(ctx: &ReducerContext, block_id: u32) -> Result<(), String> 
         ad_image_url: String::new(),
         ad_link_url: String::new(),
         claimed_at: 0,
-    });
+    }).map_err(|e| format!("Insert failed: {e}"))?;
 
     Ok(())
 }

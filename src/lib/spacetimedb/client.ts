@@ -1,22 +1,9 @@
-/**
- * SpacetimeDB 2 client connection manager.
- *
- * This module owns the singleton DbConnection and exposes helpers
- * for connecting, disconnecting, and accessing the connection from
- * anywhere in the app (stores, components, etc.).
- *
- * Generated module bindings are expected at `@/module_bindings`.
- * Run:  spacetime generate --lang typescript \
- *         --out-dir src/module_bindings \
- *         --module-path server
- */
-
-import { DbConnection, tables } from "@/module_bindings";
-import { Identity } from "spacetimedb";
+import { DbConnection } from "@/module_bindings";
+import type { Identity } from "spacetimedb";
 import { useAuthStore } from "@/stores/auth-store";
 
 const SPACETIMEDB_URI =
-  process.env.NEXT_PUBLIC_SPACETIMEDB_URI || "ws://localhost:3000";
+  process.env.NEXT_PUBLIC_SPACETIMEDB_URI || "wss://maincloud.spacetimedb.com";
 const SPACETIMEDB_MODULE =
   process.env.NEXT_PUBLIC_SPACETIMEDB_MODULE || "myvoice";
 
@@ -55,21 +42,20 @@ export type ConnectionCallbacks = {
   onConnectError?: (error: Error) => void;
 };
 
-/**
- * Connect to SpacetimeDB. Returns the existing connection if already
- * connected, or creates a new one.  Safe to call multiple times.
- */
-export function connect(callbacks?: ConnectionCallbacks): Promise<DbConnection> {
+export function connect(
+  callbacks?: ConnectionCallbacks,
+  oidcToken?: string | null
+): Promise<DbConnection> {
   if (connection) return Promise.resolve(connection);
   if (connectionPromise) return connectionPromise;
 
   connectionPromise = new Promise<DbConnection>((resolve, reject) => {
-    const storedToken = getStoredToken();
+    const tokenToUse = oidcToken || getStoredToken();
 
     const builder = DbConnection.builder()
       .withUri(SPACETIMEDB_URI)
       .withDatabaseName(SPACETIMEDB_MODULE)
-      .onConnect((conn, identity, token) => {
+      .onConnect((conn: DbConnection, identity: Identity, token: string) => {
         connection = conn;
         persistToken(token);
         useAuthStore.getState().setToken(token);
@@ -79,14 +65,7 @@ export function connect(callbacks?: ConnectionCallbacks): Promise<DbConnection> 
           .onApplied(() => {
             callbacks?.onConnect?.(conn, identity, token);
           })
-          .subscribe([
-            tables.block,
-            tables.userProfile,
-            tables.contest,
-            tables.contestWinner,
-            tables.likeRecord,
-            tables.adPlacement,
-          ]);
+          .subscribeToAllTables();
 
         resolve(conn);
       })
@@ -95,14 +74,14 @@ export function connect(callbacks?: ConnectionCallbacks): Promise<DbConnection> 
         connectionPromise = null;
         callbacks?.onDisconnect?.();
       })
-      .onConnectError((_ctx, error) => {
+      .onConnectError((_ctx: unknown, error: Error) => {
         connectionPromise = null;
         callbacks?.onConnectError?.(error);
         reject(error);
       });
 
-    if (storedToken) {
-      builder.withToken(storedToken);
+    if (tokenToUse) {
+      builder.withToken(tokenToUse);
     }
 
     builder.build();

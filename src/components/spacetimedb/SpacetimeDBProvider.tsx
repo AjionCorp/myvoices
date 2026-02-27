@@ -5,7 +5,9 @@ import { connect, disconnect, type ConnectionCallbacks } from "@/lib/spacetimedb
 import { useBlocksStore, type Block as StoreBlock } from "@/stores/blocks-store";
 import { useContestStore } from "@/stores/contest-store";
 import { useAuthStore } from "@/stores/auth-store";
+import { useCommentsStore } from "@/stores/comments-store";
 import { BlockStatus, type Platform, rebuildAdLayout } from "@/lib/constants";
+import { useAuth } from "@/components/auth/AuthProvider";
 import type { DbConnection } from "@/module_bindings";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -28,6 +30,16 @@ function mapBlock(row: any): StoreBlock {
   };
 }
 
+let statsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function debouncedRecomputeStats() {
+  if (statsDebounceTimer) return;
+  statsDebounceTimer = setTimeout(() => {
+    statsDebounceTimer = null;
+    recomputeStats();
+  }, 200);
+}
+
 function recomputeStats() {
   const { blocks, setStats, setTopBlocks } = useBlocksStore.getState();
   const claimed: StoreBlock[] = [];
@@ -44,25 +56,73 @@ function recomputeStats() {
   setTopBlocks(top);
 }
 
+function bulkLoadBlocks(conn: DbConnection) {
+  const allBlocks: StoreBlock[] = [];
+  for (const row of conn.db.block.iter()) {
+    allBlocks.push(mapBlock(row));
+  }
+
+  if (allBlocks.length > 0) {
+    console.log(`[SpacetimeDB] Bulk loading ${allBlocks.length} blocks`);
+    useBlocksStore.getState().setBlocks(allBlocks);
+    recomputeStats();
+    useBlocksStore.getState().setLoading(false);
+  } else {
+    useBlocksStore.getState().setLoading(false);
+  }
+}
+
+function bulkLoadComments(conn: DbConnection) {
+  const all: Array<{ id: number; blockId: number; userIdentity: string; userName: string; text: string; createdAt: number }> = [];
+  for (const row of conn.db.comment.iter()) {
+    all.push({
+      id: Number(row.id),
+      blockId: row.blockId,
+      userIdentity: row.userIdentity,
+      userName: row.userName,
+      text: row.text,
+      createdAt: Number(row.createdAt),
+    });
+  }
+  if (all.length > 0) {
+    useCommentsStore.getState().setComments(all);
+  }
+}
+
 function registerTableCallbacks(conn: DbConnection) {
   const { setBlock } = useBlocksStore.getState();
   const { setActiveContest, setWinners } = useContestStore.getState();
 
   conn.db.block.onInsert((_ctx, row) => {
     setBlock(mapBlock(row));
-    recomputeStats();
+    debouncedRecomputeStats();
   });
 
   conn.db.block.onUpdate((_ctx, _old, row) => {
     setBlock(mapBlock(row));
-    recomputeStats();
+    debouncedRecomputeStats();
   });
 
   conn.db.block.onDelete((_ctx, row) => {
     const { blocks } = useBlocksStore.getState();
     blocks.delete(row.id);
     useBlocksStore.setState({ blocks });
-    recomputeStats();
+    debouncedRecomputeStats();
+  });
+
+  conn.db.comment.onInsert((_ctx, row) => {
+    useCommentsStore.getState().addComment({
+      id: Number(row.id),
+      blockId: row.blockId,
+      userIdentity: row.userIdentity,
+      userName: row.userName,
+      text: row.text,
+      createdAt: Number(row.createdAt),
+    });
+  });
+
+  conn.db.comment.onDelete((_ctx, row) => {
+    useCommentsStore.getState().removeComment(Number(row.id));
   });
 
   conn.db.contest.onInsert((_ctx, row) => {
@@ -72,6 +132,7 @@ function registerTableCallbacks(conn: DbConnection) {
         startAt: Number(row.startAt),
         endAt: Number(row.endAt),
         prizePool: Number(row.prizePool),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         status: row.status as any,
       });
     }
@@ -83,11 +144,12 @@ function registerTableCallbacks(conn: DbConnection) {
       startAt: Number(row.startAt),
       endAt: Number(row.endAt),
       prizePool: Number(row.prizePool),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       status: row.status as any,
     });
   });
 
-  conn.db.contestWinner.onInsert((_ctx, row) => {
+  conn.db.contest_winner.onInsert((_ctx, row) => {
     const { winners } = useContestStore.getState();
     setWinners([
       ...winners,
@@ -105,11 +167,9 @@ function registerTableCallbacks(conn: DbConnection) {
     ]);
   });
 
-  conn.db.userProfile.onInsert((ctx, row) => {
-    if (
-      ctx.event.tag === "Reducer" &&
-      row.identity === useAuthStore.getState().user?.identity
-    ) {
+  conn.db.user_profile.onInsert((_ctx, row) => {
+    const currentUser = useAuthStore.getState().user;
+    if (currentUser && row.identity === currentUser.identity) {
       useAuthStore.getState().setUser({
         identity: row.identity,
         displayName: row.displayName,
@@ -121,7 +181,7 @@ function registerTableCallbacks(conn: DbConnection) {
     }
   });
 
-  conn.db.userProfile.onUpdate((_ctx, _old, row) => {
+  conn.db.user_profile.onUpdate((_ctx, _old, row) => {
     const currentUser = useAuthStore.getState().user;
     if (currentUser && row.identity === currentUser.identity) {
       useAuthStore.getState().setUser({
@@ -138,6 +198,7 @@ function registerTableCallbacks(conn: DbConnection) {
 
 export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
   const didConnect = useRef(false);
+  const { oidcToken } = useAuth();
 
   useEffect(() => {
     if (didConnect.current) return;
@@ -147,17 +208,21 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
       onConnect: (conn, identity, token) => {
         console.log("[SpacetimeDB] connected as", identity.toHexString());
         registerTableCallbacks(conn);
+        bulkLoadBlocks(conn);
+        bulkLoadComments(conn);
 
-        const profile = conn.db.userProfile.identity.find(identity.toHexString());
+        const profile = conn.db.user_profile.identity.find(identity.toHexString());
         if (profile) {
-          useAuthStore.getState().setUser({
+          const userData = {
             identity: profile.identity,
             displayName: profile.displayName,
             email: profile.email || null,
             stripeAccountId: profile.stripeAccountId || null,
             totalEarnings: Number(profile.totalEarnings),
             isAdmin: profile.isAdmin,
-          });
+          };
+          useAuthStore.getState().setUser(userData);
+          localStorage.setItem("spacetimedb_user", JSON.stringify(userData));
         } else {
           useAuthStore.getState().setLoading(false);
         }
@@ -173,29 +238,16 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
       },
     };
 
-    try {
-      connect(callbacks).catch((err) => {
-        if (String(err).includes("Stub module_bindings")) {
-          console.info("[SpacetimeDB] Using stub bindings — skipping real-time connection. Run `spacetime generate` to enable.");
-        } else {
-          console.error("[SpacetimeDB] failed to connect:", err);
-        }
-      });
-    } catch (err) {
-      if (String(err).includes("Stub module_bindings")) {
-        console.info("[SpacetimeDB] Using stub bindings — skipping real-time connection.");
-      } else {
-        console.error("[SpacetimeDB] connect error:", err);
-      }
-      didConnect.current = false;
+    connect(callbacks, oidcToken).catch((err) => {
+      console.error("[SpacetimeDB] failed to connect:", err);
       useAuthStore.getState().setLoading(false);
-    }
+    });
 
     return () => {
       disconnect();
       didConnect.current = false;
     };
-  }, []);
+  }, [oidcToken]);
 
   return <>{children}</>;
 }

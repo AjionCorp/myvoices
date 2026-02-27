@@ -10,10 +10,8 @@ import { BlockDetailPanel } from "@/components/canvas/BlockDetailPanel";
 import { SubmissionModal } from "@/components/canvas/SubmissionModal";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useBlocksStore } from "@/stores/blocks-store";
-import { useContestStore } from "@/stores/contest-store";
 import { useAuthStore } from "@/stores/auth-store";
-import { CENTER_X, CENTER_Y, BlockStatus } from "@/lib/constants";
-import { generateMockBlocks } from "@/lib/mock-data";
+import { CENTER_X, CENTER_Y } from "@/lib/constants";
 import { startViewerSimulation } from "@/stores/viewers-store";
 import { Minimap } from "@/components/canvas/Minimap";
 import { ViewerCursors } from "@/components/canvas/ViewerCursors";
@@ -28,8 +26,7 @@ const VideoCanvas = dynamic(
 
 export default function Home() {
   const { centerOnBlock, selectBlock, screenWidth } = useCanvasStore();
-  const { setBlocks, setStats, setTopBlocks } = useBlocksStore();
-  const { setWinners } = useContestStore();
+  const loading = useBlocksStore((s) => s.loading);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -42,38 +39,17 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    const { setLoading } = useBlocksStore.getState();
-    setLoading(true);
-
-    // Defer heavy generation so the first paint + event listeners are set up first
-    requestAnimationFrame(() => {
-      if (cancelled) return;
-      const mockBlocks = generateMockBlocks();
-      if (cancelled) return;
-      setBlocks(mockBlocks);
-
-      const claimed = mockBlocks.filter((b) => b.status === BlockStatus.Claimed);
-      const totalLikes = claimed.reduce((sum, b) => sum + b.likes, 0);
-      setStats(claimed.length, totalLikes);
-
-      const top = [...claimed].sort((a, b) => (b.likes - b.dislikes) - (a.likes - a.dislikes)).slice(0, 10);
-      setTopBlocks(top);
-      setLoading(false);
-
-      const blockParam = new URLSearchParams(window.location.search).get("block");
-      if (blockParam) {
-        const blockId = parseInt(blockParam, 10);
-        const target = useBlocksStore.getState().blocks.get(blockId);
-        if (target) {
-          centerOnBlock(target.x, target.y);
-          selectBlock(blockId);
-        }
+    if (loading) return;
+    const blockParam = new URLSearchParams(window.location.search).get("block");
+    if (blockParam) {
+      const blockId = parseInt(blockParam, 10);
+      const target = useBlocksStore.getState().blocks.get(blockId);
+      if (target) {
+        centerOnBlock(target.x, target.y);
+        selectBlock(blockId);
       }
-    });
-
-    return () => { cancelled = true; };
-  }, [setBlocks, setStats, setTopBlocks, centerOnBlock, selectBlock]);
+    }
+  }, [loading, centerOnBlock, selectBlock]);
 
   useEffect(() => {
     if (screenWidth > 0) {

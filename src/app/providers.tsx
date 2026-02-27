@@ -6,8 +6,8 @@ import { SpacetimeDBProvider } from "@/components/spacetimedb/SpacetimeDBProvide
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <SpacetimeDBProvider>
-      <AuthProvider>{children}</AuthProvider>
-    </SpacetimeDBProvider>
+    <AuthProvider>
+      <SpacetimeDBProvider>{children}</SpacetimeDBProvider>
+    </AuthProvider>
   );
 }
