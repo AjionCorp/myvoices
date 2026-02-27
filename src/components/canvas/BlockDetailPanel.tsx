@@ -5,8 +5,7 @@ import { useCanvasStore } from "@/stores/canvas-store";
 import { useBlocksStore } from "@/stores/blocks-store";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Platform, CENTER_X, CENTER_Y, GRID_COLS } from "@/lib/constants";
-import { getYouTubeEmbedUrl, extractYouTubeId } from "@/lib/utils/youtube";
-import { getTikTokEmbedUrl, extractTikTokId } from "@/lib/utils/tiktok";
+import { getVideoUrl, getThumbnailUrl, getEmbedUrl } from "@/lib/utils/video-url";
 
 interface Comment {
   id: string;
@@ -66,18 +65,9 @@ export function BlockDetailPanel() {
 
   if (selectedBlockId === null || !block || block.status === "empty") return null;
 
-  const getEmbedUrl = (): string | null => {
-    if (!block.videoUrl) return null;
-    if (block.platform === Platform.YouTube || block.platform === Platform.YouTubeShort) {
-      const id = extractYouTubeId(block.videoUrl);
-      return id ? getYouTubeEmbedUrl(id) : null;
-    }
-    if (block.platform === Platform.TikTok) {
-      const id = extractTikTokId(block.videoUrl);
-      return id ? getTikTokEmbedUrl(id) : null;
-    }
-    return null;
-  };
+  const embedUrl = block.videoId && block.platform ? getEmbedUrl(block.videoId, block.platform) : null;
+  const thumbnailUrl = block.videoId && block.platform ? getThumbnailUrl(block.videoId, block.platform) : null;
+  const originalUrl = block.videoId && block.platform ? getVideoUrl(block.videoId, block.platform) : "#";
 
   const handleLike = () => {
     if (!isAuthenticated) { login(); return; }
@@ -161,8 +151,6 @@ export function BlockDetailPanel() {
     );
   }
 
-  const embedUrl = getEmbedUrl();
-
   return (
     <div className="pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={close}>
       <div
@@ -181,8 +169,8 @@ export function BlockDetailPanel() {
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               />
             </div>
-          ) : block.thumbnailUrl ? (
-            <img src={block.thumbnailUrl} alt="Thumbnail" className="aspect-9/16 max-h-[50vh] w-full object-cover" />
+          ) : thumbnailUrl ? (
+            <img src={thumbnailUrl} alt="Thumbnail" className="aspect-9/16 max-h-[50vh] w-full object-cover" />
           ) : (
             <div className="flex aspect-9/16 max-h-[50vh] w-full items-center justify-center bg-surface-light text-sm text-muted">
               No preview
@@ -214,7 +202,7 @@ export function BlockDetailPanel() {
                 ({block.x - CENTER_X}, {block.y - CENTER_Y}) &middot; Score {(block.likes - block.dislikes).toLocaleString()} &middot; Ring {Math.max(Math.abs(block.x - CENTER_X), Math.abs(block.y - CENTER_Y))} &middot; {block.platform?.replace("_", " ")}
               </p>
             </div>
-            <a href={block.videoUrl || "#"} target="_blank" rel="noopener noreferrer"
+            <a href={originalUrl} target="_blank" rel="noopener noreferrer"
               className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-accent-light">
               Watch Original
             </a>

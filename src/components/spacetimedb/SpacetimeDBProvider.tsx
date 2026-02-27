@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { connect, disconnect, type ConnectionCallbacks } from "@/lib/spacetimedb/client";
+import { connect, disconnect, reconnect, type ConnectionCallbacks } from "@/lib/spacetimedb/client";
 import { useBlocksStore, type Block as StoreBlock } from "@/stores/blocks-store";
 import { useContestStore } from "@/stores/contest-store";
 import { useAuthStore } from "@/stores/auth-store";
@@ -16,8 +16,7 @@ function mapBlock(row: any): StoreBlock {
     id: row.id,
     x: row.x,
     y: row.y,
-    videoUrl: row.videoUrl || null,
-    thumbnailUrl: row.thumbnailUrl || null,
+    videoId: row.videoId || null,
     platform: (row.platform || null) as Platform | null,
     ownerIdentity: row.ownerIdentity || null,
     ownerName: row.ownerName || null,
@@ -155,8 +154,7 @@ function registerTableCallbacks(conn: DbConnection) {
       ...winners,
       {
         blockId: row.blockId,
-        videoUrl: row.videoUrl,
-        thumbnailUrl: row.thumbnailUrl,
+        videoId: row.videoId,
         platform: row.platform,
         ownerName: row.ownerName,
         ownerIdentity: row.ownerIdentity,
@@ -198,45 +196,48 @@ function registerTableCallbacks(conn: DbConnection) {
 
 export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
   const didConnect = useRef(false);
+  const prevToken = useRef<string | null>(null);
   const { oidcToken } = useAuth();
 
+  const callbacks: ConnectionCallbacks = {
+    onConnect: (conn, identity, token) => {
+      console.log("[SpacetimeDB] connected as", identity.toHexString());
+      registerTableCallbacks(conn);
+      bulkLoadBlocks(conn);
+      bulkLoadComments(conn);
+
+      const profile = conn.db.user_profile.identity.find(identity.toHexString());
+      if (profile) {
+        const userData = {
+          identity: profile.identity,
+          displayName: profile.displayName,
+          email: profile.email || null,
+          stripeAccountId: profile.stripeAccountId || null,
+          totalEarnings: Number(profile.totalEarnings),
+          isAdmin: profile.isAdmin,
+        };
+        useAuthStore.getState().setUser(userData);
+        localStorage.setItem("spacetimedb_user", JSON.stringify(userData));
+      } else {
+        useAuthStore.getState().setLoading(false);
+      }
+    },
+    onDisconnect: () => {
+      console.log("[SpacetimeDB] disconnected");
+      didConnect.current = false;
+    },
+    onConnectError: (error) => {
+      console.error("[SpacetimeDB] connection error:", error);
+      didConnect.current = false;
+      useAuthStore.getState().setLoading(false);
+    },
+  };
+
+  // Initial connection
   useEffect(() => {
     if (didConnect.current) return;
     didConnect.current = true;
-
-    const callbacks: ConnectionCallbacks = {
-      onConnect: (conn, identity, token) => {
-        console.log("[SpacetimeDB] connected as", identity.toHexString());
-        registerTableCallbacks(conn);
-        bulkLoadBlocks(conn);
-        bulkLoadComments(conn);
-
-        const profile = conn.db.user_profile.identity.find(identity.toHexString());
-        if (profile) {
-          const userData = {
-            identity: profile.identity,
-            displayName: profile.displayName,
-            email: profile.email || null,
-            stripeAccountId: profile.stripeAccountId || null,
-            totalEarnings: Number(profile.totalEarnings),
-            isAdmin: profile.isAdmin,
-          };
-          useAuthStore.getState().setUser(userData);
-          localStorage.setItem("spacetimedb_user", JSON.stringify(userData));
-        } else {
-          useAuthStore.getState().setLoading(false);
-        }
-      },
-      onDisconnect: () => {
-        console.log("[SpacetimeDB] disconnected");
-        didConnect.current = false;
-      },
-      onConnectError: (error) => {
-        console.error("[SpacetimeDB] connection error:", error);
-        didConnect.current = false;
-        useAuthStore.getState().setLoading(false);
-      },
-    };
+    prevToken.current = oidcToken;
 
     connect(callbacks, oidcToken).catch((err) => {
       console.error("[SpacetimeDB] failed to connect:", err);
@@ -247,6 +248,24 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
       disconnect();
       didConnect.current = false;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Reconnect when OIDC token refreshes (silent renew)
+  useEffect(() => {
+    if (!oidcToken || oidcToken === prevToken.current) return;
+    prevToken.current = oidcToken;
+
+    if (didConnect.current) {
+      console.log("[SpacetimeDB] OIDC token refreshed, reconnecting...");
+      didConnect.current = false;
+      reconnect(callbacks, oidcToken)
+        .then(() => { didConnect.current = true; })
+        .catch((err) => {
+          console.error("[SpacetimeDB] reconnect failed:", err);
+        });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [oidcToken]);
 
   return <>{children}</>;

@@ -1,25 +1,13 @@
 "use client";
 
 import { useContestStore } from "@/stores/contest-store";
-import { extractYouTubeId, getYouTubeEmbedUrl } from "@/lib/utils/youtube";
-import { extractTikTokId, getTikTokEmbedUrl } from "@/lib/utils/tiktok";
+import { Platform } from "@/lib/constants";
+import { getVideoUrl, getThumbnailUrl, getEmbedUrl } from "@/lib/utils/video-url";
 
 export function WinnersHero() {
   const { winners } = useContestStore();
 
   if (winners.length === 0) return null;
-
-  const getEmbedUrl = (videoUrl: string, platform: string): string | null => {
-    if (platform === "youtube" || platform === "youtube_short") {
-      const id = extractYouTubeId(videoUrl);
-      return id ? getYouTubeEmbedUrl(id) : null;
-    }
-    if (platform === "tiktok") {
-      const id = extractTikTokId(videoUrl);
-      return id ? getTikTokEmbedUrl(id) : null;
-    }
-    return null;
-  };
 
   return (
     <div className="pointer-events-auto absolute left-1/2 top-16 z-30 w-full max-w-3xl -translate-x-1/2 rounded-2xl border border-border bg-surface/95 p-6 shadow-2xl backdrop-blur-sm">
@@ -34,7 +22,10 @@ export function WinnersHero() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {winners.slice(0, 2).map((winner) => {
-          const embedUrl = getEmbedUrl(winner.videoUrl, winner.platform);
+          const platform = winner.platform as Platform;
+          const embedUrl = winner.videoId ? getEmbedUrl(winner.videoId, platform) : null;
+          const thumbnailUrl = winner.videoId ? getThumbnailUrl(winner.videoId, platform) : null;
+          const videoUrl = winner.videoId ? getVideoUrl(winner.videoId, platform) : "#";
 
           return (
             <div
@@ -52,9 +43,9 @@ export function WinnersHero() {
                     />
                   </div>
                 ) : (
-                  winner.thumbnailUrl && (
+                  thumbnailUrl && (
                     <img
-                      src={winner.thumbnailUrl}
+                      src={thumbnailUrl}
                       alt=""
                       className="aspect-video w-full object-cover"
                     />
@@ -84,12 +75,12 @@ export function WinnersHero() {
                   </span>
                 </div>
                 <a
-                  href={winner.videoUrl}
+                  href={videoUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="mt-2 block truncate text-xs text-accent-light hover:underline"
                 >
-                  {winner.videoUrl}
+                  {videoUrl}
                 </a>
               </div>
             </div>

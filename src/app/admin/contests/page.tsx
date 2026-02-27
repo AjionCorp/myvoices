@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useContestStore } from "@/stores/contest-store";
+import { Platform } from "@/lib/constants";
+import { getThumbnailUrl } from "@/lib/utils/video-url";
 
 export default function ContestsManagement() {
   const { activeContest, winners, leaderboard } = useContestStore();
@@ -173,9 +175,9 @@ export default function ContestsManagement() {
                       ${(winner.prizeAmount / 100).toFixed(2)}
                     </span>
                   </div>
-                  {winner.thumbnailUrl && (
+                  {winner.videoId && getThumbnailUrl(winner.videoId, winner.platform as Platform) && (
                     <img
-                      src={winner.thumbnailUrl}
+                      src={getThumbnailUrl(winner.videoId, winner.platform as Platform)!}
                       alt=""
                       className="w-full rounded-lg"
                     />

@@ -12,8 +12,7 @@ import {
 
 export default {
   blockId: __t.u32(),
-  videoUrl: __t.string(),
-  thumbnailUrl: __t.string(),
+  videoId: __t.string(),
   platform: __t.string(),
   ownerName: __t.string(),
 };

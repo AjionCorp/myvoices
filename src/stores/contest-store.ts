@@ -11,8 +11,7 @@ export interface Contest {
 
 export interface Winner {
   blockId: number;
-  videoUrl: string;
-  thumbnailUrl: string;
+  videoId: string;
   platform: string;
   ownerName: string;
   ownerIdentity: string;

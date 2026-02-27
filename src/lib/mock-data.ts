@@ -213,10 +213,7 @@ export function generateMockBlocks(): Block[] {
       id,
       x: gx,
       y: gy,
-      videoUrl: isShort
-        ? `https://youtube.com/shorts/${vid}`
-        : `https://youtube.com/watch?v=${vid}`,
-      thumbnailUrl: `https://img.youtube.com/vi/${vid}/mqdefault.jpg`,
+      videoId: vid,
       platform: isShort ? Platform.YouTubeShort : Platform.YouTube,
       ownerIdentity: `user_${i}`,
       ownerName: `${firstName} ${lastName}`,
@@ -238,8 +235,7 @@ export function generateMockBlocks(): Block[] {
       id: adId,
       x: slot.col,
       y: slot.row,
-      videoUrl: null,
-      thumbnailUrl: null,
+      videoId: null,
       platform: null,
       ownerIdentity: null,
       ownerName: null,

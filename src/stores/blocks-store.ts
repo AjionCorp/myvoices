@@ -6,8 +6,7 @@ export interface Block {
   id: number;
   x: number;
   y: number;
-  videoUrl: string | null;
-  thumbnailUrl: string | null;
+  videoId: string | null;
   platform: Platform | null;
   ownerIdentity: string | null;
   ownerName: string | null;
@@ -90,7 +89,7 @@ export interface ContentBounds {
 interface BlocksState {
   blocks: Map<number, Block>;
   spatial: SpatialIndex;
-  urlIndex: Map<string, number>;
+  videoIdIndex: Map<string, number>;
   rankIndex: Map<number, number>;
   contentBounds: ContentBounds;
   topBlocks: Block[];
@@ -106,16 +105,16 @@ interface BlocksState {
   rebalanceBlocks: () => void;
   setTopBlocks: (blocks: Block[]) => void;
   getBlock: (id: number) => Block | undefined;
-  getBlockByUrl: (url: string) => Block | undefined;
+  getBlockByVideoId: (videoId: string) => Block | undefined;
   getRank: (id: number) => number | undefined;
   setStats: (claimed: number, likes: number) => void;
   setLoading: (v: boolean) => void;
 }
 
-function rebuildUrlIndex(blocks: Map<number, Block>): Map<string, number> {
+function rebuildVideoIdIndex(blocks: Map<number, Block>): Map<string, number> {
   const idx = new Map<string, number>();
   for (const [, b] of blocks) {
-    if (b.videoUrl) idx.set(b.videoUrl, b.id);
+    if (b.videoId) idx.set(b.videoId, b.id);
   }
   return idx;
 }
@@ -159,7 +158,7 @@ function rebuildRankIndex(blocks: Map<number, Block>): Map<number, number> {
 export const useBlocksStore = create<BlocksState>((set, get) => ({
   blocks: new Map(),
   spatial: new SpatialIndex(),
-  urlIndex: new Map(),
+  videoIdIndex: new Map(),
   rankIndex: new Map(),
   contentBounds: { minCol: 0, maxCol: 0, minRow: 0, maxRow: 0 },
   topBlocks: [],
@@ -173,9 +172,9 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
     if (old) get().spatial.remove(old);
     current.set(block.id, block);
     get().spatial.insert(block);
-    const urlIndex = get().urlIndex;
-    if (block.videoUrl) urlIndex.set(block.videoUrl, block.id);
-    set({ blocks: current, urlIndex });
+    const videoIdIndex = get().videoIdIndex;
+    if (block.videoId) videoIdIndex.set(block.videoId, block.id);
+    set({ blocks: current, videoIdIndex });
   },
 
   setBlocks: (blocks) => {
@@ -186,7 +185,7 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
       if (b.status === BlockStatus.Claimed) claimedCount++;
     }
     rebuildAdLayout(claimedCount);
-    set({ blocks: map, urlIndex: rebuildUrlIndex(map), spatial: rebuildSpatialIndex(map), rankIndex: rebuildRankIndex(map), contentBounds: computeContentBounds(map) });
+    set({ blocks: map, videoIdIndex: rebuildVideoIdIndex(map), spatial: rebuildSpatialIndex(map), rankIndex: rebuildRankIndex(map), contentBounds: computeContentBounds(map) });
   },
 
   updateBlockPosition: (id, x, y) => {
@@ -248,15 +247,15 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
       newBlocks.set(newId, updated);
     }
 
-    set({ blocks: newBlocks, urlIndex: rebuildUrlIndex(newBlocks), spatial: rebuildSpatialIndex(newBlocks), rankIndex: rebuildRankIndex(newBlocks), contentBounds: computeContentBounds(newBlocks) });
+    set({ blocks: newBlocks, videoIdIndex: rebuildVideoIdIndex(newBlocks), spatial: rebuildSpatialIndex(newBlocks), rankIndex: rebuildRankIndex(newBlocks), contentBounds: computeContentBounds(newBlocks) });
   },
 
   setTopBlocks: (blocks) => set({ topBlocks: blocks }),
 
   getBlock: (id) => get().blocks.get(id),
 
-  getBlockByUrl: (url) => {
-    const id = get().urlIndex.get(url);
+  getBlockByVideoId: (videoId) => {
+    const id = get().videoIdIndex.get(videoId);
     return id !== undefined ? get().blocks.get(id) : undefined;
   },
 

@@ -76,6 +76,17 @@ export function connect(
       })
       .onConnectError((_ctx: unknown, error: Error) => {
         connectionPromise = null;
+
+        // If the token is expired/invalid, clear it and retry anonymously
+        const msg = error?.message || String(error);
+        if (msg.includes("ExpiredSignature") || msg.includes("TokenError") || msg.includes("InvalidToken")) {
+          console.warn("[SpacetimeDB] Stale token detected, clearing and reconnecting anonymously...");
+          clearAuthToken();
+          // Retry without token
+          connect(callbacks).then(resolve, reject);
+          return;
+        }
+
         callbacks?.onConnectError?.(error);
         reject(error);
       });
@@ -88,6 +99,15 @@ export function connect(
   });
 
   return connectionPromise;
+}
+
+/** Disconnect and reconnect with a fresh OIDC token */
+export function reconnect(
+  callbacks?: ConnectionCallbacks,
+  oidcToken?: string | null
+): Promise<DbConnection> {
+  disconnect();
+  return connect(callbacks, oidcToken);
 }
 
 export function disconnect(): void {

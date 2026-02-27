@@ -2,7 +2,8 @@
 
 import { useBlocksStore } from "@/stores/blocks-store";
 import { useContestStore } from "@/stores/contest-store";
-import { TOTAL_BLOCKS } from "@/lib/constants";
+import { TOTAL_BLOCKS, Platform } from "@/lib/constants";
+import { getThumbnailUrl } from "@/lib/utils/video-url";
 
 function StatCard({
   label,
@@ -81,9 +82,9 @@ export default function AdminOverview() {
                   <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent/20 text-xs font-bold text-accent-light">
                     {i + 1}
                   </span>
-                  {block.thumbnailUrl && (
+                  {block.videoId && block.platform && getThumbnailUrl(block.videoId, block.platform as Platform) && (
                     <img
-                      src={block.thumbnailUrl}
+                      src={getThumbnailUrl(block.videoId, block.platform as Platform)!}
                       alt=""
                       className="h-10 w-14 rounded object-cover"
                     />

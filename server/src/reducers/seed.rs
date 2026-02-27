@@ -363,18 +363,11 @@ pub fn seed_data(ctx: &ReducerContext, batch_start: u32, batch_count: u32) -> Re
             ctx.db.block().id().delete(block_id);
         }
 
-        let (video_url, platform) = if rb.is_short {
-            (
-                format!("https://youtube.com/shorts/{}", rb.vid),
-                "youtube_short".to_string(),
-            )
+        let platform = if rb.is_short {
+            "youtube_short".to_string()
         } else {
-            (
-                format!("https://youtube.com/watch?v={}", rb.vid),
-                "youtube".to_string(),
-            )
+            "youtube".to_string()
         };
-        let thumbnail_url = format!("https://img.youtube.com/vi/{}/mqdefault.jpg", rb.vid);
 
         ctx.db
             .block()
@@ -382,8 +375,7 @@ pub fn seed_data(ctx: &ReducerContext, batch_start: u32, batch_count: u32) -> Re
                 id: block_id,
                 x: gx,
                 y: gy,
-                video_url,
-                thumbnail_url,
+                video_id: rb.vid.clone(),
                 platform,
                 owner_identity: format!("user_{}", i),
                 owner_name: format!("{} {}", rb.first_name, rb.last_name),
@@ -429,8 +421,7 @@ pub fn seed_ads(ctx: &ReducerContext) -> Result<(), String> {
                 id: block_id,
                 x: *col,
                 y: *row,
-                video_url: String::new(),
-                thumbnail_url: String::new(),
+                video_id: String::new(),
                 platform: String::new(),
                 owner_identity: String::new(),
                 owner_name: String::new(),

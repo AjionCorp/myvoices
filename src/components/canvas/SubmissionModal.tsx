@@ -5,8 +5,8 @@ import { useCanvasStore } from "@/stores/canvas-store";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { videoUrlSchema, detectPlatform } from "@/lib/utils/validation";
 import { GRID_COLS, CENTER_X, CENTER_Y, isAdSlot } from "@/lib/constants";
-import { extractYouTubeId, getYouTubeThumbnail, isYouTubeShort } from "@/lib/utils/youtube";
-import { isTikTokUrl } from "@/lib/utils/tiktok";
+import { extractYouTubeId, getYouTubeThumbnail } from "@/lib/utils/youtube";
+import { extractTikTokId } from "@/lib/utils/tiktok";
 
 export function SubmissionModal() {
   const { showSubmissionModal, submissionBlockId, closeSubmissionModal } =
@@ -94,28 +94,24 @@ export function SubmissionModal() {
     setError(null);
 
     try {
-      let thumbnailUrl = "";
+      let videoId: string | null = null;
 
       if (platform === "youtube" || platform === "youtube_short") {
-        const videoId = extractYouTubeId(url);
-        if (videoId) {
-          thumbnailUrl = getYouTubeThumbnail(videoId);
-        }
+        videoId = extractYouTubeId(url);
       } else if (platform === "tiktok") {
-        const res = await fetch(
-          `/api/thumbnail/tiktok?url=${encodeURIComponent(url)}`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          thumbnailUrl = data.thumbnailUrl;
-        }
+        videoId = extractTikTokId(url);
       }
 
-      // SpacetimeDB reducer call: claim_block(submissionBlockId, url, thumbnailUrl, platform, userName)
+      if (!videoId) {
+        setError("Could not extract video ID from URL");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // SpacetimeDB reducer call: claim_block(submissionBlockId, videoId, platform, userName)
       console.log("Claiming block", {
         blockId: submissionBlockId,
-        videoUrl: url,
-        thumbnailUrl,
+        videoId,
         platform,
       });
 

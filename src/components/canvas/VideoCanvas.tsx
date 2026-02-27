@@ -8,6 +8,8 @@ import {
 } from "@/lib/constants";
 import { TileRenderer, cropUV, type ImgTile, type SolidTile, type BorderTile } from "./TileRenderer";
 import { getCachedImage, loadImage } from "./ImageCache";
+import { getThumbnailUrl } from "@/lib/utils/video-url";
+import { Platform } from "@/lib/constants";
 
 const HOVER_SCALE = 1.08;
 const PRESS_SCALE = 0.95;
@@ -179,7 +181,7 @@ export function VideoCanvas() {
         if (col < c0 || col > c1 || row < r0 || row > r1) continue;
         if (step > 1 && (col % step !== 0 || row % step !== 0)) continue;
 
-        const url = block.thumbnailUrl || block.adImageUrl || null;
+        const url = (block.videoId && block.platform ? getThumbnailUrl(block.videoId, block.platform as Platform) : null) || block.adImageUrl || null;
 
         if (url) {
           const cached = getCachedImage(url, now);
@@ -316,7 +318,7 @@ export function VideoCanvas() {
         const hid = hoveredCell.current.id;
         if (hid >= 0) {
           const block = blocksRef.current.get(hid);
-          if (!block || block.status === "empty" || !block.videoUrl) {
+          if (!block || block.status === "empty" || !block.videoId) {
             openSubmissionModal(hid);
           } else {
             selectBlock(hid);
