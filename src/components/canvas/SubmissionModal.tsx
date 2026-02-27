@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { videoUrlSchema, detectPlatform } from "@/lib/utils/validation";
-import { GRID_COLS, CENTER_X, CENTER_Y } from "@/lib/constants";
+import { GRID_COLS, CENTER_X, CENTER_Y, isAdSlot } from "@/lib/constants";
 import { extractYouTubeId, getYouTubeThumbnail, isYouTubeShort } from "@/lib/utils/youtube";
 import { isTikTokUrl } from "@/lib/utils/tiktok";
 
@@ -22,6 +22,10 @@ export function SubmissionModal() {
   } | null>(null);
 
   if (!showSubmissionModal || submissionBlockId === null) return null;
+
+  const blockCol = submissionBlockId % GRID_COLS;
+  const blockRow = Math.floor(submissionBlockId / GRID_COLS);
+  const isAd = isAdSlot(blockCol, blockRow);
 
   const handleUrlChange = async (value: string) => {
     setUrl(value);
@@ -130,12 +134,26 @@ export function SubmissionModal() {
       <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl">
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-foreground">
-              Claim Block #{submissionBlockId}
-            </h2>
-            <p className="text-xs text-muted">
-              Position ({submissionBlockId % GRID_COLS - CENTER_X}, {Math.floor(submissionBlockId / GRID_COLS) - CENTER_Y})
-            </p>
+            {isAd ? (
+              <>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-lg font-semibold text-foreground">Ad Placement</h2>
+                  <span className="rounded-md bg-yellow-500/20 px-2 py-0.5 text-xs font-medium text-yellow-400">Sponsored</span>
+                </div>
+                <p className="text-xs text-muted">
+                  ({blockCol - CENTER_X}, {blockRow - CENTER_Y}) &middot; Premium ad slot
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-lg font-semibold text-foreground">
+                  Claim Block #{submissionBlockId}
+                </h2>
+                <p className="text-xs text-muted">
+                  Position ({blockCol - CENTER_X}, {blockRow - CENTER_Y})
+                </p>
+              </>
+            )}
           </div>
           <button
             onClick={() => {
@@ -154,19 +172,25 @@ export function SubmissionModal() {
 
         {!isAuthenticated && (
           <div className="mb-4 rounded-lg border border-accent/30 bg-accent/10 p-3 text-sm text-accent-light">
-            You need to sign in to claim a block.
+            {isAd ? "You need to sign in to purchase an ad placement." : "You need to sign in to claim a block."}
+          </div>
+        )}
+
+        {isAd && (
+          <div className="mb-4 rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-3 text-sm text-yellow-300/90">
+            This is a premium ad slot. Your ad will be displayed prominently on the grid with a highlighted border.
           </div>
         )}
 
         <div className="mb-4">
           <label className="mb-1.5 block text-sm font-medium text-muted">
-            YouTube or TikTok URL
+            {isAd ? "Ad Image URL or Landing Page" : "YouTube or TikTok URL"}
           </label>
           <input
             type="url"
             value={url}
             onChange={(e) => handleUrlChange(e.target.value)}
-            placeholder="https://youtube.com/watch?v=... or https://tiktok.com/@user/video/..."
+            placeholder={isAd ? "https://your-brand.com/ad-image.png" : "https://youtube.com/watch?v=... or https://tiktok.com/@user/video/..."}
             className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder-muted outline-none transition-colors focus:border-accent"
             disabled={isSubmitting}
           />
@@ -209,15 +233,15 @@ export function SubmissionModal() {
             className="flex-1 rounded-lg bg-accent py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-light disabled:opacity-50"
           >
             {isSubmitting
-              ? "Claiming..."
+              ? (isAd ? "Placing Ad..." : "Claiming...")
               : isAuthenticated
-                ? "Claim Block"
-                : "Sign In to Claim"}
+                ? (isAd ? "Place Ad" : "Claim Block")
+                : (isAd ? "Sign In to Place Ad" : "Sign In to Claim")}
           </button>
         </div>
 
         <p className="mt-3 text-center text-xs text-muted">
-          Your video URL is permanent once submitted. Choose wisely!
+          {isAd ? "Ad placements are billed monthly. Contact us for pricing." : "Your video URL is permanent once submitted. Choose wisely!"}
         </p>
       </div>
     </div>

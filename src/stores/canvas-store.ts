@@ -76,7 +76,16 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   setDragging: (dragging) => set({ isDragging: dragging }),
 
-  selectBlock: (blockId) => set({ selectedBlockId: blockId }),
+  selectBlock: (blockId) => {
+    set({ selectedBlockId: blockId });
+    if (typeof window !== "undefined") {
+      if (blockId !== null) {
+        window.history.replaceState({}, "", `/?block=${blockId}`);
+      } else {
+        window.history.replaceState({}, "", "/");
+      }
+    }
+  },
 
   openSubmissionModal: (blockId) =>
     set({ showSubmissionModal: true, submissionBlockId: blockId }),

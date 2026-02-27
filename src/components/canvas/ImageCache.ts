@@ -1,9 +1,11 @@
-const MAX_CACHE = 2000;
-const EVICT_BATCH = 400;
+const MAX_CACHE = 6000;
+const EVICT_BATCH = 800;
+const FADE_MS = 220;
 
 interface CacheEntry {
   url: string;
   img: HTMLImageElement;
+  loadedAt: number;
   prev: CacheEntry | null;
   next: CacheEntry | null;
 }
@@ -37,11 +39,18 @@ function evictLRU() {
   }
 }
 
-export function getCachedImage(url: string): HTMLImageElement | null {
+export interface CachedImage {
+  img: HTMLImageElement;
+  alpha: number;
+}
+
+export function getCachedImage(url: string, now: number): CachedImage | null {
   const n = nodeMap.get(url);
   if (!n) return null;
   promote(n);
-  return n.img;
+  const age = now - n.loadedAt;
+  const alpha = age >= FADE_MS ? 1 : age / FADE_MS;
+  return { img: n.img, alpha };
 }
 
 export function isLoading(url: string): boolean {
@@ -63,7 +72,7 @@ export function loadImage(url: string): Promise<HTMLImageElement | null> {
     img.onload = () => {
       loadingUrls.delete(url);
       if (nodeMap.size >= MAX_CACHE) evictLRU();
-      const node: CacheEntry = { url, img, prev: null, next: head };
+      const node: CacheEntry = { url, img, loadedAt: performance.now(), prev: null, next: head };
       if (head) head.prev = node;
       head = node;
       if (!tail) tail = node;

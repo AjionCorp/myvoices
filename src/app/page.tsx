@@ -27,7 +27,7 @@ const VideoCanvas = dynamic(
 );
 
 export default function Home() {
-  const { centerOnBlock, screenWidth } = useCanvasStore();
+  const { centerOnBlock, selectBlock, screenWidth } = useCanvasStore();
   const { setBlocks, setStats, setTopBlocks } = useBlocksStore();
   const { setWinners } = useContestStore();
 
@@ -60,14 +60,27 @@ export default function Home() {
       const top = [...claimed].sort((a, b) => (b.likes - b.dislikes) - (a.likes - a.dislikes)).slice(0, 10);
       setTopBlocks(top);
       setLoading(false);
+
+      const blockParam = new URLSearchParams(window.location.search).get("block");
+      if (blockParam) {
+        const blockId = parseInt(blockParam, 10);
+        const target = useBlocksStore.getState().blocks.get(blockId);
+        if (target) {
+          centerOnBlock(target.x, target.y);
+          selectBlock(blockId);
+        }
+      }
     });
 
     return () => { cancelled = true; };
-  }, [setBlocks, setStats, setTopBlocks]);
+  }, [setBlocks, setStats, setTopBlocks, centerOnBlock, selectBlock]);
 
   useEffect(() => {
     if (screenWidth > 0) {
-      centerOnBlock(CENTER_X, CENTER_Y);
+      const hasDeepLink = new URLSearchParams(window.location.search).has("block");
+      if (!hasDeepLink) {
+        centerOnBlock(CENTER_X, CENTER_Y);
+      }
     }
   }, [screenWidth, centerOnBlock]);
 

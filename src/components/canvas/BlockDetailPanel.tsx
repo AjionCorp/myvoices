@@ -27,6 +27,8 @@ export function BlockDetailPanel() {
   const selectedBlockId = useCanvasStore((s) => s.selectedBlockId);
   const selectBlock = useCanvasStore((s) => s.selectBlock);
   const block = useBlocksStore((s) => selectedBlockId !== null ? s.blocks.get(selectedBlockId) : undefined);
+  const rank = useBlocksStore((s) => selectedBlockId !== null ? s.rankIndex.get(selectedBlockId) : undefined);
+  const totalClaimed = useBlocksStore((s) => s.totalClaimed);
   const updateBlockLikes = useBlocksStore((s) => s.updateBlockLikes);
   const updateBlockDislikes = useBlocksStore((s) => s.updateBlockDislikes);
   const rebalanceBlocks = useBlocksStore((s) => s.rebalanceBlocks);
@@ -200,9 +202,16 @@ export function BlockDetailPanel() {
               {block.ownerName?.charAt(0)?.toUpperCase() || "?"}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-foreground">{block.ownerName || "Anonymous"}</p>
+              <div className="flex items-center gap-2">
+                <p className="truncate text-sm font-semibold text-foreground">{block.ownerName || "Anonymous"}</p>
+                {rank && (
+                  <span className="shrink-0 rounded-md bg-accent/15 px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-accent-light">
+                    #{rank.toLocaleString()}{totalClaimed > 0 && <span className="font-normal text-muted"> / {totalClaimed.toLocaleString()}</span>}
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-muted">
-                Block #{block.id} &middot; ({block.x - CENTER_X}, {block.y - CENTER_Y}) &middot; Ring {Math.max(Math.abs(block.x - CENTER_X), Math.abs(block.y - CENTER_Y))} &middot; {block.platform?.replace("_", " ")} &middot; Score {(block.likes - block.dislikes).toLocaleString()}
+                ({block.x - CENTER_X}, {block.y - CENTER_Y}) &middot; Score {(block.likes - block.dislikes).toLocaleString()} &middot; Ring {Math.max(Math.abs(block.x - CENTER_X), Math.abs(block.y - CENTER_Y))} &middot; {block.platform?.replace("_", " ")}
               </p>
             </div>
             <a href={block.videoUrl || "#"} target="_blank" rel="noopener noreferrer"

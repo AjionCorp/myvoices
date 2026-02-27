@@ -41,31 +41,48 @@ export enum ContestStatus {
   Completed = "completed",
 }
 
-// --- Ad ring layout ---
-// Ads form rectangular rings around the content spiral.
-// Ring distances from center (in grid cells). Each ring places ads
-// at corners and evenly along edges of a rectangle at that distance.
-// Rings are tightly spaced so ads surround content at each level.
+// --- Dynamic ad ring layout ---
+// Ring count and positions are derived from the total claimed block count.
+// The spiral fills roughly a circle of radius sqrt(count / pi) cells.
+// We place ~1 ring per 3,000 blocks, evenly distributed from the center
+// out to just past the content edge. Inner rings get denser ad spacing.
 
-export const AD_RING_DISTANCES = [4, 8, 13, 19, 26, 34, 43, 53, 64, 76];
-const AD_EDGE_SPACING = 3;
+const BLOCKS_PER_RING = 3000;
+const MIN_FIRST_RING = 4;
 
-function buildAdSlots(): Set<string> {
+function buildDynamicAdRings(claimedCount: number): { distances: number[]; spacings: number[] } {
+  const ringCount = Math.max(1, Math.round(claimedCount / BLOCKS_PER_RING));
+  const contentRadius = Math.ceil(Math.sqrt(Math.max(claimedCount, 1) / Math.PI));
+  const outerEdge = contentRadius + MIN_FIRST_RING;
+
+  const distances: number[] = [];
+  const spacings: number[] = [];
+  for (let i = 0; i < ringCount; i++) {
+    const t = ringCount === 1 ? 0.5 : i / (ringCount - 1);
+    const d = Math.round(MIN_FIRST_RING + t * (outerEdge - MIN_FIRST_RING));
+    if (distances.length > 0 && d <= distances[distances.length - 1]) continue;
+    distances.push(d);
+    spacings.push(Math.min(7, 3 + Math.floor(distances.length / 3) * 2));
+  }
+  return { distances, spacings };
+}
+
+function buildAdSlots(rings: { distances: number[]; spacings: number[] }): Set<string> {
   const slots = new Set<string>();
-  for (const d of AD_RING_DISTANCES) {
-    // Four corners
+  for (let ri = 0; ri < rings.distances.length; ri++) {
+    const d = rings.distances[ri];
+    const sp = rings.spacings[ri];
+
     slots.add(`${CENTER_X - d},${CENTER_Y - d}`);
     slots.add(`${CENTER_X + d},${CENTER_Y - d}`);
     slots.add(`${CENTER_X - d},${CENTER_Y + d}`);
     slots.add(`${CENTER_X + d},${CENTER_Y + d}`);
 
-    // Edges: top and bottom rows
-    for (let dx = -d + AD_EDGE_SPACING; dx <= d - AD_EDGE_SPACING; dx += AD_EDGE_SPACING) {
+    for (let dx = -d + sp; dx <= d - sp; dx += sp) {
       slots.add(`${CENTER_X + dx},${CENTER_Y - d}`);
       slots.add(`${CENTER_X + dx},${CENTER_Y + d}`);
     }
-    // Edges: left and right columns
-    for (let dy = -d + AD_EDGE_SPACING; dy <= d - AD_EDGE_SPACING; dy += AD_EDGE_SPACING) {
+    for (let dy = -d + sp; dy <= d - sp; dy += sp) {
       slots.add(`${CENTER_X - d},${CENTER_Y + dy}`);
       slots.add(`${CENTER_X + d},${CENTER_Y + dy}`);
     }
@@ -73,7 +90,17 @@ function buildAdSlots(): Set<string> {
   return slots;
 }
 
-const AD_SLOT_SET = buildAdSlots();
+let adRings = buildDynamicAdRings(0);
+let AD_SLOT_SET = buildAdSlots(adRings);
+
+export function rebuildAdLayout(claimedCount: number): void {
+  adRings = buildDynamicAdRings(claimedCount);
+  AD_SLOT_SET = buildAdSlots(adRings);
+}
+
+export function getAdRingDistances(): number[] {
+  return adRings.distances;
+}
 
 export function isAdSlot(col: number, row: number): boolean {
   return AD_SLOT_SET.has(`${col},${row}`);
@@ -88,15 +115,11 @@ export function getAdSlots(): Array<{ col: number; row: number }> {
   return result;
 }
 
-/**
- * Returns the 0-based ad ring index for a given cell, or -1 if not an ad slot.
- * Ring 0 is the innermost (closest to center).
- */
 export function getAdRingIndex(col: number, row: number): number {
   if (!AD_SLOT_SET.has(`${col},${row}`)) return -1;
   const cheb = Math.max(Math.abs(col - CENTER_X), Math.abs(row - CENTER_Y));
-  for (let i = 0; i < AD_RING_DISTANCES.length; i++) {
-    if (AD_RING_DISTANCES[i] === cheb) return i;
+  for (let i = 0; i < adRings.distances.length; i++) {
+    if (adRings.distances[i] === cheb) return i;
   }
   return -1;
 }

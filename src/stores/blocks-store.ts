@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { Platform, BlockStatus, GRID_COLS } from "@/lib/constants";
+import { Platform, BlockStatus, GRID_COLS, rebuildAdLayout } from "@/lib/constants";
 import { batchSpiralCoordinates } from "@/lib/canvas/spiral-layout";
 
 export interface Block {
@@ -71,12 +71,28 @@ export class SpatialIndex {
     }
     return result;
   }
+
+  hasBucket(col: number, row: number): boolean {
+    const bx = (col / BUCKET_SIZE) | 0;
+    const by = (row / BUCKET_SIZE) | 0;
+    const arr = this.buckets.get(this.key(bx, by));
+    return !!arr && arr.length > 0;
+  }
+}
+
+export interface ContentBounds {
+  minCol: number;
+  maxCol: number;
+  minRow: number;
+  maxRow: number;
 }
 
 interface BlocksState {
   blocks: Map<number, Block>;
   spatial: SpatialIndex;
   urlIndex: Map<string, number>;
+  rankIndex: Map<number, number>;
+  contentBounds: ContentBounds;
   topBlocks: Block[];
   totalClaimed: number;
   totalLikes: number;
@@ -91,6 +107,7 @@ interface BlocksState {
   setTopBlocks: (blocks: Block[]) => void;
   getBlock: (id: number) => Block | undefined;
   getBlockByUrl: (url: string) => Block | undefined;
+  getRank: (id: number) => number | undefined;
   setStats: (claimed: number, likes: number) => void;
   setLoading: (v: boolean) => void;
 }
@@ -109,10 +126,42 @@ function rebuildSpatialIndex(blocks: Map<number, Block>): SpatialIndex {
   return si;
 }
 
+function computeContentBounds(blocks: Map<number, Block>): ContentBounds {
+  let minCol = Infinity, maxCol = -Infinity;
+  let minRow = Infinity, maxRow = -Infinity;
+  for (const b of blocks.values()) {
+    if (b.x < minCol) minCol = b.x;
+    if (b.x > maxCol) maxCol = b.x;
+    if (b.y < minRow) minRow = b.y;
+    if (b.y > maxRow) maxRow = b.y;
+  }
+  if (minCol === Infinity) return { minCol: 0, maxCol: 0, minRow: 0, maxRow: 0 };
+  const pad = 2;
+  return {
+    minCol: minCol - pad,
+    maxCol: maxCol + pad,
+    minRow: minRow - pad,
+    maxRow: maxRow + pad,
+  };
+}
+
+function rebuildRankIndex(blocks: Map<number, Block>): Map<number, number> {
+  const claimed: Block[] = [];
+  for (const b of blocks.values()) {
+    if (b.status === BlockStatus.Claimed) claimed.push(b);
+  }
+  claimed.sort((a, b) => netScore(b) - netScore(a));
+  const ri = new Map<number, number>();
+  for (let i = 0; i < claimed.length; i++) ri.set(claimed[i].id, i + 1);
+  return ri;
+}
+
 export const useBlocksStore = create<BlocksState>((set, get) => ({
   blocks: new Map(),
   spatial: new SpatialIndex(),
   urlIndex: new Map(),
+  rankIndex: new Map(),
+  contentBounds: { minCol: 0, maxCol: 0, minRow: 0, maxRow: 0 },
   topBlocks: [],
   totalClaimed: 0,
   totalLikes: 0,
@@ -131,8 +180,13 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
 
   setBlocks: (blocks) => {
     const map = new Map<number, Block>();
-    for (const b of blocks) map.set(b.id, b);
-    set({ blocks: map, urlIndex: rebuildUrlIndex(map), spatial: rebuildSpatialIndex(map) });
+    let claimedCount = 0;
+    for (const b of blocks) {
+      map.set(b.id, b);
+      if (b.status === BlockStatus.Claimed) claimedCount++;
+    }
+    rebuildAdLayout(claimedCount);
+    set({ blocks: map, urlIndex: rebuildUrlIndex(map), spatial: rebuildSpatialIndex(map), rankIndex: rebuildRankIndex(map), contentBounds: computeContentBounds(map) });
   },
 
   updateBlockPosition: (id, x, y) => {
@@ -174,6 +228,7 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
 
     claimed.sort((a, b) => netScore(b) - netScore(a));
 
+    rebuildAdLayout(claimed.length);
     const coords = batchSpiralCoordinates(claimed.length);
     const newBlocks = new Map(blocks);
 
@@ -193,7 +248,7 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
       newBlocks.set(newId, updated);
     }
 
-    set({ blocks: newBlocks, urlIndex: rebuildUrlIndex(newBlocks), spatial: rebuildSpatialIndex(newBlocks) });
+    set({ blocks: newBlocks, urlIndex: rebuildUrlIndex(newBlocks), spatial: rebuildSpatialIndex(newBlocks), rankIndex: rebuildRankIndex(newBlocks), contentBounds: computeContentBounds(newBlocks) });
   },
 
   setTopBlocks: (blocks) => set({ topBlocks: blocks }),
@@ -204,6 +259,8 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
     const id = get().urlIndex.get(url);
     return id !== undefined ? get().blocks.get(id) : undefined;
   },
+
+  getRank: (id) => get().rankIndex.get(id),
 
   setStats: (claimed, likes) =>
     set({ totalClaimed: claimed, totalLikes: likes }),

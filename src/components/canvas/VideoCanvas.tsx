@@ -2,7 +2,7 @@
 
 import { useRef, useEffect } from "react";
 import { useCanvasStore } from "@/stores/canvas-store";
-import { useBlocksStore, type Block, SpatialIndex } from "@/stores/blocks-store";
+import { useBlocksStore, type Block, SpatialIndex, type ContentBounds } from "@/stores/blocks-store";
 import {
   TILE_WIDTH, TILE_HEIGHT, GRID_COLS, GRID_ROWS, isAdSlot, getAdRingIndex,
 } from "@/lib/constants";
@@ -13,10 +13,9 @@ const HOVER_SCALE = 1.08;
 const PRESS_SCALE = 0.95;
 const ANIM_SPEED = 0.18;
 
-// LOD: screen pixels per tile height at current zoom
 const LOD_LOAD_IMAGES = 6;
 const LOD_SKIP_EMPTY = 2;
-const MAX_LOADS_PER_FRAME = 8;
+const MAX_LOADS_PER_FRAME = 30;
 const MAX_VISIBLE_TILES = 8000;
 
 function lerp(a: number, b: number, t: number) { return a + (b - a) * t; }
@@ -31,6 +30,7 @@ const BORDER_WIDTH = 3.0;
 // Pre-allocated arrays reused every frame — zero GC pressure
 const imgTiles: ImgTile[] = [];
 const solidTiles: SolidTile[] = [];
+const adTiles: SolidTile[] = [];
 const borderTiles: BorderTile[] = [];
 
 export function VideoCanvas() {
@@ -40,6 +40,8 @@ export function VideoCanvas() {
   const vp = useRef({ x: 0, y: 0, z: 0.6, sw: 0, sh: 0 });
   const blocksRef = useRef<Map<number, Block>>(new Map());
   const spatialRef = useRef<SpatialIndex>(new SpatialIndex());
+
+  const boundsRef = useRef<ContentBounds>({ minCol: 0, maxCol: 0, minRow: 0, maxRow: 0 });
 
   const mouseScreen = useRef({ x: -9999, y: -9999, inside: false });
   const hoveredCell = useRef({ col: -1, row: -1, id: -1 });
@@ -64,11 +66,14 @@ export function VideoCanvas() {
     const unsub2 = useBlocksStore.subscribe((s) => {
       blocksRef.current = s.blocks;
       spatialRef.current = s.spatial;
+      boundsRef.current = s.contentBounds;
     });
     const cs = useCanvasStore.getState();
     vp.current = { x: cs.viewportX, y: cs.viewportY, z: cs.zoom, sw: cs.screenWidth, sh: cs.screenHeight };
-    blocksRef.current = useBlocksStore.getState().blocks;
-    spatialRef.current = useBlocksStore.getState().spatial;
+    const bs = useBlocksStore.getState();
+    blocksRef.current = bs.blocks;
+    spatialRef.current = bs.spatial;
+    boundsRef.current = bs.contentBounds;
     return () => { unsub1(); unsub2(); };
   }, []);
 
@@ -93,7 +98,6 @@ export function VideoCanvas() {
       if (!v.sw || !v.sh) return;
 
       const zoom = v.z;
-      const tilePxW = TILE_WIDTH * zoom;
       const tilePxH = TILE_HEIGHT * zoom;
 
       // --- Visible range with budget cap ---
@@ -158,8 +162,10 @@ export function VideoCanvas() {
       const blocks = blocksRef.current;
       imgTiles.length = 0;
       solidTiles.length = 0;
+      adTiles.length = 0;
       borderTiles.length = 0;
       let loads = 0;
+      const now = performance.now();
 
       const visibleIds = spatialRef.current.queryRange(c0, r0, c1, r1);
 
@@ -171,16 +177,19 @@ export function VideoCanvas() {
         const col = block.x;
         const row = block.y;
         if (col < c0 || col > c1 || row < r0 || row > r1) continue;
-        if (step > 1 && ((col - c0) % step !== 0 || (row - r0) % step !== 0)) continue;
+        if (step > 1 && (col % step !== 0 || row % step !== 0)) continue;
 
         const url = block.thumbnailUrl || block.adImageUrl || null;
 
         if (url) {
-          const img = getCachedImage(url);
-          if (img) {
+          const cached = getCachedImage(url, now);
+          if (cached) {
+            if (cached.alpha < 1) {
+              solidTiles.push({ col, row, r: 0.12, g: 0.10, b: 0.14 });
+            }
             const sc = scaleMap.current.get(id);
-            const [u0, v0, u1, v1] = cropUV(img.naturalWidth, img.naturalHeight);
-            imgTiles.push({ col, row, img, scale: sc ? sc.current : 1, u0, v0, u1, v1 });
+            const [u0, v0, u1, v1] = cropUV(cached.img.naturalWidth, cached.img.naturalHeight);
+            imgTiles.push({ col, row, img: cached.img, scale: sc ? sc.current : 1, u0, v0, u1, v1, alpha: cached.alpha });
           } else {
             if (canLoadImages && loads < MAX_LOADS_PER_FRAME && !pendingLoads.current.has(url)) {
               loads++;
@@ -190,26 +199,41 @@ export function VideoCanvas() {
             solidTiles.push({ col, row, r: 0.12, g: 0.10, b: 0.14 });
           }
         } else if (block.status === "ad") {
-          solidTiles.push({ col, row, r: 0.22, g: 0.22, b: 0.24 });
+          adTiles.push({ col, row, r: 0.22, g: 0.22, b: 0.24 });
         } else if (block.status !== "empty") {
           solidTiles.push({ col, row, r: 0.10, g: 0.10, b: 0.12 });
         }
 
-        const ringIdx = getAdRingIndex(col, row);
-        if (ringIdx >= 0 && ringIdx < RING_BORDERS.length) {
-          const c = RING_BORDERS[ringIdx];
-          borderTiles.push({ col, row, r: c.r, g: c.g, b: c.b, width: BORDER_WIDTH });
+        if (tilePxH >= 20) {
+          const ringIdx = getAdRingIndex(col, row);
+          if (ringIdx >= 0 && ringIdx < RING_BORDERS.length) {
+            const c = RING_BORDERS[ringIdx];
+            borderTiles.push({ col, row, r: c.r, g: c.g, b: c.b, width: BORDER_WIDTH });
+          }
         }
       }
 
-      // Empty-cell grid background (only at high zoom when few cells visible)
-      if (showEmpty && totalVis <= MAX_VISIBLE_TILES) {
-        for (let row = r0; row <= r1; row += step) {
-          for (let col = c0; col <= c1; col += step) {
+      // Empty-cell grid: only at high zoom, show subtle placeholders for
+      // unoccupied cells whose 4 direct neighbours are ALL occupied (interior
+      // holes only). This avoids any artifacts at the spiral's ragged edges.
+      if (showEmpty && step === 1 && tilePxH >= 30) {
+        const bounds = boundsRef.current;
+        const ec0 = Math.max(c0, bounds.minCol);
+        const ec1 = Math.min(c1, bounds.maxCol);
+        const er0 = Math.max(r0, bounds.minRow);
+        const er1 = Math.min(r1, bounds.maxRow);
+        for (let row = er0; row <= er1; row++) {
+          for (let col = ec0; col <= ec1; col++) {
             const id = row * GRID_COLS + col;
             if (blocks.has(id)) continue;
+            const allNeighbours =
+              blocks.has(id - 1) &&
+              blocks.has(id + 1) &&
+              blocks.has(id - GRID_COLS) &&
+              blocks.has(id + GRID_COLS);
+            if (!allNeighbours) continue;
             if (isAdSlot(col, row)) {
-              solidTiles.push({ col, row, r: 0.22, g: 0.22, b: 0.24 });
+              adTiles.push({ col, row, r: 0.22, g: 0.22, b: 0.24 });
             } else {
               solidTiles.push({ col, row, r: 0.067, g: 0.067, b: 0.067 });
             }
@@ -217,9 +241,11 @@ export function VideoCanvas() {
         }
       }
 
-      // --- Draw: solids first, textured on top, then ring borders on top of everything ---
+      // --- Draw: clear, solids, ad labels, textured, ring borders ---
+      renderer.beginFrame();
       const hoverSc = hId >= 0 ? (scaleMap.current.get(hId)?.current ?? 1) : 1;
       renderer.drawSolid(solidTiles, v.x, v.y, zoom);
+      renderer.drawAdLabels(adTiles, v.x, v.y, zoom);
       renderer.draw(imgTiles, v.x, v.y, zoom, hCol, hRow, hoverAlpha.current, hoverSc);
       renderer.drawBorders(borderTiles, v.x, v.y, zoom);
     };

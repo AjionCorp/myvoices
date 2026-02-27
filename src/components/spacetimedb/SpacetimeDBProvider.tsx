@@ -5,7 +5,7 @@ import { connect, disconnect, type ConnectionCallbacks } from "@/lib/spacetimedb
 import { useBlocksStore, type Block as StoreBlock } from "@/stores/blocks-store";
 import { useContestStore } from "@/stores/contest-store";
 import { useAuthStore } from "@/stores/auth-store";
-import { BlockStatus, type Platform } from "@/lib/constants";
+import { BlockStatus, type Platform, rebuildAdLayout } from "@/lib/constants";
 import type { DbConnection } from "@/module_bindings";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -36,6 +36,7 @@ function recomputeStats() {
     if (b.status === BlockStatus.Claimed) claimed.push(b);
   }
 
+  rebuildAdLayout(claimed.length);
   const totalLikes = claimed.reduce((sum, b) => sum + b.likes, 0);
   setStats(claimed.length, totalLikes);
 

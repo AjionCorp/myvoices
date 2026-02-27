@@ -43,16 +43,18 @@ uniform sampler2D u_t0,u_t1,u_t2,u_t3,u_t4,u_t5,u_t6,u_t7;
 out vec4 o;
 void main(){
   if(v_slot<0){o=v_col;return;}
+  vec4 c;
   vec2 u=v_uv;
-  if(v_slot==0)o=texture(u_t0,u);
-  else if(v_slot==1)o=texture(u_t1,u);
-  else if(v_slot==2)o=texture(u_t2,u);
-  else if(v_slot==3)o=texture(u_t3,u);
-  else if(v_slot==4)o=texture(u_t4,u);
-  else if(v_slot==5)o=texture(u_t5,u);
-  else if(v_slot==6)o=texture(u_t6,u);
-  else if(v_slot==7)o=texture(u_t7,u);
-  else o=v_col;
+  if(v_slot==0)c=texture(u_t0,u);
+  else if(v_slot==1)c=texture(u_t1,u);
+  else if(v_slot==2)c=texture(u_t2,u);
+  else if(v_slot==3)c=texture(u_t3,u);
+  else if(v_slot==4)c=texture(u_t4,u);
+  else if(v_slot==5)c=texture(u_t5,u);
+  else if(v_slot==6)c=texture(u_t6,u);
+  else if(v_slot==7)c=texture(u_t7,u);
+  else{o=v_col;return;}
+  o=vec4(c.rgb,c.a*v_col.a);
 }`;
 
 const HOVER_V = `#version 300 es
@@ -73,7 +75,7 @@ void main(){
 const HOVER_F = `#version 300 es
 precision highp float;
 in vec2 v_uv;
-uniform float u_alpha,u_bw;
+uniform float u_alpha,u_bw,u_fill;
 uniform vec4 u_bc;
 uniform vec2 u_tile;
 out vec4 o;
@@ -83,7 +85,7 @@ void main(){
   if(p.x<b||p.x>u_tile.x-b||p.y<b||p.y>u_tile.y-b)
     o=vec4(u_bc.rgb,u_bc.a*u_alpha);
   else
-    o=vec4(u_bc.rgb,.08*u_alpha);
+    o=vec4(u_bc.rgb,u_fill*u_alpha);
 }`;
 
 const SLOTS = 8;
@@ -134,6 +136,31 @@ export function cropUV(imgW: number, imgH: number): [number, number, number, num
   }
 }
 
+function buildAdLabelTexture(gl: WebGL2RenderingContext): WebGLTexture {
+  const w = 56, h = 100;
+  const c = document.createElement("canvas");
+  c.width = w * 2; c.height = h * 2;
+  const ctx = c.getContext("2d")!;
+
+  ctx.fillStyle = "#3a3a3e";
+  ctx.fillRect(0, 0, c.width, c.height);
+
+  ctx.fillStyle = "rgba(255,255,255,0.18)";
+  ctx.font = `bold ${Math.round(h * 0.5)}px sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("AD", c.width / 2, c.height / 2);
+
+  const t = gl.createTexture()!;
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return t;
+}
+
 export class TileRenderer {
   private gl: WebGL2RenderingContext;
   private prog: WebGLProgram;
@@ -143,6 +170,7 @@ export class TileRenderer {
   private iBuf: WebGLBuffer;
   private iData: Float32Array;
   private dpr: number;
+  private adTex: WebGLTexture;
 
   private uScr: WebGLUniformLocation;
   private uPan: WebGLUniformLocation;
@@ -159,6 +187,7 @@ export class TileRenderer {
   private hAlpha: WebGLUniformLocation;
   private hBc: WebGLUniformLocation;
   private hBw: WebGLUniformLocation;
+  private hFill: WebGLUniformLocation;
 
   constructor(private canvas: HTMLCanvasElement) {
     const gl = canvas.getContext("webgl2", {
@@ -188,6 +217,7 @@ export class TileRenderer {
     this.hAlpha = u(this.hProg, "u_alpha");
     this.hBc = u(this.hProg, "u_bc");
     this.hBw = u(this.hProg, "u_bw");
+    this.hFill = u(this.hProg, "u_fill");
 
     const qb = gl.createBuffer()!;
     gl.bindBuffer(gl.ARRAY_BUFFER, qb);
@@ -230,6 +260,8 @@ export class TileRenderer {
 
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
+
+    this.adTex = buildAdLabelTexture(gl);
   }
 
   resize() {
@@ -267,17 +299,22 @@ export class TileRenderer {
     return t;
   }
 
-  draw(
-    imgTiles: readonly ImgTile[],
-    panX: number, panY: number, zoom: number,
-    hCol: number, hRow: number, hAlpha: number, hScale: number,
-  ) {
+  beginFrame() {
     gpuFrame++;
     const gl = this.gl;
     const cw = this.canvas.width, ch = this.canvas.height;
     gl.viewport(0, 0, cw, ch);
     gl.clearColor(0.039, 0.039, 0.039, 1);
     gl.clear(gl.COLOR_BUFFER_BIT);
+  }
+
+  draw(
+    imgTiles: readonly ImgTile[],
+    panX: number, panY: number, zoom: number,
+    hCol: number, hRow: number, hAlpha: number, hScale: number,
+  ) {
+    const gl = this.gl;
+    const cw = this.canvas.width, ch = this.canvas.height;
 
     if (imgTiles.length === 0) {
       this.drawHover(gl, cw, ch, panX, panY, zoom, hCol, hRow, hAlpha, hScale);
@@ -317,8 +354,7 @@ export class TileRenderer {
         this.iData[o + 2] = slot;
         this.iData[o + 3] = t.scale;
         this.iData[o + 4] = 1; this.iData[o + 5] = 1;
-        this.iData[o + 6] = 1; this.iData[o + 7] = 1;
-        // UV crop rect
+        this.iData[o + 6] = 1; this.iData[o + 7] = t.alpha;
         this.iData[o + 8]  = t.u0;
         this.iData[o + 9]  = t.v0;
         this.iData[o + 10] = t.u1;
@@ -381,6 +417,47 @@ export class TileRenderer {
     gl.bindVertexArray(null);
   }
 
+  drawAdLabels(
+    adTiles: readonly SolidTile[],
+    panX: number, panY: number, zoom: number,
+  ) {
+    if (adTiles.length === 0) return;
+    const gl = this.gl;
+    const d = this.dpr;
+    gl.useProgram(this.prog);
+    gl.uniform2f(this.uScr, this.canvas.width, this.canvas.height);
+    gl.uniform2f(this.uPan, panX * d, panY * d);
+    gl.uniform1f(this.uZoom, zoom * d);
+    gl.uniform2f(this.uTile, INNER_W, INNER_H);
+    gl.bindVertexArray(this.vao);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.adTex);
+    gl.uniform1i(this.uTex[0], 0);
+
+    let cursor = 0;
+    while (cursor < adTiles.length) {
+      const count = Math.min(adTiles.length - cursor, MAX_INST);
+      for (let i = 0; i < count; i++) {
+        const t = adTiles[cursor + i];
+        const o = i * FLOATS_PER;
+        this.iData[o]     = t.col * TILE_WIDTH + TILE_GAP * 0.5;
+        this.iData[o + 1] = t.row * TILE_HEIGHT + TILE_GAP * 0.5;
+        this.iData[o + 2] = 0;
+        this.iData[o + 3] = 1;
+        this.iData[o + 4] = 1; this.iData[o + 5] = 1;
+        this.iData[o + 6] = 1; this.iData[o + 7] = 1;
+        this.iData[o + 8] = 0; this.iData[o + 9] = 0;
+        this.iData[o + 10] = 1; this.iData[o + 11] = 1;
+      }
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.iBuf);
+      gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.iData, 0, count * FLOATS_PER);
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, count);
+      cursor += count;
+    }
+    gl.bindVertexArray(null);
+  }
+
   private drawHover(
     gl: WebGL2RenderingContext, cw: number, ch: number,
     panX: number, panY: number, zoom: number,
@@ -398,6 +475,7 @@ export class TileRenderer {
     gl.uniform1f(this.hAlpha, hAlpha);
     gl.uniform4f(this.hBc, 0.545, 0.361, 0.965, 1.0);
     gl.uniform1f(this.hBw, 1.5);
+    gl.uniform1f(this.hFill, 0.08);
     gl.bindVertexArray(this.hVao);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     gl.bindVertexArray(null);
@@ -418,6 +496,7 @@ export class TileRenderer {
     gl.uniform2f(this.hTile, INNER_W, INNER_H);
     gl.bindVertexArray(this.hVao);
 
+    gl.uniform1f(this.hFill, 0.0);
     for (const b of borders) {
       gl.uniform2f(this.hOff, b.col * TILE_WIDTH + TILE_GAP * 0.5, b.row * TILE_HEIGHT + TILE_GAP * 0.5);
       gl.uniform1f(this.hScale, 1.0);
@@ -437,6 +516,7 @@ export class TileRenderer {
     gl.deleteBuffer(this.iBuf);
     gl.deleteVertexArray(this.vao);
     gl.deleteVertexArray(this.hVao);
+    gl.deleteTexture(this.adTex);
     for (const e of gpuTexCache.values()) gl.deleteTexture(e.glTex);
     gpuTexCache.clear();
   }
@@ -460,6 +540,7 @@ export interface ImgTile {
   scale: number;
   u0: number; v0: number;
   u1: number; v1: number;
+  alpha: number;
 }
 
 export interface SolidTile {
