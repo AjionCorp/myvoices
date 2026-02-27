@@ -10,7 +10,6 @@ import { BlockDetailPanel } from "@/components/canvas/BlockDetailPanel";
 import { SubmissionModal } from "@/components/canvas/SubmissionModal";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useBlocksStore } from "@/stores/blocks-store";
-import { useAuthStore } from "@/stores/auth-store";
 import { CENTER_X, CENTER_Y } from "@/lib/constants";
 import { startViewerSimulation } from "@/stores/viewers-store";
 import { Minimap } from "@/components/canvas/Minimap";
@@ -32,8 +31,7 @@ export default function Home() {
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
     if (token) {
-      useAuthStore.getState().setToken(token);
-      localStorage.setItem("spacetimedb_token", token);
+      // Clean up URL param from legacy auth callback; OIDC handles auth now
       window.history.replaceState({}, "", "/");
     }
   }, []);

@@ -47,7 +47,6 @@ function AuthBridge({ children }: { children: ReactNode }) {
 
     if (oidc.isAuthenticated && oidc.user?.id_token) {
       setToken(oidc.user.id_token);
-      localStorage.setItem("spacetimedb_token", oidc.user.id_token);
 
       const profile = oidc.user.profile;
       const storedUser = localStorage.getItem("spacetimedb_user");
@@ -68,18 +67,8 @@ function AuthBridge({ children }: { children: ReactNode }) {
         setLoading(false);
       }
     } else {
-      const storedToken = localStorage.getItem("spacetimedb_token");
-      const storedUser = localStorage.getItem("spacetimedb_user");
-      if (storedToken && storedUser) {
-        try {
-          setToken(storedToken);
-          setUser(JSON.parse(storedUser));
-        } catch {
-          setLoading(false);
-        }
-      } else {
-        setLoading(false);
-      }
+      // Not authenticated via OIDC — stay anonymous, content is viewable without auth
+      setLoading(false);
     }
   }, [oidc.isLoading, oidc.isAuthenticated, oidc.user, setToken, setUser, setLoading]);
 

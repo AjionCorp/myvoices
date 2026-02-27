@@ -40,7 +40,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: () => {
     if (typeof window !== "undefined") {
-      localStorage.removeItem("spacetimedb_token");
+      localStorage.removeItem("spacetimedb_user");
     }
     set({
       user: null,

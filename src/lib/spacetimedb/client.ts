@@ -7,8 +7,6 @@ const SPACETIMEDB_URI =
 const SPACETIMEDB_MODULE =
   process.env.NEXT_PUBLIC_SPACETIMEDB_MODULE || "myvoice";
 
-const TOKEN_KEY = "spacetimedb_token";
-
 let connection: DbConnection | null = null;
 let connectionPromise: Promise<DbConnection> | null = null;
 
@@ -16,24 +14,10 @@ export function getConnection(): DbConnection | null {
   return connection;
 }
 
-export function getStoredToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem(TOKEN_KEY);
-}
-
-function persistToken(token: string): void {
-  if (typeof window !== "undefined") {
-    localStorage.setItem(TOKEN_KEY, token);
-  }
-}
-
-export function clearAuthToken(): void {
+export function clearConnection(): void {
   connection?.disconnect();
   connection = null;
   connectionPromise = null;
-  if (typeof window !== "undefined") {
-    localStorage.removeItem(TOKEN_KEY);
-  }
 }
 
 export type ConnectionCallbacks = {
@@ -50,14 +34,13 @@ export function connect(
   if (connectionPromise) return connectionPromise;
 
   connectionPromise = new Promise<DbConnection>((resolve, reject) => {
-    const tokenToUse = oidcToken || getStoredToken();
+    const tokenToUse = oidcToken || null;
 
     const builder = DbConnection.builder()
       .withUri(SPACETIMEDB_URI)
       .withDatabaseName(SPACETIMEDB_MODULE)
       .onConnect((conn: DbConnection, identity: Identity, token: string) => {
         connection = conn;
-        persistToken(token);
         useAuthStore.getState().setToken(token);
 
         conn
@@ -79,9 +62,9 @@ export function connect(
 
         // If the token is expired/invalid, clear it and retry anonymously
         const msg = error?.message || String(error);
-        if (msg.includes("ExpiredSignature") || msg.includes("TokenError") || msg.includes("InvalidToken")) {
-          console.warn("[SpacetimeDB] Stale token detected, clearing and reconnecting anonymously...");
-          clearAuthToken();
+        if (msg.includes("ExpiredSignature") || msg.includes("TokenError") || msg.includes("InvalidToken") || msg.includes("Unauthorized")) {
+          console.warn("[SpacetimeDB] Stale token detected, reconnecting anonymously...");
+          clearConnection();
           // Retry without token
           connect(callbacks).then(resolve, reject);
           return;
