@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { connect, disconnect, reconnect, type ConnectionCallbacks, VIEWPORT_SUBSCRIPTION_THRESHOLD } from "@/lib/spacetimedb/client";
+import { connect, disconnect, reconnect, getConnection, type ConnectionCallbacks, VIEWPORT_SUBSCRIPTION_THRESHOLD } from "@/lib/spacetimedb/client";
 import { ViewportSubscriptionManager } from "@/lib/spacetimedb/ViewportSubscriptionManager";
 import { AnonymousViewportFetcher } from "@/lib/spacetimedb/AnonymousViewportFetcher";
 import { useBlocksStore, type Block as StoreBlock } from "@/stores/blocks-store";
@@ -218,18 +218,22 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
   }, [authUser?.email, authUser?.displayName]);
 
   const callbacks: ConnectionCallbacks = {
+    onBlocksLoaded: () => {
+      const c = getConnection();
+      if (!c) return;
+      bulkLoadBlocks(c);
+    },
     onConnect: (connection, identity, token) => {
       setConn(connection);
       console.log("[SpacetimeDB] connected as", identity.toHexString());
       registerTableCallbacks(connection);
-      bulkLoadBlocks(connection);
       bulkLoadComments(connection);
 
       // Use the ref so we always have the latest Clerk email/displayName regardless
       // of what Zustand state looks like at this moment.
       const clerkEmail = clerkUserRef.current.email;
       const clerkDisplayName = clerkUserRef.current.displayName;
-      console.log("[SpacetimeDB] onConnect clerkEmail:", clerkEmail, "displayName:", clerkDisplayName);
+      console.log("[SpacetimeDB] onConnect — clerkUserRef:", { email: clerkEmail ?? "(null)", displayName: clerkDisplayName });
 
       // SpacetimeDB identity is a hex string derived from the JWT sub claim —
       // different from Clerk's "user_xxx" ID. Always use this as the canonical identity.
@@ -249,15 +253,15 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
         // If the stored profile is missing email or displayName (pre-fix data),
         // patch it in SpacetimeDB using the fresh Clerk values.
         if ((!profile.email || !profile.displayName) && clerkEmail) {
-          connection.reducers.updateProfile(
-            profile.displayName || clerkDisplayName,
-            clerkEmail,
-          );
+          const displayName = profile.displayName || clerkDisplayName;
+          console.log("[SpacetimeDB] updateProfile — passing:", { displayName, email: clerkEmail });
+          connection.reducers.updateProfile({ displayName, email: clerkEmail });
         }
       } else {
         // First-time user — create their profile in SpacetimeDB.
         const displayName = clerkDisplayName;
         const email = clerkEmail || "";
+        console.log("[SpacetimeDB] registerUser — passing:", { displayName, email: email || "(empty)" });
 
         // Overwrite the Clerk user ID with the real SpacetimeDB identity so
         // the user_profile.onInsert callback matches correctly.
@@ -270,8 +274,16 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
           isAdmin: false,
         });
 
-        connection.reducers.registerUser(displayName, email);
+        connection.reducers.registerUser({ displayName, email });
         useAuthStore.getState().setLoading(false);
+      }
+
+      // Always store/refresh the Clerk user ID → SpacetimeDB identity mapping
+      // so the Clerk webhook can find this user by clerk_user_id.
+      const clerkUserId = useAuthStore.getState().clerkUserId;
+      if (clerkUserId) {
+        console.log("[SpacetimeDB] storeClerkMapping:", clerkUserId);
+        connection.reducers.storeClerkMapping({ clerkUserId });
       }
     },
     onDisconnect: () => {
@@ -287,7 +299,10 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
   // Connect only when user is logged in (OIDC token required; anonymous sign-in disabled)
   useEffect(() => {
     if (authLoading) return;
-    if (!isAuthenticated || !oidcToken) return;
+    if (!isAuthenticated || !oidcToken) {
+      console.log("[SpacetimeDB] skipping connect:", { authLoading, isAuthenticated, hasToken: !!oidcToken });
+      return;
+    }
 
     if (prevToken.current === oidcToken) return;
     const isReconnect = prevToken.current !== undefined;

@@ -40,7 +40,7 @@ function AuthBridge({ children }: { children: ReactNode }) {
   const { isLoaded, isSignedIn, getToken } = useClerkAuth();
   const { user: clerkUser } = useUser();
   const { openSignIn, openSignUp, signOut } = useClerk();
-  const { user, isAuthenticated, isLoading, setUser, setToken, setLoading, logout: storeLogout } =
+  const { user, isAuthenticated, isLoading, setUser, setToken, setLoading, setClerkUserId, logout: storeLogout } =
     useAuthStore();
   const [oidcToken, setOidcToken] = useState<string | null>(null);
 
@@ -67,37 +67,54 @@ function AuthBridge({ children }: { children: ReactNode }) {
       clerkEmail ||
       "User";
 
+    setClerkUserId(clerkUser.id);
+
+    console.log("[Auth] Clerk data:", {
+      email: clerkEmail ?? "(null)",
+      displayName: clerkDisplayName,
+      primaryEmail: clerkUser.primaryEmailAddress?.emailAddress ?? "(null)",
+      emailAddresses: clerkUser.emailAddresses?.map((e) => e.emailAddress) ?? [],
+    });
+
     const storedUser = typeof window !== "undefined" ? localStorage.getItem("spacetimedb_user") : null;
     if (storedUser) {
       try {
         const parsed = JSON.parse(storedUser);
         // Always freshen email + displayName from Clerk so stale localStorage
         // entries never cause a blank email to be passed to registerUser.
-        setUser({
+        const userData = {
           ...parsed,
           email: clerkEmail ?? parsed.email ?? null,
           displayName: parsed.displayName || clerkDisplayName,
-        });
+        };
+        console.log("[Auth] setUser (from stored + Clerk):", { email: userData.email ?? "(null)", displayName: userData.displayName });
+        setUser(userData);
       } catch { /* ignore corrupt entry */ }
     } else {
-      setUser({
+      const userData = {
         identity: clerkUser.id,
         displayName: clerkDisplayName,
         email: clerkEmail,
         stripeAccountId: null,
         totalEarnings: 0,
         isAdmin: false,
-      });
+      };
+      console.log("[Auth] setUser (new):", { email: userData.email ?? "(null)", displayName: userData.displayName });
+      setUser(userData);
     }
 
     // Fetch Clerk JWT using the "spacetimedb" template so SpacetimeDB can validate it
     getToken({ template: "spacetimedb" })
       .then((t) => {
+        console.log("[Auth] getToken result:", t ? "got token" : "null (JWT template missing or not configured?)");
         setOidcToken(t);
         if (t) setToken(t);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((err) => {
+        console.error("[Auth] getToken failed:", err);
+        setLoading(false);
+      });
   // Include primaryEmailAddress in deps so the effect re-runs if Clerk hydrates
   // the email after the initial user object is available (lazy loading).
   // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -140,21 +140,23 @@ pub fn update_profile(
 ) -> Result<(), String> {
     let caller = ctx.sender().to_hex().to_string();
 
-    let mut user = ctx
+    let user = ctx
         .db
         .user_profile()
         .identity()
-        .find(caller)
+        .find(caller.clone())
         .ok_or("User not found")?;
 
-    if !display_name.is_empty() {
-        user.display_name = display_name;
-    }
-    if !email.is_empty() {
-        user.email = email;
-    }
+    let updated = UserProfile {
+        display_name: if display_name.is_empty() { user.display_name.clone() } else { display_name },
+        email: if email.is_empty() { user.email.clone() } else { email },
+        ..user
+    };
 
-    ctx.db.user_profile().identity().update(user);
+    ctx.db.user_profile().identity().delete(caller);
+    ctx.db.user_profile().try_insert(updated)
+        .map_err(|e| format!("Insert failed: {e}"))?;
+
     Ok(())
 }
 
@@ -177,6 +179,58 @@ pub fn update_stripe_account(
         stripe_account_id,
         ..user
     }).map_err(|e| format!("Insert failed: {e}"))?;
+
+    Ok(())
+}
+
+/// Called by the client on first connect to store the Clerk user ID → SpacetimeDB identity mapping.
+/// Safe to call multiple times (upserts).
+#[reducer]
+pub fn store_clerk_mapping(ctx: &ReducerContext, clerk_user_id: String) -> Result<(), String> {
+    if clerk_user_id.is_empty() {
+        return Err("clerk_user_id cannot be empty".to_string());
+    }
+    let caller = ctx.sender().to_hex().to_string();
+    ctx.db.clerk_identity_map().clerk_user_id().delete(clerk_user_id.clone());
+    ctx.db.clerk_identity_map().try_insert(ClerkIdentityMap {
+        clerk_user_id,
+        spacetimedb_identity: caller,
+    }).map_err(|e| format!("Insert failed: {e}"))?;
+    Ok(())
+}
+
+/// Called server-side (from Clerk webhook) to sync display_name / email changes.
+/// No caller auth check — security relies on SPACETIMEDB_SERVER_TOKEN being kept secret.
+#[reducer]
+pub fn server_update_profile(
+    ctx: &ReducerContext,
+    clerk_user_id: String,
+    display_name: String,
+    email: String,
+) -> Result<(), String> {
+    let mapping = ctx
+        .db
+        .clerk_identity_map()
+        .clerk_user_id()
+        .find(clerk_user_id.clone())
+        .ok_or_else(|| format!("No mapping found for clerk_user_id: {}", clerk_user_id))?;
+
+    let user = ctx
+        .db
+        .user_profile()
+        .identity()
+        .find(mapping.spacetimedb_identity.clone())
+        .ok_or("User profile not found")?;
+
+    let updated = UserProfile {
+        display_name: if display_name.is_empty() { user.display_name.clone() } else { display_name },
+        email: if email.is_empty() { user.email.clone() } else { email },
+        ..user
+    };
+
+    ctx.db.user_profile().identity().delete(mapping.spacetimedb_identity);
+    ctx.db.user_profile().try_insert(updated)
+        .map_err(|e| format!("Insert failed: {e}"))?;
 
     Ok(())
 }

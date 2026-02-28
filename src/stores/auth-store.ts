@@ -14,10 +14,14 @@ interface AuthState {
   token: string | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  /** The Clerk user ID (e.g. user_2abc...). Stored separately so it is never
+   *  overwritten when SpacetimeDBProvider sets the real SpacetimeDB hex identity. */
+  clerkUserId: string | null;
 
   setUser: (user: User | null) => void;
   setToken: (token: string | null) => void;
   setLoading: (loading: boolean) => void;
+  setClerkUserId: (id: string | null) => void;
   logout: () => void;
 }
 
@@ -26,6 +30,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   token: null,
   isLoading: true,
   isAuthenticated: false,
+  clerkUserId: null,
 
   setUser: (user) =>
     set({
@@ -38,6 +43,8 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setLoading: (loading) => set({ isLoading: loading }),
 
+  setClerkUserId: (clerkUserId) => set({ clerkUserId }),
+
   logout: () => {
     if (typeof window !== "undefined") {
       localStorage.removeItem("spacetimedb_user");
@@ -47,6 +54,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       token: null,
       isAuthenticated: false,
       isLoading: false,
+      clerkUserId: null,
     });
   },
 }));

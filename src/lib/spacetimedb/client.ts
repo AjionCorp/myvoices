@@ -21,9 +21,24 @@ export function getConnection(): DbConnection | null {
 
 export type ConnectionCallbacks = {
   onConnect?: (conn: DbConnection, identity: Identity, token: string) => void;
+  onBlocksLoaded?: () => void;
   onDisconnect?: () => void;
   onConnectError?: (error: Error) => void;
 };
+
+const USER_TABLES = [
+  "SELECT * FROM user_profile",
+  "SELECT * FROM ad_placement",
+  "SELECT * FROM contest",
+  "SELECT * FROM contest_winner",
+  "SELECT * FROM comment",
+  "SELECT * FROM transaction_log",
+];
+const BLOCK_TABLES = [
+  "SELECT * FROM block",
+  "SELECT * FROM like_record",
+  "SELECT * FROM dislike_record",
+];
 
 export function connect(
   callbacks?: ConnectionCallbacks,
@@ -46,27 +61,29 @@ export function connect(
       .onConnect((conn: DbConnection, identity: Identity, token: string) => {
         connection = conn;
         useAuthStore.getState().setToken(token);
+        console.log("[SpacetimeDB] WS connected, subscribing to user tables...");
 
-        const subBuilder = conn
+        // Subscribe to user/metadata tables first — fires quickly so user registration
+        // happens without waiting for the full block table to load.
+        conn
           .subscriptionBuilder()
           .onApplied(() => {
+            console.log("[SpacetimeDB] user tables applied, calling onConnect");
             callbacks?.onConnect?.(conn, identity, token);
-          });
+          })
+          .subscribe(VIEWPORT_SUBSCRIPTION_THRESHOLD > 0 ? USER_TABLES : USER_TABLES);
 
-        if (VIEWPORT_SUBSCRIPTION_THRESHOLD > 0) {
-          subBuilder.subscribe([
-            "SELECT * FROM comment",
-            "SELECT * FROM contest",
-            "SELECT * FROM contest_winner",
-            "SELECT * FROM user_profile",
-            "SELECT * FROM ad_placement",
-            "SELECT * FROM like_record",
-            "SELECT * FROM dislike_record",
-            "SELECT * FROM transaction_log",
-          ]);
-        } else {
-          subBuilder.subscribeToAllTables();
-        }
+        // Subscribe to block/interaction tables separately — may take a while.
+        conn
+          .subscriptionBuilder()
+          .onApplied(() => {
+            console.log("[SpacetimeDB] block tables applied");
+            callbacks?.onBlocksLoaded?.();
+          })
+          .subscribe(VIEWPORT_SUBSCRIPTION_THRESHOLD > 0
+            ? ["SELECT * FROM block"]
+            : BLOCK_TABLES
+          );
 
         resolve(conn);
       })

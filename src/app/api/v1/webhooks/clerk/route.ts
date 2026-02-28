@@ -15,6 +15,13 @@ import { Webhook } from "standardwebhooks";
 
 const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET ?? "";
 
+const SPACETIMEDB_URI =
+  (process.env.NEXT_PUBLIC_SPACETIMEDB_URI || "wss://maincloud.spacetimedb.com")
+    .replace(/^wss:/, "https:")
+    .replace(/^ws:/, "http:");
+const SPACETIMEDB_MODULE = process.env.NEXT_PUBLIC_SPACETIMEDB_MODULE || "myvoice";
+const SPACETIMEDB_SERVER_TOKEN = process.env.SPACETIMEDB_SERVER_TOKEN ?? "";
+
 interface ClerkUserEvent {
   type: "user.created" | "user.updated" | "user.deleted";
   data: {
@@ -26,6 +33,28 @@ interface ClerkUserEvent {
     primary_email_address_id: string | null;
     deleted?: boolean;
   };
+}
+
+async function callReducer(reducerName: string, args: unknown[]): Promise<void> {
+  if (!SPACETIMEDB_SERVER_TOKEN) {
+    console.warn(`[clerk webhook] SPACETIMEDB_SERVER_TOKEN not set — skipping ${reducerName} call`);
+    return;
+  }
+
+  const url = `${SPACETIMEDB_URI}/v1/database/${SPACETIMEDB_MODULE}/call/${reducerName}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${SPACETIMEDB_SERVER_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(args),
+  });
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`SpacetimeDB reducer ${reducerName} failed: ${res.status} ${text}`);
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -54,38 +83,38 @@ export async function POST(request: NextRequest) {
 
   const { type, data } = event;
 
+  const primaryEmail = data.email_addresses.find(
+    (e) => e.id === data.primary_email_address_id
+  )?.email_address ?? "";
+  const displayName =
+    [data.first_name, data.last_name].filter(Boolean).join(" ").trim() ||
+    data.username ||
+    primaryEmail ||
+    "User";
+
   switch (type) {
     case "user.created":
-      // User registered in Clerk — their SpacetimeDB profile is created on
-      // first WebSocket connect (SpacetimeDBProvider.onConnect → register_user).
-      // Nothing to do here unless you need server-side pre-provisioning.
-      console.log("[clerk webhook] user.created:", data.id);
+      // Profile is created on first WebSocket connect via registerUser reducer.
+      console.log("[clerk webhook] user.created:", data.id, { displayName, primaryEmail });
       break;
 
     case "user.updated": {
-      // Sync Clerk profile changes → SpacetimeDB display_name / email.
-      // Requires a server-side SpacetimeDB connection with a service token.
-      // TODO: implement if profile sync is needed.
-      const primaryEmail = data.email_addresses.find(
-        (e) => e.id === data.primary_email_address_id
-      )?.email_address ?? "";
-      const displayName = [data.first_name, data.last_name].filter(Boolean).join(" ")
-        || data.username
-        || primaryEmail
-        || "User";
       console.log("[clerk webhook] user.updated:", data.id, { displayName, primaryEmail });
-      // TODO: call SpacetimeDB reducer update_profile(identity, displayName, email)
+      try {
+        await callReducer("server_update_profile", [data.id, displayName, primaryEmail]);
+        console.log("[clerk webhook] server_update_profile succeeded for", data.id);
+      } catch (err) {
+        // Non-fatal: user may not have connected yet (no clerk_identity_map entry).
+        // The profile will be synced on their next login via updateProfile in onConnect.
+        console.warn("[clerk webhook] server_update_profile failed (user may not have logged in yet):", err);
+      }
       break;
     }
 
     case "user.deleted":
-      // User deleted their Clerk account — clean up SpacetimeDB data.
-      // WARNING: this is destructive. Consider anonymising instead of deleting.
       console.log("[clerk webhook] user.deleted:", data.id);
-      // TODO: call SpacetimeDB reducer delete_user(identity)
-      // The SpacetimeDB identity is derived from the Clerk user ID (JWT sub claim).
-      // You cannot derive it directly here without calling SpacetimeDB's identity API.
-      // Recommended: store the mapping clerk_id → spacetimedb_identity in user_profile.
+      // Not deleting SpacetimeDB data — destructive and irreversible.
+      // Consider anonymising the profile instead.
       break;
 
     default:

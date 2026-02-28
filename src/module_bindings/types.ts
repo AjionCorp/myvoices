@@ -39,6 +39,12 @@ export const Block = __t.object("Block", {
 });
 export type Block = __Infer<typeof Block>;
 
+export const ClerkIdentityMap = __t.object("ClerkIdentityMap", {
+  clerkUserId: __t.string(),
+  spacetimedbIdentity: __t.string(),
+});
+export type ClerkIdentityMap = __Infer<typeof ClerkIdentityMap>;
+
 export const Comment = __t.object("Comment", {
   id: __t.u64(),
   blockId: __t.u32(),

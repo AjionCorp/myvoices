@@ -127,6 +127,13 @@ pub struct Comment {
     pub created_at: u64,
 }
 
+#[table(accessor = clerk_identity_map, public)]
+pub struct ClerkIdentityMap {
+    #[primary_key]
+    pub clerk_user_id: String,
+    pub spacetimedb_identity: String,
+}
+
 #[table(accessor = contest_winner, public)]
 pub struct ContestWinner {
     #[primary_key]

@@ -49,7 +49,9 @@ import RegisterUserReducer from "./register_user_reducer";
 import RemoveAdReducer from "./remove_ad_reducer";
 import SeedAdsReducer from "./seed_ads_reducer";
 import SeedDataReducer from "./seed_data_reducer";
+import ServerUpdateProfileReducer from "./server_update_profile_reducer";
 import SetAdminReducer from "./set_admin_reducer";
+import StoreClerkMappingReducer from "./store_clerk_mapping_reducer";
 import UnclaimBlockReducer from "./unclaim_block_reducer";
 import UndislikeVideoReducer from "./undislike_video_reducer";
 import UnlikeVideoReducer from "./unlike_video_reducer";
@@ -61,6 +63,7 @@ import UpdateStripeAccountReducer from "./update_stripe_account_reducer";
 // Import all table schema definitions
 import AdPlacementRow from "./ad_placement_table";
 import BlockRow from "./block_table";
+import ClerkIdentityMapRow from "./clerk_identity_map_table";
 import CommentRow from "./comment_table";
 import ContestRow from "./contest_table";
 import ContestWinnerRow from "./contest_winner_table";
@@ -95,6 +98,17 @@ const tablesSchema = __schema({
       { name: 'block_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, BlockRow),
+  clerk_identity_map: __table({
+    name: 'clerk_identity_map',
+    indexes: [
+      { name: 'clerk_user_id', algorithm: 'btree', columns: [
+        'clerkUserId',
+      ] },
+    ],
+    constraints: [
+      { name: 'clerk_identity_map_clerk_user_id_key', constraint: 'unique', columns: ['clerkUserId'] },
+    ],
+  }, ClerkIdentityMapRow),
   comment: __table({
     name: 'comment',
     indexes: [
@@ -191,7 +205,9 @@ const reducersSchema = __reducers(
   __reducerSchema("remove_ad", RemoveAdReducer),
   __reducerSchema("seed_ads", SeedAdsReducer),
   __reducerSchema("seed_data", SeedDataReducer),
+  __reducerSchema("server_update_profile", ServerUpdateProfileReducer),
   __reducerSchema("set_admin", SetAdminReducer),
+  __reducerSchema("store_clerk_mapping", StoreClerkMappingReducer),
   __reducerSchema("unclaim_block", UnclaimBlockReducer),
   __reducerSchema("undislike_video", UndislikeVideoReducer),
   __reducerSchema("unlike_video", UnlikeVideoReducer),
