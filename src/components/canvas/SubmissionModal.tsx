@@ -57,7 +57,7 @@ export function SubmissionModal() {
     } else if (platform === "tiktok") {
       try {
         const res = await fetch(
-          `/api/thumbnail/tiktok?url=${encodeURIComponent(value)}`
+          `/api/v1/thumbnail/tiktok?url=${encodeURIComponent(value)}`
         );
         if (res.ok) {
           const data = await res.json();

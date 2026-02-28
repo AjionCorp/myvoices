@@ -11,6 +11,7 @@ interface CanvasState {
   selectedBlockId: number | null;
   showSubmissionModal: boolean;
   submissionBlockId: number | null;
+  showLoginForExploreModal: boolean;
 
   setViewport: (x: number, y: number) => void;
   panBy: (dx: number, dy: number) => void;
@@ -22,6 +23,7 @@ interface CanvasState {
   openSubmissionModal: (blockId: number) => void;
   closeSubmissionModal: () => void;
   centerOnBlock: (gridX: number, gridY: number) => void;
+  setShowLoginForExploreModal: (show: boolean) => void;
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
@@ -34,6 +36,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   selectedBlockId: null,
   showSubmissionModal: false,
   submissionBlockId: null,
+  showLoginForExploreModal: false,
 
   setViewport: (x, y) => set({ viewportX: x, viewportY: y }),
 
@@ -92,6 +95,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   closeSubmissionModal: () =>
     set({ showSubmissionModal: false, submissionBlockId: null }),
+
+  setShowLoginForExploreModal: (show) => set({ showLoginForExploreModal: show }),
 
   centerOnBlock: (gridX, gridY) => {
     const state = get();

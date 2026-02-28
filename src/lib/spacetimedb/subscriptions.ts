@@ -5,15 +5,11 @@
  * subscribing to viewport-scoped queries when the full grid is
  * too large to subscribe to at once.
  *
- * NOTE: The initial implementation in SpacetimeDBProvider subscribes
- * to ALL rows in the block table.  Once performance requires it,
- * swap to viewport-scoped SQL subscriptions using these helpers:
- *
- *   conn.subscriptionBuilder()
- *     .subscribe(`SELECT * FROM block WHERE x >= ${bounds.minX} AND x <= ${bounds.maxX} AND y >= ${bounds.minY} AND y <= ${bounds.maxY}`)
+ * Block table uses x = column, y = row. Use tileWidth for x-axis and tileHeight for y-axis.
  */
 
 import { getConnection } from "./client";
+import { GRID_COLS, GRID_ROWS, TILE_WIDTH, TILE_HEIGHT } from "@/lib/constants";
 
 export interface ViewportBounds {
   minX: number;
@@ -22,13 +18,28 @@ export interface ViewportBounds {
   maxY: number;
 }
 
+/** Full grid bounds for initial subscription (all blocks in 0..GRID_COLS-1, 0..GRID_ROWS-1). */
+export function getFullGridBounds(): ViewportBounds {
+  return {
+    minX: 0,
+    maxX: Math.max(0, GRID_COLS - 1),
+    minY: 0,
+    maxY: Math.max(0, GRID_ROWS - 1),
+  };
+}
+
+/**
+ * Compute subscription bounds from viewport pixel coordinates.
+ * Uses tileWidth for x (column) and tileHeight for y (row) for non-square tiles.
+ */
 export function computeSubscriptionBounds(
   viewportX: number,
   viewportY: number,
   viewportWidth: number,
   viewportHeight: number,
   zoom: number,
-  tileSize: number,
+  tileWidth: number = TILE_WIDTH,
+  tileHeight: number = TILE_HEIGHT,
   buffer: number = 2
 ): ViewportBounds {
   const worldW = viewportWidth / zoom;
@@ -37,10 +48,10 @@ export function computeSubscriptionBounds(
   const worldY = -viewportY / zoom;
 
   return {
-    minX: Math.floor(worldX / tileSize) - buffer,
-    maxX: Math.ceil((worldX + worldW) / tileSize) + buffer,
-    minY: Math.floor(worldY / tileSize) - buffer,
-    maxY: Math.ceil((worldY + worldH) / tileSize) + buffer,
+    minX: Math.max(0, Math.floor(worldX / tileWidth) - buffer),
+    maxX: Math.min(GRID_COLS - 1, Math.ceil((worldX + worldW) / tileWidth) + buffer),
+    minY: Math.max(0, Math.floor(worldY / tileHeight) - buffer),
+    maxY: Math.min(GRID_ROWS - 1, Math.ceil((worldY + worldH) / tileHeight) + buffer),
   };
 }
 
@@ -49,13 +60,12 @@ export function computeSubscriptionBounds(
  * SQL query.  Returns a SubscriptionHandle that can be unsubscribed
  * when the viewport changes.
  */
-export function subscribeToViewport(bounds: ViewportBounds) {
-  const conn = getConnection();
+export function subscribeToViewport(bounds: ViewportBounds, conn = getConnection()) {
   if (!conn) return null;
 
   return conn
     .subscriptionBuilder()
-    .subscribe(
-      `SELECT * FROM block WHERE x >= ${bounds.minX} AND x <= ${bounds.maxX} AND y >= ${bounds.minY} AND y <= ${bounds.maxY}`
-    );
+    .subscribe([
+      `SELECT * FROM block WHERE x >= ${bounds.minX} AND x <= ${bounds.maxX} AND y >= ${bounds.minY} AND y <= ${bounds.maxY}`,
+    ]);
 }

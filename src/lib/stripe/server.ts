@@ -74,6 +74,50 @@ export async function createConnectedAccount(email: string): Promise<{
   };
 }
 
+/** Credits tiers for purchase */
+export const CREDITS_TIERS = [
+  { credits: 50, priceCents: 500, label: "50 credits" },
+  { credits: 250, priceCents: 2000, label: "250 credits" },
+  { credits: 1000, priceCents: 5000, label: "1000 credits" },
+] as const;
+
+export async function createCreditsCheckoutSession(params: {
+  identity: string;
+  credits: number;
+  successUrl?: string;
+  cancelUrl?: string;
+}): Promise<string> {
+  const tier = CREDITS_TIERS.find((t) => t.credits === params.credits);
+  const priceCents = tier?.priceCents ?? params.credits * 10; // fallback: 10¢/credit
+
+  const s = getStripeServer();
+  const session = await s.checkout.sessions.create({
+    mode: "payment",
+    payment_method_types: ["card"],
+    line_items: [
+      {
+        price_data: {
+          currency: "usd",
+          product_data: {
+            name: tier?.label ?? `${params.credits} Credits`,
+            description: `Credits for in-app purchases`,
+          },
+          unit_amount: priceCents,
+        },
+        quantity: 1,
+      },
+    ],
+    metadata: {
+      type: "credits",
+      identity: params.identity,
+      credits: String(params.credits),
+    },
+    success_url: params.successUrl ?? `${process.env.NEXT_PUBLIC_BASE_URL}/profile?credits=success`,
+    cancel_url: params.cancelUrl ?? `${process.env.NEXT_PUBLIC_BASE_URL}/profile?credits=canceled`,
+  });
+  return session.url || "";
+}
+
 export async function createPayout(
   connectedAccountId: string,
   amountCents: number,

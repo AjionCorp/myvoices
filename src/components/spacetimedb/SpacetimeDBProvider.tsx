@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
-import { connect, disconnect, reconnect, type ConnectionCallbacks } from "@/lib/spacetimedb/client";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { connect, disconnect, reconnect, type ConnectionCallbacks, VIEWPORT_SUBSCRIPTION_THRESHOLD } from "@/lib/spacetimedb/client";
+import { ViewportSubscriptionManager } from "@/lib/spacetimedb/ViewportSubscriptionManager";
+import { AnonymousViewportFetcher } from "@/lib/spacetimedb/AnonymousViewportFetcher";
 import { useBlocksStore, type Block as StoreBlock } from "@/stores/blocks-store";
 import { useContestStore } from "@/stores/contest-store";
 import { useAuthStore } from "@/stores/auth-store";
@@ -195,78 +197,132 @@ function registerTableCallbacks(conn: DbConnection) {
 }
 
 export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
-  const didConnect = useRef(false);
-  const prevToken = useRef<string | null>(null);
-  const { oidcToken } = useAuth();
+  const prevToken = useRef<string | undefined>(undefined);
+  const blockSubscriptionHandleRef = useRef<{ unsubscribe: () => void } | null>(null);
+  const [conn, setConn] = useState<DbConnection | null>(null);
+  const { oidcToken, isLoading: authLoading, isAuthenticated, user: authUser } = useAuth();
+
+  // Keep a stable ref to the latest Clerk-sourced user fields so onConnect
+  // can read them without depending on Zustand state (which onConnect also writes).
+  const clerkUserRef = useRef<{ email: string | null; displayName: string }>({
+    email: null,
+    displayName: "User",
+  });
+  useEffect(() => {
+    if (authUser) {
+      clerkUserRef.current = {
+        email: authUser.email,
+        displayName: authUser.displayName,
+      };
+    }
+  }, [authUser?.email, authUser?.displayName]);
 
   const callbacks: ConnectionCallbacks = {
-    onConnect: (conn, identity, token) => {
+    onConnect: (connection, identity, token) => {
+      setConn(connection);
       console.log("[SpacetimeDB] connected as", identity.toHexString());
-      registerTableCallbacks(conn);
-      bulkLoadBlocks(conn);
-      bulkLoadComments(conn);
+      registerTableCallbacks(connection);
+      bulkLoadBlocks(connection);
+      bulkLoadComments(connection);
 
-      const profile = conn.db.user_profile.identity.find(identity.toHexString());
+      // Use the ref so we always have the latest Clerk email/displayName regardless
+      // of what Zustand state looks like at this moment.
+      const clerkEmail = clerkUserRef.current.email;
+      const clerkDisplayName = clerkUserRef.current.displayName;
+      console.log("[SpacetimeDB] onConnect clerkEmail:", clerkEmail, "displayName:", clerkDisplayName);
+
+      // SpacetimeDB identity is a hex string derived from the JWT sub claim —
+      // different from Clerk's "user_xxx" ID. Always use this as the canonical identity.
+      const profile = connection.db.user_profile.identity.find(identity.toHexString());
       if (profile) {
         const userData = {
-          identity: profile.identity,
-          displayName: profile.displayName,
-          email: profile.email || null,
+          identity: identity.toHexString(),
+          displayName: profile.displayName || clerkDisplayName,
+          email: profile.email || clerkEmail,
           stripeAccountId: profile.stripeAccountId || null,
           totalEarnings: Number(profile.totalEarnings),
           isAdmin: profile.isAdmin,
         };
         useAuthStore.getState().setUser(userData);
         localStorage.setItem("spacetimedb_user", JSON.stringify(userData));
+
+        // If the stored profile is missing email or displayName (pre-fix data),
+        // patch it in SpacetimeDB using the fresh Clerk values.
+        if ((!profile.email || !profile.displayName) && clerkEmail) {
+          connection.reducers.updateProfile(
+            profile.displayName || clerkDisplayName,
+            clerkEmail,
+          );
+        }
       } else {
+        // First-time user — create their profile in SpacetimeDB.
+        const displayName = clerkDisplayName;
+        const email = clerkEmail || "";
+
+        // Overwrite the Clerk user ID with the real SpacetimeDB identity so
+        // the user_profile.onInsert callback matches correctly.
+        useAuthStore.getState().setUser({
+          identity: identity.toHexString(),
+          displayName,
+          email: email || null,
+          stripeAccountId: null,
+          totalEarnings: 0,
+          isAdmin: false,
+        });
+
+        connection.reducers.registerUser(displayName, email);
         useAuthStore.getState().setLoading(false);
       }
     },
     onDisconnect: () => {
+      setConn(null);
       console.log("[SpacetimeDB] disconnected");
-      didConnect.current = false;
     },
     onConnectError: (error) => {
       console.error("[SpacetimeDB] connection error:", error);
-      didConnect.current = false;
       useAuthStore.getState().setLoading(false);
     },
   };
 
-  // Initial connection
+  // Connect only when user is logged in (OIDC token required; anonymous sign-in disabled)
   useEffect(() => {
-    if (didConnect.current) return;
-    didConnect.current = true;
+    if (authLoading) return;
+    if (!isAuthenticated || !oidcToken) return;
+
+    if (prevToken.current === oidcToken) return;
+    const isReconnect = prevToken.current !== undefined;
     prevToken.current = oidcToken;
 
-    connect(callbacks, oidcToken).catch((err) => {
-      console.error("[SpacetimeDB] failed to connect:", err);
-      useAuthStore.getState().setLoading(false);
-    });
+    if (isReconnect) {
+      console.log("[SpacetimeDB] OIDC token refreshed, reconnecting...");
+      reconnect(callbacks, oidcToken).catch((err) => {
+        console.error("[SpacetimeDB] reconnect failed:", err);
+        useAuthStore.getState().setLoading(false);
+      });
+    } else {
+      connect(callbacks, oidcToken).catch((err) => {
+        console.error("[SpacetimeDB] failed to connect:", err);
+        useAuthStore.getState().setLoading(false);
+      });
+    }
 
     return () => {
       disconnect();
-      didConnect.current = false;
+      prevToken.current = undefined;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authLoading, isAuthenticated, oidcToken]);
 
-  // Reconnect when OIDC token refreshes (silent renew)
-  useEffect(() => {
-    if (!oidcToken || oidcToken === prevToken.current) return;
-    prevToken.current = oidcToken;
-
-    if (didConnect.current) {
-      console.log("[SpacetimeDB] OIDC token refreshed, reconnecting...");
-      didConnect.current = false;
-      reconnect(callbacks, oidcToken)
-        .then(() => { didConnect.current = true; })
-        .catch((err) => {
-          console.error("[SpacetimeDB] reconnect failed:", err);
-        });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [oidcToken]);
-
-  return <>{children}</>;
+  return (
+    <>
+      {VIEWPORT_SUBSCRIPTION_THRESHOLD > 0 && (
+        <ViewportSubscriptionManager
+          conn={conn}
+          blockSubscriptionHandleRef={blockSubscriptionHandleRef}
+        />
+      )}
+      {!authLoading && !isAuthenticated && <AnonymousViewportFetcher />}
+      {children}
+    </>
+  );
 }

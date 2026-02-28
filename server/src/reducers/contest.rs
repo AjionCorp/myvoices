@@ -133,6 +133,32 @@ pub fn register_user(
 }
 
 #[reducer]
+pub fn update_profile(
+    ctx: &ReducerContext,
+    display_name: String,
+    email: String,
+) -> Result<(), String> {
+    let caller = ctx.sender().to_hex().to_string();
+
+    let mut user = ctx
+        .db
+        .user_profile()
+        .identity()
+        .find(caller)
+        .ok_or("User not found")?;
+
+    if !display_name.is_empty() {
+        user.display_name = display_name;
+    }
+    if !email.is_empty() {
+        user.email = email;
+    }
+
+    ctx.db.user_profile().identity().update(user);
+    Ok(())
+}
+
+#[reducer]
 pub fn update_stripe_account(
     ctx: &ReducerContext,
     stripe_account_id: String,

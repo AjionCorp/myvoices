@@ -53,6 +53,7 @@ import SetAdminReducer from "./set_admin_reducer";
 import UnclaimBlockReducer from "./unclaim_block_reducer";
 import UndislikeVideoReducer from "./undislike_video_reducer";
 import UnlikeVideoReducer from "./unlike_video_reducer";
+import UpdateProfileReducer from "./update_profile_reducer";
 import UpdateStripeAccountReducer from "./update_stripe_account_reducer";
 
 // Import all procedure arg schemas
@@ -194,6 +195,7 @@ const reducersSchema = __reducers(
   __reducerSchema("unclaim_block", UnclaimBlockReducer),
   __reducerSchema("undislike_video", UndislikeVideoReducer),
   __reducerSchema("unlike_video", UnlikeVideoReducer),
+  __reducerSchema("update_profile", UpdateProfileReducer),
   __reducerSchema("update_stripe_account", UpdateStripeAccountReducer),
 );
 

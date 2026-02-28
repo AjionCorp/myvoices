@@ -8,6 +8,7 @@ import { WinnersHero } from "@/components/ui/WinnersHero";
 import { CanvasViewport } from "@/components/canvas/CanvasViewport";
 import { BlockDetailPanel } from "@/components/canvas/BlockDetailPanel";
 import { SubmissionModal } from "@/components/canvas/SubmissionModal";
+import { ExploreLoginModal } from "@/components/canvas/ExploreLoginModal";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useBlocksStore } from "@/stores/blocks-store";
 import { CENTER_X, CENTER_Y } from "@/lib/constants";
@@ -77,6 +78,7 @@ export default function Home() {
         <CanvasViewport />
         <StatsBar />
       </div>
+      <ExploreLoginModal />
     </div>
   );
 }

@@ -30,7 +30,7 @@ export default function ContestsManagement() {
 
   const handlePayout = async (winnerIdentity: string, amount: number, stripeAccountId: string) => {
     try {
-      const res = await fetch("/api/stripe/payout", {
+      const res = await fetch("/api/v1/stripe/payout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

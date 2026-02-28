@@ -4,7 +4,7 @@ const FADE_MS = 220;
 
 interface CacheEntry {
   url: string;
-  img: HTMLImageElement;
+  img: ImageBitmap;
   loadedAt: number;
   prev: CacheEntry | null;
   next: CacheEntry | null;
@@ -34,13 +34,14 @@ function evictLRU() {
     const n = tail;
     tail = n.prev;
     if (tail) tail.next = null; else head = null;
+    n.img.close();
     nodeMap.delete(n.url);
     removed++;
   }
 }
 
 export interface CachedImage {
-  img: HTMLImageElement;
+  img: ImageBitmap;
   alpha: number;
 }
 
@@ -57,7 +58,7 @@ export function isLoading(url: string): boolean {
   return loadingUrls.has(url);
 }
 
-export function loadImage(url: string): Promise<HTMLImageElement | null> {
+export function loadImage(url: string): Promise<ImageBitmap | null> {
   if (failedUrls.has(url)) return Promise.resolve(null);
 
   const cached = nodeMap.get(url);
@@ -66,31 +67,33 @@ export function loadImage(url: string): Promise<HTMLImageElement | null> {
 
   loadingUrls.add(url);
 
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => {
+  return fetch(url, { mode: "cors" })
+    .then((res) => {
+      if (!res.ok) throw new Error("fetch failed");
+      return res.blob();
+    })
+    .then((blob) => createImageBitmap(blob))
+    .then((bmp) => {
       loadingUrls.delete(url);
       if (nodeMap.size >= MAX_CACHE) evictLRU();
-      const node: CacheEntry = { url, img, loadedAt: performance.now(), prev: null, next: head };
+      const node: CacheEntry = { url, img: bmp, loadedAt: performance.now(), prev: null, next: head };
       if (head) head.prev = node;
       head = node;
       if (!tail) tail = node;
       nodeMap.set(url, node);
-      resolve(img);
-    };
-    img.onerror = () => {
+      return bmp;
+    })
+    .catch(() => {
       loadingUrls.delete(url);
       failedUrls.add(url);
-      resolve(null);
-    };
-    img.src = url;
-  });
+      return null;
+    });
 }
 
 export function getCacheSize(): number { return nodeMap.size; }
 
 export function clearImageCache(): void {
+  for (const entry of nodeMap.values()) entry.img.close();
   nodeMap.clear();
   head = null;
   tail = null;

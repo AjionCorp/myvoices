@@ -5,18 +5,20 @@ import {
   useContext,
   useEffect,
   useCallback,
+  useState,
   type ReactNode,
 } from "react";
-import { AuthProvider as OidcAuthProvider, useAuth as useOidcAuth } from "react-oidc-context";
+import { useAuth as useClerkAuth, useUser, useClerk } from "@clerk/nextjs";
 import { useAuthStore, type User } from "@/stores/auth-store";
-import type { WebStorageStateStore } from "oidc-client-ts";
 
 interface AuthContextType {
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  /** Clerk session JWT — passed to SpacetimeDB as the bearer token */
   oidcToken: string | null;
   login: () => void;
+  loginWithPopup: () => Promise<void>;
   logout: () => void;
 }
 
@@ -26,6 +28,7 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   oidcToken: null,
   login: () => {},
+  loginWithPopup: async () => {},
   logout: () => {},
 });
 
@@ -33,122 +36,86 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
-const AUTHORITY = process.env.NEXT_PUBLIC_SPACETIMEAUTH_ISSUER || "https://auth.spacetimedb.com/oidc";
-const CLIENT_ID = process.env.NEXT_PUBLIC_SPACETIMEAUTH_CLIENT_ID || "";
-const REDIRECT_URI = process.env.NEXT_PUBLIC_SPACETIMEAUTH_REDIRECT_URI || (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
-
 function AuthBridge({ children }: { children: ReactNode }) {
-  const oidc = useOidcAuth();
+  const { isLoaded, isSignedIn, getToken } = useClerkAuth();
+  const { user: clerkUser } = useUser();
+  const { openSignIn, openSignUp, signOut } = useClerk();
   const { user, isAuthenticated, isLoading, setUser, setToken, setLoading, logout: storeLogout } =
     useAuthStore();
+  const [oidcToken, setOidcToken] = useState<string | null>(null);
 
   useEffect(() => {
-    if (oidc.isLoading) return;
+    if (!isLoaded) return;
 
-    if (oidc.isAuthenticated && oidc.user?.id_token) {
-      setToken(oidc.user.id_token);
-
-      const profile = oidc.user.profile;
-      const storedUser = localStorage.getItem("spacetimedb_user");
-      try {
-        if (storedUser) {
-          setUser(JSON.parse(storedUser));
-        } else {
-          setUser({
-            identity: profile?.sub ?? "",
-            displayName: profile?.preferred_username || profile?.name || profile?.email || "User",
-            email: profile?.email || null,
-            stripeAccountId: null,
-            totalEarnings: 0,
-            isAdmin: false,
-          });
-        }
-      } finally {
-        setLoading(false);
-      }
-    } else {
-      // Not authenticated via OIDC — stay anonymous, content is viewable without auth
+    if (!isSignedIn || !clerkUser) {
       setLoading(false);
+      setOidcToken(null);
+      return;
     }
-  }, [oidc.isLoading, oidc.isAuthenticated, oidc.user, setToken, setUser, setLoading]);
 
-  const login = useCallback(() => {
-    oidc.signinRedirect();
-  }, [oidc]);
+    // Build user from Clerk profile — isAdmin / stripeAccountId get overwritten by
+    // SpacetimeDBProvider.onConnect once the WebSocket connection is established.
+    // Try every available email source — primaryEmailAddress may be null if Clerk
+    // hasn't hydrated it yet or the user signed up via OAuth without a primary email.
+    const clerkEmail =
+      clerkUser.primaryEmailAddress?.emailAddress ??
+      clerkUser.emailAddresses?.[0]?.emailAddress ??
+      null;
+    const clerkDisplayName =
+      clerkUser.fullName ||
+      clerkUser.username ||
+      clerkEmail ||
+      "User";
 
-  const logout = useCallback(() => {
-    localStorage.removeItem("spacetimedb_user");
-    localStorage.removeItem("spacetimedb_token");
-    storeLogout();
-    oidc.signoutRedirect().catch(() => {
-      oidc.removeUser();
-    });
-  }, [oidc, storeLogout]);
-
-  const oidcToken = oidc.user?.id_token || null;
-
-  return (
-    <AuthContext.Provider
-      value={{ user, isAuthenticated, isLoading, oidcToken, login, logout }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
-}
-
-function onSigninCallback() {
-  window.history.replaceState({}, document.title, window.location.pathname);
-}
-
-export function AuthProvider({ children }: { children: ReactNode }) {
-  if (!CLIENT_ID) {
-    return (
-      <AuthBridgeFallback>{children}</AuthBridgeFallback>
-    );
-  }
-
-  const oidcConfig = {
-    authority: AUTHORITY,
-    client_id: CLIENT_ID,
-    redirect_uri: REDIRECT_URI,
-    post_logout_redirect_uri: typeof window !== "undefined" ? window.location.origin : "",
-    scope: "openid profile email",
-    response_type: "code",
-    automaticSilentRenew: true,
-    onSigninCallback,
-  };
-
-  return (
-    <OidcAuthProvider {...oidcConfig}>
-      <AuthBridge>{children}</AuthBridge>
-    </OidcAuthProvider>
-  );
-}
-
-function AuthBridgeFallback({ children }: { children: ReactNode }) {
-  const { user, isAuthenticated, isLoading, setUser, setToken, setLoading, logout: storeLogout } =
-    useAuthStore();
-
-  useEffect(() => {
-    const storedToken = localStorage.getItem("spacetimedb_token");
-    const storedUser = localStorage.getItem("spacetimedb_user");
-    if (storedToken && storedUser) {
+    const storedUser = typeof window !== "undefined" ? localStorage.getItem("spacetimedb_user") : null;
+    if (storedUser) {
       try {
-        setToken(storedToken);
-        setUser(JSON.parse(storedUser));
-      } catch {
-        setLoading(false);
-      }
+        const parsed = JSON.parse(storedUser);
+        // Always freshen email + displayName from Clerk so stale localStorage
+        // entries never cause a blank email to be passed to registerUser.
+        setUser({
+          ...parsed,
+          email: clerkEmail ?? parsed.email ?? null,
+          displayName: parsed.displayName || clerkDisplayName,
+        });
+      } catch { /* ignore corrupt entry */ }
     } else {
-      setLoading(false);
+      setUser({
+        identity: clerkUser.id,
+        displayName: clerkDisplayName,
+        email: clerkEmail,
+        stripeAccountId: null,
+        totalEarnings: 0,
+        isAdmin: false,
+      });
     }
-  }, [setToken, setUser, setLoading]);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem("spacetimedb_user");
-    localStorage.removeItem("spacetimedb_token");
+    // Fetch Clerk JWT using the "spacetimedb" template so SpacetimeDB can validate it
+    getToken({ template: "spacetimedb" })
+      .then((t) => {
+        setOidcToken(t);
+        if (t) setToken(t);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  // Include primaryEmailAddress in deps so the effect re-runs if Clerk hydrates
+  // the email after the initial user object is available (lazy loading).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, isSignedIn, clerkUser?.id, clerkUser?.primaryEmailAddress?.emailAddress]);
+
+  const login = useCallback(() => openSignIn(), [openSignIn]);
+
+  const loginWithPopup = useCallback(async () => {
+    openSignIn();
+  }, [openSignIn]);
+
+  const loginSignUp = useCallback(() => openSignUp(), [openSignUp]);
+
+  const logout = useCallback(async () => {
     storeLogout();
-  }, [storeLogout]);
+    setOidcToken(null);
+    await signOut();
+  }, [signOut, storeLogout]);
 
   return (
     <AuthContext.Provider
@@ -156,12 +123,23 @@ function AuthBridgeFallback({ children }: { children: ReactNode }) {
         user,
         isAuthenticated,
         isLoading,
-        oidcToken: null,
-        login: () => console.warn("No OIDC client configured. Set NEXT_PUBLIC_SPACETIMEAUTH_CLIENT_ID."),
+        oidcToken,
+        login,
+        loginWithPopup,
         logout,
       }}
     >
       {children}
     </AuthContext.Provider>
   );
+}
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  return <AuthBridge>{children}</AuthBridge>;
+}
+
+/** Expose openSignUp separately for components that need it */
+export function useSignUp() {
+  const { openSignUp } = useClerk();
+  return useCallback(() => openSignUp(), [openSignUp]);
 }

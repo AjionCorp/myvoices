@@ -121,6 +121,7 @@ export function VideoCanvas() {
       }
 
       const canLoadImages = tilePxH >= LOD_LOAD_IMAGES;
+      const maxLoads = isDragging.current ? 6 : MAX_LOADS_PER_FRAME;
       const showEmpty = tilePxH >= LOD_SKIP_EMPTY;
 
       // --- Hover computation ---
@@ -190,10 +191,10 @@ export function VideoCanvas() {
               solidTiles.push({ col, row, r: 0.12, g: 0.10, b: 0.14 });
             }
             const sc = scaleMap.current.get(id);
-            const [u0, v0, u1, v1] = cropUV(cached.img.naturalWidth, cached.img.naturalHeight);
+            const [u0, v0, u1, v1] = cropUV(cached.img.width, cached.img.height);
             imgTiles.push({ col, row, img: cached.img, scale: sc ? sc.current : 1, u0, v0, u1, v1, alpha: cached.alpha });
           } else {
-            if (canLoadImages && loads < MAX_LOADS_PER_FRAME && !pendingLoads.current.has(url)) {
+            if (canLoadImages && loads < maxLoads && !pendingLoads.current.has(url)) {
               loads++;
               pendingLoads.current.add(url);
               loadImage(url).then(() => pendingLoads.current.delete(url));

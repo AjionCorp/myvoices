@@ -25,6 +25,7 @@ import SetAdminReducer from "../set_admin_reducer";
 import UnclaimBlockReducer from "../unclaim_block_reducer";
 import UndislikeVideoReducer from "../undislike_video_reducer";
 import UnlikeVideoReducer from "../unlike_video_reducer";
+import UpdateProfileReducer from "../update_profile_reducer";
 import UpdateStripeAccountReducer from "../update_stripe_account_reducer";
 
 export type AddCommentParams = __Infer<typeof AddCommentReducer>;
@@ -46,5 +47,6 @@ export type SetAdminParams = __Infer<typeof SetAdminReducer>;
 export type UnclaimBlockParams = __Infer<typeof UnclaimBlockReducer>;
 export type UndislikeVideoParams = __Infer<typeof UndislikeVideoReducer>;
 export type UnlikeVideoParams = __Infer<typeof UnlikeVideoReducer>;
+export type UpdateProfileParams = __Infer<typeof UpdateProfileReducer>;
 export type UpdateStripeAccountParams = __Infer<typeof UpdateStripeAccountReducer>;
 

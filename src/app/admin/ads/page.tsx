@@ -42,7 +42,7 @@ export default function AdsManagement() {
         return;
       }
 
-      const res = await fetch("/api/stripe/create-checkout", {
+      const res = await fetch("/api/v1/stripe/create-checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

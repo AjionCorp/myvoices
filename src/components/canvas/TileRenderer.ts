@@ -111,7 +111,7 @@ function mkProg(gl: WebGL2RenderingContext, v: string, f: string) {
 }
 
 interface GpuTexEntry { glTex: WebGLTexture; lastFrame: number; }
-const gpuTexCache = new Map<HTMLImageElement, GpuTexEntry>();
+const gpuTexCache = new Map<ImageBitmap, GpuTexEntry>();
 let gpuFrame = 0;
 const GPU_TEX_MAX = 512;
 const GPU_TEX_EVICT = 128;
@@ -271,7 +271,7 @@ export class TileRenderer {
     if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
   }
 
-  private getGpuTex(img: HTMLImageElement): WebGLTexture {
+  private getGpuTex(img: ImageBitmap): WebGLTexture {
     const existing = gpuTexCache.get(img);
     if (existing) { existing.lastFrame = gpuFrame; return existing.glTex; }
 
@@ -536,7 +536,7 @@ export class TileRenderer {
 export interface ImgTile {
   col: number;
   row: number;
-  img: HTMLImageElement;
+  img: ImageBitmap;
   scale: number;
   u0: number; v0: number;
   u1: number; v1: number;

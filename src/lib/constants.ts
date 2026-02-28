@@ -18,6 +18,9 @@ export const SPRITE_POOL_SIZE = 4000;
 export const CONTEST_DURATION_DAYS = 30;
 export const TOP_WINNERS_COUNT = 2;
 
+/** Anonymous users can view only within this radius (in tiles) from center. Panning outside shows login modal. */
+export const ANONYMOUS_VIEWPORT_RADIUS = 60;
+
 export const PLACEHOLDER_COLOR = 0x1e1e1e;
 export const PLACEHOLDER_BORDER_COLOR = 0x2a2a2a;
 export const HIGHLIGHT_COLOR = 0x6d28d9;

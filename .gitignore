@@ -44,3 +44,6 @@ next-env.d.ts
 
 # rust
 server/target/
+
+# clerk configuration (can include secrets)
+/.clerk/

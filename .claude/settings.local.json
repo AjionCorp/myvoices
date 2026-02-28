@@ -2,7 +2,17 @@
   "permissions": {
     "allow": [
       "Bash(claude:*)",
-      "Bash(npm show:*)"
+      "Bash(npm show:*)",
+      "Bash(cargo check:*)",
+      "Bash(where.exe cargo:*)",
+      "Bash(spacetime publish:*)",
+      "Bash(export:*)",
+      "Bash(spacetime call:*)",
+      "Bash(spacetime sql:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(node:*)"
     ]
   }
 }
