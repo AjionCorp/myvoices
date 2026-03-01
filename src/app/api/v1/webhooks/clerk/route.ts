@@ -116,7 +116,12 @@ export async function POST(request: NextRequest) {
 
     case "user.deleted":
       console.log("[clerk webhook] user.deleted:", data.id);
-      // Not deleting SpacetimeDB data — destructive and irreversible.
+      try {
+        await callReducer("server_delete_user", [data.id]);
+        console.log("[clerk webhook] server_delete_user succeeded for", data.id);
+      } catch (err) {
+        console.warn("[clerk webhook] server_delete_user failed:", err);
+      }
       break;
 
     default:

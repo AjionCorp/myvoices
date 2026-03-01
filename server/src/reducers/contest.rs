@@ -235,6 +235,36 @@ pub fn server_update_profile(
     Ok(())
 }
 
+/// Called server-side (from Clerk webhook) when a user deletes their account.
+/// Anonymises the profile rather than hard-deleting so existing block/content history is preserved.
+#[reducer]
+pub fn server_delete_user(ctx: &ReducerContext, clerk_user_id: String) -> Result<(), String> {
+    let mapping = ctx
+        .db
+        .clerk_identity_map()
+        .clerk_user_id()
+        .find(clerk_user_id.clone());
+
+    let Some(mapping) = mapping else {
+        // User may never have logged in — nothing to anonymise.
+        return Ok(());
+    };
+
+    if let Some(user) = ctx.db.user_profile().identity().find(mapping.spacetimedb_identity.clone()) {
+        ctx.db.user_profile().identity().delete(mapping.spacetimedb_identity.clone());
+        ctx.db.user_profile().try_insert(UserProfile {
+            display_name: "Deleted User".to_string(),
+            email: String::new(),
+            stripe_account_id: String::new(),
+            is_admin: false,
+            ..user
+        }).map_err(|e| format!("Insert failed: {e}"))?;
+    }
+
+    ctx.db.clerk_identity_map().clerk_user_id().delete(clerk_user_id);
+    Ok(())
+}
+
 #[reducer]
 pub fn set_admin(
     ctx: &ReducerContext,

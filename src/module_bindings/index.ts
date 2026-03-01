@@ -49,6 +49,7 @@ import RegisterUserReducer from "./register_user_reducer";
 import RemoveAdReducer from "./remove_ad_reducer";
 import SeedAdsReducer from "./seed_ads_reducer";
 import SeedDataReducer from "./seed_data_reducer";
+import ServerDeleteUserReducer from "./server_delete_user_reducer";
 import ServerUpdateProfileReducer from "./server_update_profile_reducer";
 import SetAdminReducer from "./set_admin_reducer";
 import StoreClerkMappingReducer from "./store_clerk_mapping_reducer";
@@ -205,6 +206,7 @@ const reducersSchema = __reducers(
   __reducerSchema("remove_ad", RemoveAdReducer),
   __reducerSchema("seed_ads", SeedAdsReducer),
   __reducerSchema("seed_data", SeedDataReducer),
+  __reducerSchema("server_delete_user", ServerDeleteUserReducer),
   __reducerSchema("server_update_profile", ServerUpdateProfileReducer),
   __reducerSchema("set_admin", SetAdminReducer),
   __reducerSchema("store_clerk_mapping", StoreClerkMappingReducer),
