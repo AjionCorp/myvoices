@@ -11,7 +11,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { Webhook } from "standardwebhooks";
+import { Webhook } from "svix";
 
 const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET ?? "";
 
@@ -64,17 +64,17 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.text();
-  const webhookId = request.headers.get("webhook-id") ?? "";
-  const webhookTimestamp = request.headers.get("webhook-timestamp") ?? "";
-  const webhookSignature = request.headers.get("webhook-signature") ?? "";
+  const svixId = request.headers.get("svix-id") ?? "";
+  const svixTimestamp = request.headers.get("svix-timestamp") ?? "";
+  const svixSignature = request.headers.get("svix-signature") ?? "";
 
   let event: ClerkUserEvent;
   try {
     const wh = new Webhook(WEBHOOK_SECRET);
     event = wh.verify(body, {
-      "webhook-id": webhookId,
-      "webhook-timestamp": webhookTimestamp,
-      "webhook-signature": webhookSignature,
+      "svix-id": svixId,
+      "svix-timestamp": svixTimestamp,
+      "svix-signature": svixSignature,
     }) as ClerkUserEvent;
   } catch (err) {
     console.error("[clerk webhook] Signature verification failed:", err);
