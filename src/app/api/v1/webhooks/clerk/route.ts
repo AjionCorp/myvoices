@@ -83,22 +83,25 @@ export async function POST(request: NextRequest) {
 
   const { type, data } = event;
 
-  const primaryEmail = data.email_addresses.find(
-    (e) => e.id === data.primary_email_address_id
-  )?.email_address ?? "";
-  const displayName =
-    [data.first_name, data.last_name].filter(Boolean).join(" ").trim() ||
-    data.username ||
-    primaryEmail ||
-    "User";
-
   switch (type) {
-    case "user.created":
+    case "user.created": {
       // Profile is created on first WebSocket connect via registerUser reducer.
-      console.log("[clerk webhook] user.created:", data.id, { displayName, primaryEmail });
+      const email = (data.email_addresses ?? []).find(
+        (e) => e.id === data.primary_email_address_id
+      )?.email_address ?? "";
+      console.log("[clerk webhook] user.created:", data.id, { email });
       break;
+    }
 
     case "user.updated": {
+      const primaryEmail = (data.email_addresses ?? []).find(
+        (e) => e.id === data.primary_email_address_id
+      )?.email_address ?? "";
+      const displayName =
+        [data.first_name, data.last_name].filter(Boolean).join(" ").trim() ||
+        data.username ||
+        primaryEmail ||
+        "User";
       console.log("[clerk webhook] user.updated:", data.id, { displayName, primaryEmail });
       try {
         await callReducer("server_update_profile", [data.id, displayName, primaryEmail]);
@@ -114,7 +117,6 @@ export async function POST(request: NextRequest) {
     case "user.deleted":
       console.log("[clerk webhook] user.deleted:", data.id);
       // Not deleting SpacetimeDB data — destructive and irreversible.
-      // Consider anonymising the profile instead.
       break;
 
     default:
