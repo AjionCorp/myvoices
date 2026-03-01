@@ -12,6 +12,8 @@ import {
 
 export default __t.row({
   identity: __t.string().primaryKey(),
+  clerkUserId: __t.string().name("clerk_user_id"),
+  username: __t.string(),
   displayName: __t.string().name("display_name"),
   email: __t.string(),
   stripeAccountId: __t.string().name("stripe_account_id"),

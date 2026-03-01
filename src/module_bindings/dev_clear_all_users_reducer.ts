@@ -10,9 +10,4 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default {
-  clerkUserId: __t.string(),
-  username: __t.string(),
-  displayName: __t.string(),
-  email: __t.string(),
-};
+export default {};

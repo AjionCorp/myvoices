@@ -110,6 +110,8 @@ pub fn finalize_contest(ctx: &ReducerContext, contest_id: u64) -> Result<(), Str
 #[reducer]
 pub fn register_user(
     ctx: &ReducerContext,
+    clerk_user_id: String,
+    username: String,
     display_name: String,
     email: String,
 ) -> Result<(), String> {
@@ -121,6 +123,8 @@ pub fn register_user(
 
     ctx.db.user_profile().try_insert(UserProfile {
         identity: caller,
+        clerk_user_id,
+        username,
         display_name,
         email,
         stripe_account_id: String::new(),
@@ -135,6 +139,7 @@ pub fn register_user(
 #[reducer]
 pub fn update_profile(
     ctx: &ReducerContext,
+    username: String,
     display_name: String,
     email: String,
 ) -> Result<(), String> {
@@ -148,6 +153,7 @@ pub fn update_profile(
         .ok_or("User not found")?;
 
     let updated = UserProfile {
+        username: if username.is_empty() { user.username.clone() } else { username },
         display_name: if display_name.is_empty() { user.display_name.clone() } else { display_name },
         email: if email.is_empty() { user.email.clone() } else { email },
         ..user
@@ -199,12 +205,13 @@ pub fn store_clerk_mapping(ctx: &ReducerContext, clerk_user_id: String) -> Resul
     Ok(())
 }
 
-/// Called server-side (from Clerk webhook) to sync display_name / email changes.
+/// Called server-side (from Clerk webhook) to sync username / display_name / email changes.
 /// No caller auth check — security relies on SPACETIMEDB_SERVER_TOKEN being kept secret.
 #[reducer]
 pub fn server_update_profile(
     ctx: &ReducerContext,
     clerk_user_id: String,
+    username: String,
     display_name: String,
     email: String,
 ) -> Result<(), String> {
@@ -223,6 +230,7 @@ pub fn server_update_profile(
         .ok_or("User profile not found")?;
 
     let updated = UserProfile {
+        username: if username.is_empty() { user.username.clone() } else { username },
         display_name: if display_name.is_empty() { user.display_name.clone() } else { display_name },
         email: if email.is_empty() { user.email.clone() } else { email },
         ..user
@@ -253,6 +261,8 @@ pub fn server_delete_user(ctx: &ReducerContext, clerk_user_id: String) -> Result
     if let Some(user) = ctx.db.user_profile().identity().find(mapping.spacetimedb_identity.clone()) {
         ctx.db.user_profile().identity().delete(mapping.spacetimedb_identity.clone());
         ctx.db.user_profile().try_insert(UserProfile {
+            clerk_user_id: String::new(),
+            username: String::new(),
             display_name: "Deleted User".to_string(),
             email: String::new(),
             stripe_account_id: String::new(),

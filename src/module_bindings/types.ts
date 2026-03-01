@@ -108,6 +108,8 @@ export type TransactionLog = __Infer<typeof TransactionLog>;
 
 export const UserProfile = __t.object("UserProfile", {
   identity: __t.string(),
+  clerkUserId: __t.string(),
+  username: __t.string(),
   displayName: __t.string(),
   email: __t.string(),
   stripeAccountId: __t.string(),

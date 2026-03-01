@@ -12,6 +12,7 @@ import {
 
 export default {
   clerkUserId: __t.string(),
+  username: __t.string(),
   displayName: __t.string(),
   email: __t.string(),
 };

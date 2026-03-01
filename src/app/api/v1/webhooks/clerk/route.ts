@@ -97,14 +97,15 @@ export async function POST(request: NextRequest) {
       const primaryEmail = (data.email_addresses ?? []).find(
         (e) => e.id === data.primary_email_address_id
       )?.email_address ?? "";
+      const username = data.username ?? "";
       const displayName =
         [data.first_name, data.last_name].filter(Boolean).join(" ").trim() ||
-        data.username ||
+        username ||
         primaryEmail ||
         "User";
-      console.log("[clerk webhook] user.updated:", data.id, { displayName, primaryEmail });
+      console.log("[clerk webhook] user.updated:", data.id, { username, displayName, primaryEmail });
       try {
-        await callReducer("server_update_profile", [data.id, displayName, primaryEmail]);
+        await callReducer("server_update_profile", [data.id, username, displayName, primaryEmail]);
         console.log("[clerk webhook] server_update_profile succeeded for", data.id);
       } catch (err) {
         // Non-fatal: user may not have connected yet (no clerk_identity_map entry).

@@ -2,6 +2,8 @@ import { create } from "zustand";
 
 export interface User {
   identity: string;
+  clerkUserId: string | null;
+  username: string | null;
   displayName: string;
   email: string | null;
   stripeAccountId: string | null;

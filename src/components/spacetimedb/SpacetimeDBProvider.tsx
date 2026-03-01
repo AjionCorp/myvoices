@@ -172,6 +172,8 @@ function registerTableCallbacks(conn: DbConnection) {
     if (currentUser && row.identity === currentUser.identity) {
       useAuthStore.getState().setUser({
         identity: row.identity,
+        clerkUserId: row.clerkUserId || null,
+        username: row.username || null,
         displayName: row.displayName,
         email: row.email || null,
         stripeAccountId: row.stripeAccountId || null,
@@ -186,6 +188,8 @@ function registerTableCallbacks(conn: DbConnection) {
     if (currentUser && row.identity === currentUser.identity) {
       useAuthStore.getState().setUser({
         identity: row.identity,
+        clerkUserId: row.clerkUserId || null,
+        username: row.username || null,
         displayName: row.displayName,
         email: row.email || null,
         stripeAccountId: row.stripeAccountId || null,
@@ -204,18 +208,20 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
 
   // Keep a stable ref to the latest Clerk-sourced user fields so onConnect
   // can read them without depending on Zustand state (which onConnect also writes).
-  const clerkUserRef = useRef<{ email: string | null; displayName: string }>({
+  const clerkUserRef = useRef<{ email: string | null; username: string | null; displayName: string }>({
     email: null,
+    username: null,
     displayName: "User",
   });
   useEffect(() => {
     if (authUser) {
       clerkUserRef.current = {
         email: authUser.email,
+        username: authUser.username ?? null,
         displayName: authUser.displayName,
       };
     }
-  }, [authUser?.email, authUser?.displayName]);
+  }, [authUser?.email, authUser?.username, authUser?.displayName]);
 
   const callbacks: ConnectionCallbacks = {
     onBlocksLoaded: () => {
@@ -229,11 +235,13 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
       registerTableCallbacks(connection);
       bulkLoadComments(connection);
 
-      // Use the ref so we always have the latest Clerk email/displayName regardless
+      // Use the ref so we always have the latest Clerk fields regardless
       // of what Zustand state looks like at this moment.
       const clerkEmail = clerkUserRef.current.email;
+      const clerkUsername = clerkUserRef.current.username;
       const clerkDisplayName = clerkUserRef.current.displayName;
-      console.log("[SpacetimeDB] onConnect — clerkUserRef:", { email: clerkEmail ?? "(null)", displayName: clerkDisplayName });
+      const clerkUserId = useAuthStore.getState().clerkUserId ?? "";
+      console.log("[SpacetimeDB] onConnect — clerkUserRef:", { email: clerkEmail ?? "(null)", username: clerkUsername ?? "(null)", displayName: clerkDisplayName });
 
       // SpacetimeDB identity is a hex string derived from the JWT sub claim —
       // different from Clerk's "user_xxx" ID. Always use this as the canonical identity.
@@ -241,6 +249,8 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
       if (profile) {
         const userData = {
           identity: identity.toHexString(),
+          clerkUserId: profile.clerkUserId || clerkUserId || null,
+          username: profile.username || clerkUsername || null,
           displayName: profile.displayName || clerkDisplayName,
           email: profile.email || clerkEmail,
           stripeAccountId: profile.stripeAccountId || null,
@@ -250,23 +260,26 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
         useAuthStore.getState().setUser(userData);
         localStorage.setItem("spacetimedb_user", JSON.stringify(userData));
 
-        // If the stored profile is missing email or displayName (pre-fix data),
-        // patch it in SpacetimeDB using the fresh Clerk values.
-        if ((!profile.email || !profile.displayName) && clerkEmail) {
+        // Patch missing fields (e.g. pre-migration profiles missing username/email).
+        if (!profile.email || !profile.displayName || !profile.username) {
+          const username = profile.username || clerkUsername || "";
           const displayName = profile.displayName || clerkDisplayName;
-          console.log("[SpacetimeDB] updateProfile — passing:", { displayName, email: clerkEmail });
-          connection.reducers.updateProfile({ displayName, email: clerkEmail });
+          const email = profile.email || clerkEmail || "";
+          console.log("[SpacetimeDB] updateProfile — passing:", { username, displayName, email });
+          connection.reducers.updateProfile({ username, displayName, email });
         }
       } else {
         // First-time user — create their profile in SpacetimeDB.
+        const username = clerkUsername || "";
         const displayName = clerkDisplayName;
         const email = clerkEmail || "";
-        console.log("[SpacetimeDB] registerUser — passing:", { displayName, email: email || "(empty)" });
+        console.log("[SpacetimeDB] registerUser — passing:", { clerkUserId, username, displayName, email: email || "(empty)" });
 
-        // Overwrite the Clerk user ID with the real SpacetimeDB identity so
-        // the user_profile.onInsert callback matches correctly.
+        // Set the real SpacetimeDB identity so user_profile.onInsert matches.
         useAuthStore.getState().setUser({
           identity: identity.toHexString(),
+          clerkUserId: clerkUserId || null,
+          username: clerkUsername,
           displayName,
           email: email || null,
           stripeAccountId: null,
@@ -274,13 +287,12 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
           isAdmin: false,
         });
 
-        connection.reducers.registerUser({ displayName, email });
+        connection.reducers.registerUser({ clerkUserId, username, displayName, email });
         useAuthStore.getState().setLoading(false);
       }
 
       // Always store/refresh the Clerk user ID → SpacetimeDB identity mapping
       // so the Clerk webhook can find this user by clerk_user_id.
-      const clerkUserId = useAuthStore.getState().clerkUserId;
       if (clerkUserId) {
         console.log("[SpacetimeDB] storeClerkMapping:", clerkUserId);
         connection.reducers.storeClerkMapping({ clerkUserId });

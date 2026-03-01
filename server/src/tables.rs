@@ -46,6 +46,8 @@ pub struct Block {
 pub struct UserProfile {
     #[primary_key]
     pub identity: String,
+    pub clerk_user_id: String,
+    pub username: String,
     pub display_name: String,
     pub email: String,
     pub stripe_account_id: String,

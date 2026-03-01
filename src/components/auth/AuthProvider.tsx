@@ -69,8 +69,11 @@ function AuthBridge({ children }: { children: ReactNode }) {
 
     setClerkUserId(clerkUser.id);
 
+    const clerkUsername = clerkUser.username ?? null;
+
     console.log("[Auth] Clerk data:", {
       email: clerkEmail ?? "(null)",
+      username: clerkUsername ?? "(null)",
       displayName: clerkDisplayName,
       primaryEmail: clerkUser.primaryEmailAddress?.emailAddress ?? "(null)",
       emailAddresses: clerkUser.emailAddresses?.map((e) => e.emailAddress) ?? [],
@@ -80,26 +83,30 @@ function AuthBridge({ children }: { children: ReactNode }) {
     if (storedUser) {
       try {
         const parsed = JSON.parse(storedUser);
-        // Always freshen email + displayName from Clerk so stale localStorage
-        // entries never cause a blank email to be passed to registerUser.
+        // Always freshen email, username + displayName from Clerk so stale localStorage
+        // entries never cause blank values to be passed to registerUser.
         const userData = {
           ...parsed,
+          clerkUserId: clerkUser.id,
+          username: clerkUsername ?? parsed.username ?? null,
           email: clerkEmail ?? parsed.email ?? null,
           displayName: parsed.displayName || clerkDisplayName,
         };
-        console.log("[Auth] setUser (from stored + Clerk):", { email: userData.email ?? "(null)", displayName: userData.displayName });
+        console.log("[Auth] setUser (from stored + Clerk):", { email: userData.email ?? "(null)", username: userData.username ?? "(null)", displayName: userData.displayName });
         setUser(userData);
       } catch { /* ignore corrupt entry */ }
     } else {
       const userData = {
         identity: clerkUser.id,
+        clerkUserId: clerkUser.id,
+        username: clerkUsername,
         displayName: clerkDisplayName,
         email: clerkEmail,
         stripeAccountId: null,
         totalEarnings: 0,
         isAdmin: false,
       };
-      console.log("[Auth] setUser (new):", { email: userData.email ?? "(null)", displayName: userData.displayName });
+      console.log("[Auth] setUser (new):", { email: userData.email ?? "(null)", username: userData.username ?? "(null)", displayName: userData.displayName });
       setUser(userData);
     }
 

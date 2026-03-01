@@ -39,6 +39,7 @@ import ClaimBlockReducer from "./claim_block_reducer";
 import ClearAllBlocksReducer from "./clear_all_blocks_reducer";
 import CreateContestReducer from "./create_contest_reducer";
 import DeleteCommentReducer from "./delete_comment_reducer";
+import DevClearAllUsersReducer from "./dev_clear_all_users_reducer";
 import DislikeVideoReducer from "./dislike_video_reducer";
 import FinalizeContestReducer from "./finalize_contest_reducer";
 import LikeVideoReducer from "./like_video_reducer";
@@ -196,6 +197,7 @@ const reducersSchema = __reducers(
   __reducerSchema("clear_all_blocks", ClearAllBlocksReducer),
   __reducerSchema("create_contest", CreateContestReducer),
   __reducerSchema("delete_comment", DeleteCommentReducer),
+  __reducerSchema("dev_clear_all_users", DevClearAllUsersReducer),
   __reducerSchema("dislike_video", DislikeVideoReducer),
   __reducerSchema("finalize_contest", FinalizeContestReducer),
   __reducerSchema("like_video", LikeVideoReducer),
