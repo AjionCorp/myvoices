@@ -4,7 +4,7 @@ import { useRef, useEffect } from "react";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useBlocksStore, type Block, SpatialIndex, type ContentBounds } from "@/stores/blocks-store";
 import {
-  TILE_WIDTH, TILE_HEIGHT, GRID_COLS, GRID_ROWS, isAdSlot, getAdRingIndex,
+  TILE_WIDTH, TILE_HEIGHT, isAdSlot, getAdRingIndex,
 } from "@/lib/constants";
 import { TileRenderer, cropUV, type ImgTile, type SolidTile, type BorderTile } from "./TileRenderer";
 import { getCachedImage, loadImage } from "./ImageCache";
@@ -42,12 +42,15 @@ export function VideoCanvas() {
   const vp = useRef({ x: 0, y: 0, z: 0.6, sw: 0, sh: 0 });
   const blocksRef = useRef<Map<number, Block>>(new Map());
   const spatialRef = useRef<SpatialIndex>(new SpatialIndex());
-
+  const positionIndexRef = useRef<Map<string, number>>(new Map());
   const boundsRef = useRef<ContentBounds>({ minCol: 0, maxCol: 0, minRow: 0, maxRow: 0 });
 
   const mouseScreen = useRef({ x: -9999, y: -9999, inside: false });
-  const hoveredCell = useRef({ col: -1, row: -1, id: -1 });
-  const pressedId = useRef(-1);
+  // hoveredCell tracks the grid cell under the cursor
+  const hoveredCell = useRef({ col: -9999, row: -9999 });
+  // hoveredBlockId is the block at hoveredCell (-1 if empty)
+  const hoveredBlockId = useRef(-1);
+  const pressedBlockId = useRef(-1);
   const isDragging = useRef(false);
   const dragDist = useRef(0);
   const lastPointer = useRef({ x: 0, y: 0 });
@@ -68,6 +71,7 @@ export function VideoCanvas() {
     const unsub2 = useBlocksStore.subscribe((s) => {
       blocksRef.current = s.blocks;
       spatialRef.current = s.spatial;
+      positionIndexRef.current = s.positionIndex;
       boundsRef.current = s.contentBounds;
     });
     const cs = useCanvasStore.getState();
@@ -75,6 +79,7 @@ export function VideoCanvas() {
     const bs = useBlocksStore.getState();
     blocksRef.current = bs.blocks;
     spatialRef.current = bs.spatial;
+    positionIndexRef.current = bs.positionIndex;
     boundsRef.current = bs.contentBounds;
     return () => { unsub1(); unsub2(); };
   }, []);
@@ -102,19 +107,19 @@ export function VideoCanvas() {
       const zoom = v.z;
       const tilePxH = TILE_HEIGHT * zoom;
 
-      // --- Visible range with budget cap ---
+      // Visible range based on content bounds (no fixed grid limit)
       const wx = -v.x / zoom, wy = -v.y / zoom;
       const ww = v.sw / zoom, wh = v.sh / zoom;
-      let c0 = Math.max(0, (wx / TILE_WIDTH | 0) - 1);
-      let c1 = Math.min(GRID_COLS - 1, Math.ceil((wx + ww) / TILE_WIDTH) + 1);
-      let r0 = Math.max(0, (wy / TILE_HEIGHT | 0) - 1);
-      let r1 = Math.min(GRID_ROWS - 1, Math.ceil((wy + wh) / TILE_HEIGHT) + 1);
+      const bounds = boundsRef.current;
+      const c0 = Math.max(bounds.minCol - 1, Math.floor(wx / TILE_WIDTH) - 1);
+      const c1 = Math.min(bounds.maxCol + 1, Math.ceil((wx + ww) / TILE_WIDTH) + 1);
+      const r0 = Math.max(bounds.minRow - 1, Math.floor(wy / TILE_HEIGHT) - 1);
+      const r1 = Math.min(bounds.maxRow + 1, Math.ceil((wy + wh) / TILE_HEIGHT) + 1);
 
       const visW = c1 - c0 + 1;
       const visH = r1 - r0 + 1;
       const totalVis = visW * visH;
 
-      // If too many tiles visible, subsample by stepping
       let step = 1;
       if (totalVis > MAX_VISIBLE_TILES) {
         step = Math.ceil(Math.sqrt(totalVis / MAX_VISIBLE_TILES));
@@ -126,42 +131,53 @@ export function VideoCanvas() {
 
       // --- Hover computation ---
       const ms = mouseScreen.current;
-      let hCol = -1, hRow = -1, hId = -1;
+      let hCol = -9999, hRow = -9999, hBlockId = -1;
       if (ms.inside && !isDragging.current) {
         const mwx = (ms.x - v.x) / zoom;
         const mwy = (ms.y - v.y) / zoom;
         hCol = Math.floor(mwx / TILE_WIDTH);
         hRow = Math.floor(mwy / TILE_HEIGHT);
-        if (hCol >= 0 && hCol < GRID_COLS && hRow >= 0 && hRow < GRID_ROWS) {
-          hId = hRow * GRID_COLS + hCol;
-        } else { hCol = -1; hRow = -1; }
+        // Primary lookup: positionIndex (O(1))
+        const bId = positionIndexRef.current.get(`${hCol},${hRow}`);
+        hBlockId = bId !== undefined ? bId : -1;
+        // Fallback: spatial bucket scan — catches blocks that arrived via
+        // the rebalance delete+reinsert cycle before positionIndex syncs.
+        if (hBlockId === -1) {
+          const nearby = spatialRef.current.queryRange(hCol, hRow, hCol, hRow);
+          for (let ni = 0; ni < nearby.length; ni++) {
+            const nb = blocksRef.current.get(nearby[ni]);
+            if (nb && nb.x === hCol && nb.y === hRow) { hBlockId = nearby[ni]; break; }
+          }
+        }
       }
 
-      const prevH = hoveredCell.current;
-      if (prevH.id !== hId && prevH.id >= 0) {
-        const s = scaleMap.current.get(prevH.id);
+      // Animate previous hovered block back to scale 1
+      const prevH = hoveredBlockId.current;
+      if (prevH !== hBlockId && prevH >= 0) {
+        const s = scaleMap.current.get(prevH);
         if (s) s.target = 1;
       }
-      hoveredCell.current = { col: hCol, row: hRow, id: hId };
+      hoveredCell.current = { col: hCol, row: hRow };
+      hoveredBlockId.current = hBlockId;
 
-      if (hId >= 0) {
-        let s = scaleMap.current.get(hId);
-        if (!s) { s = { current: 1, target: HOVER_SCALE }; scaleMap.current.set(hId, s); }
-        else s.target = pressedId.current === hId ? PRESS_SCALE : HOVER_SCALE;
+      if (hBlockId >= 0) {
+        let s = scaleMap.current.get(hBlockId);
+        if (!s) { s = { current: 1, target: HOVER_SCALE }; scaleMap.current.set(hBlockId, s); }
+        else s.target = pressedBlockId.current === hBlockId ? PRESS_SCALE : HOVER_SCALE;
       }
 
-      const targetAlpha = hId >= 0 ? 1 : 0;
+      const targetAlpha = (hBlockId >= 0) ? 1 : 0;
       hoverAlpha.current = Math.abs(hoverAlpha.current - targetAlpha) < 0.02
         ? targetAlpha : lerp(hoverAlpha.current, targetAlpha, ANIM_SPEED);
 
       for (const [id, s] of scaleMap.current) {
-        if (id !== hId && s.target !== 1) s.target = 1;
+        if (id !== hBlockId && s.target !== 1) s.target = 1;
         const d = Math.abs(s.current - s.target);
         if (d < 0.002) { s.current = s.target; if (s.target === 1) scaleMap.current.delete(id); }
         else s.current = lerp(s.current, s.target, ANIM_SPEED);
       }
 
-      // --- Build tile lists from spatial index (only occupied blocks) ---
+      // --- Build tile lists from spatial index ---
       const blocks = blocksRef.current;
       imgTiles.length = 0;
       solidTiles.length = 0;
@@ -216,24 +232,21 @@ export function VideoCanvas() {
         }
       }
 
-      // Empty-cell grid: only at high zoom, show subtle placeholders for
-      // unoccupied cells whose 4 direct neighbours are ALL occupied (interior
-      // holes only). This avoids any artifacts at the spiral's ragged edges.
+      // Empty-cell grid placeholders (only interior holes at high zoom)
       if (showEmpty && step === 1 && tilePxH >= 30) {
-        const bounds = boundsRef.current;
+        const posIdx = positionIndexRef.current;
         const ec0 = Math.max(c0, bounds.minCol);
         const ec1 = Math.min(c1, bounds.maxCol);
         const er0 = Math.max(r0, bounds.minRow);
         const er1 = Math.min(r1, bounds.maxRow);
         for (let row = er0; row <= er1; row++) {
           for (let col = ec0; col <= ec1; col++) {
-            const id = row * GRID_COLS + col;
-            if (blocks.has(id)) continue;
+            if (posIdx.has(`${col},${row}`)) continue;
             const allNeighbours =
-              blocks.has(id - 1) &&
-              blocks.has(id + 1) &&
-              blocks.has(id - GRID_COLS) &&
-              blocks.has(id + GRID_COLS);
+              posIdx.has(`${col - 1},${row}`) &&
+              posIdx.has(`${col + 1},${row}`) &&
+              posIdx.has(`${col},${row - 1}`) &&
+              posIdx.has(`${col},${row + 1}`);
             if (!allNeighbours) continue;
             if (isAdSlot(col, row)) {
               adTiles.push({ col, row, r: 0.22, g: 0.22, b: 0.24 });
@@ -244,13 +257,24 @@ export function VideoCanvas() {
         }
       }
 
-      // --- Draw: clear, solids, ad labels, textured, ring borders ---
+      // Hover highlight on empty cell
+      if (hCol !== -9999 && hRow !== -9999 && hBlockId === -1 && tilePxH >= LOD_SKIP_EMPTY) {
+        solidTiles.push({ col: hCol, row: hRow, r: 0.16, g: 0.13, b: 0.20 });
+      }
+
       renderer.beginFrame();
-      const hoverSc = hId >= 0 ? (scaleMap.current.get(hId)?.current ?? 1) : 1;
+      const hoverSc = hBlockId >= 0 ? (scaleMap.current.get(hBlockId)?.current ?? 1) : 1;
+      // Only pass real coords to drawHover when a block is hovered — prevents
+      // the purple border fading onto empty cells during block→empty transitions.
+      const drawHCol = hBlockId >= 0 ? hCol : -9999;
+      const drawHRow = hBlockId >= 0 ? hRow : -9999;
       renderer.drawSolid(solidTiles, v.x, v.y, zoom);
       renderer.drawAdLabels(adTiles, v.x, v.y, zoom);
-      renderer.draw(imgTiles, v.x, v.y, zoom, hCol, hRow, hoverAlpha.current, hoverSc);
+      renderer.draw(imgTiles, v.x, v.y, zoom, drawHCol, drawHRow, hoverAlpha.current, hoverSc);
       renderer.drawBorders(borderTiles, v.x, v.y, zoom);
+      if (hBlockId === -1 && hCol !== -9999 && ms.inside && !isDragging.current && tilePxH >= 20) {
+        renderer.drawEmptyHover(hCol, hRow, v.x, v.y, zoom);
+      }
     };
 
     rafRef.current = requestAnimationFrame(frame);
@@ -274,8 +298,9 @@ export function VideoCanvas() {
     const onPointerEnter = () => { mouseScreen.current.inside = true; };
     const onPointerLeave = () => {
       mouseScreen.current.inside = false;
-      hoveredCell.current = { col: -1, row: -1, id: -1 };
-      pressedId.current = -1;
+      hoveredCell.current = { col: -9999, row: -9999 };
+      hoveredBlockId.current = -1;
+      pressedBlockId.current = -1;
     };
     const onMouseMove = (e: MouseEvent) => {
       mouseScreen.current.x = e.clientX;
@@ -288,12 +313,12 @@ export function VideoCanvas() {
       el.setPointerCapture(e.pointerId);
       mouseScreen.current.x = e.clientX;
       mouseScreen.current.y = e.clientY;
-      const hid = hoveredCell.current.id;
+      const hid = hoveredBlockId.current;
       if (hid >= 0) {
         let s = scaleMap.current.get(hid);
         if (!s) { s = { current: 1, target: PRESS_SCALE }; scaleMap.current.set(hid, s); }
         else s.target = PRESS_SCALE;
-        pressedId.current = hid;
+        pressedBlockId.current = hid;
       }
     };
     const onMove = (e: PointerEvent) => {
@@ -306,7 +331,7 @@ export function VideoCanvas() {
       if (dragDist.current > 5) {
         isDragging.current = true;
         setDragging(true);
-        pressedId.current = -1;
+        pressedBlockId.current = -1;
       }
       panBy(dx, dy);
       lastPointer.current = { x: e.clientX, y: e.clientY };
@@ -314,16 +339,15 @@ export function VideoCanvas() {
     const onUp = (e: PointerEvent) => {
       el.releasePointerCapture(e.pointerId);
       const wasDrag = isDragging.current;
-      pressedId.current = -1;
+      pressedBlockId.current = -1;
       if (!wasDrag && dragDist.current <= 5) {
-        const hid = hoveredCell.current.id;
-        if (hid >= 0) {
-          const block = blocksRef.current.get(hid);
-          if (!block || block.status === "empty" || !block.videoId) {
-            openSubmissionModal(hid);
-          } else {
-            selectBlock(hid);
-          }
+        const hBlockId = hoveredBlockId.current;
+        if (hBlockId >= 0) {
+          // Tap on an existing claimed block → show detail
+          selectBlock(hBlockId);
+        } else if (hoveredCell.current.col !== -9999) {
+          // Tap on empty space → open submission modal
+          openSubmissionModal();
         }
       }
       setTimeout(() => { isDragging.current = false; setDragging(false); }, 50);

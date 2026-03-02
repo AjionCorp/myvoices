@@ -1,21 +1,21 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { connect, disconnect, reconnect, getConnection, type ConnectionCallbacks, VIEWPORT_SUBSCRIPTION_THRESHOLD } from "@/lib/spacetimedb/client";
-import { ViewportSubscriptionManager } from "@/lib/spacetimedb/ViewportSubscriptionManager";
-import { AnonymousViewportFetcher } from "@/lib/spacetimedb/AnonymousViewportFetcher";
+import { connect, disconnect, reconnect, getConnection, type ConnectionCallbacks } from "@/lib/spacetimedb/client";
 import { useBlocksStore, type Block as StoreBlock } from "@/stores/blocks-store";
+import { useTopicStore, type Topic } from "@/stores/topic-store";
 import { useContestStore } from "@/stores/contest-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useCommentsStore } from "@/stores/comments-store";
-import { BlockStatus, type Platform, rebuildAdLayout } from "@/lib/constants";
+import { BlockStatus, type Platform } from "@/lib/constants";
 import { useAuth } from "@/components/auth/AuthProvider";
 import type { DbConnection } from "@/module_bindings";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapBlock(row: any): StoreBlock {
   return {
-    id: row.id,
+    id: Number(row.id),
+    topicId: Number(row.topicId),
     x: row.x,
     y: row.y,
     videoId: row.videoId || null,
@@ -24,10 +24,30 @@ function mapBlock(row: any): StoreBlock {
     ownerName: row.ownerName || null,
     likes: Number(row.likes ?? 0),
     dislikes: Number(row.dislikes ?? 0),
+    ytViews: Number(row.ytViews ?? 0),
+    ytLikes: Number(row.ytLikes ?? 0),
     status: (row.status as BlockStatus) || BlockStatus.Empty,
     adImageUrl: row.adImageUrl || null,
     adLinkUrl: row.adLinkUrl || null,
     claimedAt: row.claimedAt ? Number(row.claimedAt) : null,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapTopic(row: any): Topic {
+  return {
+    id: Number(row.id),
+    slug: row.slug,
+    title: row.title,
+    description: row.description,
+    category: row.category,
+    creatorIdentity: row.creatorIdentity,
+    videoCount: Number(row.videoCount ?? 0),
+    totalLikes: Number(row.totalLikes ?? 0),
+    totalDislikes: Number(row.totalDislikes ?? 0),
+    totalViews: Number(row.totalViews ?? 0),
+    isActive: row.isActive,
+    createdAt: Number(row.createdAt ?? 0),
   };
 }
 
@@ -49,7 +69,6 @@ function recomputeStats() {
     if (b.status === BlockStatus.Claimed) claimed.push(b);
   }
 
-  rebuildAdLayout(claimed.length);
   const totalLikes = claimed.reduce((sum, b) => sum + b.likes, 0);
   setStats(claimed.length, totalLikes);
 
@@ -63,13 +82,20 @@ function bulkLoadBlocks(conn: DbConnection) {
     allBlocks.push(mapBlock(row));
   }
 
-  if (allBlocks.length > 0) {
-    console.log(`[SpacetimeDB] Bulk loading ${allBlocks.length} blocks`);
-    useBlocksStore.getState().setBlocks(allBlocks);
-    recomputeStats();
-    useBlocksStore.getState().setLoading(false);
-  } else {
-    useBlocksStore.getState().setLoading(false);
+  console.log(`[SpacetimeDB] Bulk loading ${allBlocks.length} blocks`);
+  useBlocksStore.getState().setBlocks(allBlocks);
+  recomputeStats();
+  useBlocksStore.getState().setLoading(false);
+}
+
+function bulkLoadTopics(conn: DbConnection) {
+  const allTopics: Topic[] = [];
+  for (const row of conn.db.topic.iter()) {
+    allTopics.push(mapTopic(row));
+  }
+  if (allTopics.length > 0) {
+    useTopicStore.getState().setTopics(allTopics);
+    console.log(`[SpacetimeDB] Loaded ${allTopics.length} topics`);
   }
 }
 
@@ -78,7 +104,7 @@ function bulkLoadComments(conn: DbConnection) {
   for (const row of conn.db.comment.iter()) {
     all.push({
       id: Number(row.id),
-      blockId: row.blockId,
+      blockId: Number(row.blockId),
       userIdentity: row.userIdentity,
       userName: row.userName,
       text: row.text,
@@ -91,30 +117,47 @@ function bulkLoadComments(conn: DbConnection) {
 }
 
 function registerTableCallbacks(conn: DbConnection) {
-  const { setBlock } = useBlocksStore.getState();
   const { setActiveContest, setWinners } = useContestStore.getState();
 
   conn.db.block.onInsert((_ctx, row) => {
-    setBlock(mapBlock(row));
+    const block = mapBlock(row);
+    useBlocksStore.getState().setBlock(block);
     debouncedRecomputeStats();
   });
 
   conn.db.block.onUpdate((_ctx, _old, row) => {
-    setBlock(mapBlock(row));
+    const block = mapBlock(row);
+    useBlocksStore.getState().setBlock(block);
     debouncedRecomputeStats();
   });
 
   conn.db.block.onDelete((_ctx, row) => {
-    const { blocks } = useBlocksStore.getState();
-    blocks.delete(row.id);
-    useBlocksStore.setState({ blocks });
+    useBlocksStore.getState().removeBlock(Number(row.id));
     debouncedRecomputeStats();
+  });
+
+  conn.db.topic.onInsert((_ctx, row) => {
+    useTopicStore.getState().setTopic(mapTopic(row));
+  });
+
+  conn.db.topic.onUpdate((_ctx, _old, row) => {
+    const topic = mapTopic(row);
+    useTopicStore.getState().setTopic(topic);
+    // Update activeTopic if it's the one that changed
+    const active = useTopicStore.getState().activeTopic;
+    if (active && active.id === topic.id) {
+      useTopicStore.getState().setActiveTopic(topic);
+    }
+  });
+
+  conn.db.topic.onDelete((_ctx, row) => {
+    useTopicStore.getState().deleteTopic(Number(row.id));
   });
 
   conn.db.comment.onInsert((_ctx, row) => {
     useCommentsStore.getState().addComment({
       id: Number(row.id),
-      blockId: row.blockId,
+      blockId: Number(row.blockId),
       userIdentity: row.userIdentity,
       userName: row.userName,
       text: row.text,
@@ -155,7 +198,7 @@ function registerTableCallbacks(conn: DbConnection) {
     setWinners([
       ...winners,
       {
-        blockId: row.blockId,
+        blockId: Number(row.blockId),
         videoId: row.videoId,
         platform: row.platform,
         ownerName: row.ownerName,
@@ -178,6 +221,7 @@ function registerTableCallbacks(conn: DbConnection) {
         email: row.email || null,
         stripeAccountId: row.stripeAccountId || null,
         totalEarnings: Number(row.totalEarnings),
+        credits: Number(row.credits ?? 0),
         isAdmin: row.isAdmin,
       });
     }
@@ -194,6 +238,7 @@ function registerTableCallbacks(conn: DbConnection) {
         email: row.email || null,
         stripeAccountId: row.stripeAccountId || null,
         totalEarnings: Number(row.totalEarnings),
+        credits: Number(row.credits ?? 0),
         isAdmin: row.isAdmin,
       });
     }
@@ -202,12 +247,11 @@ function registerTableCallbacks(conn: DbConnection) {
 
 export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
   const prevToken = useRef<string | undefined>(undefined);
-  const blockSubscriptionHandleRef = useRef<{ unsubscribe: () => void } | null>(null);
   const [conn, setConn] = useState<DbConnection | null>(null);
   const { oidcToken, isLoading: authLoading, isAuthenticated, user: authUser } = useAuth();
 
   // Keep a stable ref to the latest Clerk-sourced user fields so onConnect
-  // can read them without depending on Zustand state (which onConnect also writes).
+  // can read them without depending on Zustand state.
   const clerkUserRef = useRef<{ email: string | null; username: string | null; displayName: string }>({
     email: null,
     username: null,
@@ -224,27 +268,19 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
   }, [authUser?.email, authUser?.username, authUser?.displayName]);
 
   const callbacks: ConnectionCallbacks = {
-    onBlocksLoaded: () => {
-      const c = getConnection();
-      if (!c) return;
-      bulkLoadBlocks(c);
-    },
     onConnect: (connection, identity, token) => {
       setConn(connection);
       console.log("[SpacetimeDB] connected as", identity.toHexString());
       registerTableCallbacks(connection);
+      bulkLoadTopics(connection);
       bulkLoadComments(connection);
 
-      // Use the ref so we always have the latest Clerk fields regardless
-      // of what Zustand state looks like at this moment.
       const clerkEmail = clerkUserRef.current.email;
       const clerkUsername = clerkUserRef.current.username;
       const clerkDisplayName = clerkUserRef.current.displayName;
       const clerkUserId = useAuthStore.getState().clerkUserId ?? "";
       console.log("[SpacetimeDB] onConnect — clerkUserRef:", { email: clerkEmail ?? "(null)", username: clerkUsername ?? "(null)", displayName: clerkDisplayName });
 
-      // SpacetimeDB identity is a hex string derived from the JWT sub claim —
-      // different from Clerk's "user_xxx" ID. Always use this as the canonical identity.
       const profile = connection.db.user_profile.identity.find(identity.toHexString());
       if (profile) {
         const userData = {
@@ -255,12 +291,12 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
           email: profile.email || clerkEmail,
           stripeAccountId: profile.stripeAccountId || null,
           totalEarnings: Number(profile.totalEarnings),
+          credits: Number(profile.credits ?? 0),
           isAdmin: profile.isAdmin,
         };
         useAuthStore.getState().setUser(userData);
         localStorage.setItem("spacetimedb_user", JSON.stringify(userData));
 
-        // Patch missing fields (e.g. pre-migration profiles missing username/email).
         if (!profile.email || !profile.displayName || !profile.username) {
           const username = profile.username || clerkUsername || "";
           const displayName = profile.displayName || clerkDisplayName;
@@ -269,13 +305,11 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
           connection.reducers.updateProfile({ username, displayName, email });
         }
       } else {
-        // First-time user — create their profile in SpacetimeDB.
         const username = clerkUsername || "";
         const displayName = clerkDisplayName;
         const email = clerkEmail || "";
         console.log("[SpacetimeDB] registerUser — passing:", { clerkUserId, username, displayName, email: email || "(empty)" });
 
-        // Set the real SpacetimeDB identity so user_profile.onInsert matches.
         useAuthStore.getState().setUser({
           identity: identity.toHexString(),
           clerkUserId: clerkUserId || null,
@@ -284,6 +318,7 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
           email: email || null,
           stripeAccountId: null,
           totalEarnings: 0,
+          credits: 0,
           isAdmin: false,
         });
 
@@ -291,8 +326,6 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
         useAuthStore.getState().setLoading(false);
       }
 
-      // Always store/refresh the Clerk user ID → SpacetimeDB identity mapping
-      // so the Clerk webhook can find this user by clerk_user_id.
       if (clerkUserId) {
         console.log("[SpacetimeDB] storeClerkMapping:", clerkUserId);
         connection.reducers.storeClerkMapping({ clerkUserId });
@@ -308,7 +341,6 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
     },
   };
 
-  // Connect only when user is logged in (OIDC token required; anonymous sign-in disabled)
   useEffect(() => {
     if (authLoading) return;
     if (!isAuthenticated || !oidcToken) {
@@ -340,16 +372,42 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, isAuthenticated, oidcToken]);
 
-  return (
-    <>
-      {VIEWPORT_SUBSCRIPTION_THRESHOLD > 0 && (
-        <ViewportSubscriptionManager
-          conn={conn}
-          blockSubscriptionHandleRef={blockSubscriptionHandleRef}
-        />
-      )}
-      {!authLoading && !isAuthenticated && <AnonymousViewportFetcher />}
-      {children}
-    </>
-  );
+  return <>{children}</>;
+}
+
+/**
+ * Hook: subscribe to all blocks for a topic when the component mounts and
+ * unsubscribe when it unmounts (or topicId changes).
+ */
+export function useTopicBlocksSubscription(topicId: number | null) {
+  const conn = getConnection();
+  useEffect(() => {
+    if (!topicId || !conn) return;
+
+    // Import lazily to avoid circular dependency
+    import("@/lib/spacetimedb/client").then(({ subscribeToTopicBlocks }) => {
+      subscribeToTopicBlocks(topicId, () => {
+        const c = getConnection();
+        if (!c) return;
+        const allBlocks: ReturnType<typeof useBlocksStore.getState>["blocks"] = new Map();
+        // Bulk-load after subscription applied
+        const { setBlocks, setLoading } = useBlocksStore.getState();
+        const blocks: import("@/stores/blocks-store").Block[] = [];
+        for (const row of c.db.block.iter()) {
+          blocks.push(mapBlock(row));
+        }
+        setBlocks(blocks);
+        setLoading(false);
+      });
+    });
+
+    return () => {
+      import("@/lib/spacetimedb/client").then(({ unsubscribeFromTopicBlocks }) => {
+        unsubscribeFromTopicBlocks();
+        useBlocksStore.getState().setBlocks([]);
+        useBlocksStore.getState().setLoading(true);
+      });
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [topicId]);
 }

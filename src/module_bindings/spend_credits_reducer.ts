@@ -11,8 +11,6 @@ import {
 } from "spacetimedb";
 
 export default {
-  blockId: __t.u32(),
-  videoId: __t.string(),
-  platform: __t.string(),
-  ownerName: __t.string(),
+  amount: __t.u64(),
+  description: __t.string(),
 };

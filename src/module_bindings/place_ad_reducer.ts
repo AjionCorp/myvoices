@@ -11,6 +11,7 @@ import {
 } from "spacetimedb";
 
 export default {
+  topicId: __t.u64(),
   blockIdsJson: __t.string(),
   adImageUrl: __t.string(),
   adLinkUrl: __t.string(),

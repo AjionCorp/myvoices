@@ -11,7 +11,8 @@ import {
 } from "spacetimedb";
 
 export default __t.row({
-  id: __t.u32().primaryKey(),
+  id: __t.u64().primaryKey(),
+  topicId: __t.u64().name("topic_id"),
   x: __t.i32(),
   y: __t.i32(),
   videoId: __t.string().name("video_id"),
@@ -21,6 +22,8 @@ export default __t.row({
   likes: __t.u64(),
   dislikes: __t.u64(),
   status: __t.string(),
+  ytViews: __t.u64().name("yt_views"),
+  ytLikes: __t.u64().name("yt_likes"),
   adImageUrl: __t.string().name("ad_image_url"),
   adLinkUrl: __t.string().name("ad_link_url"),
   claimedAt: __t.u64().name("claimed_at"),

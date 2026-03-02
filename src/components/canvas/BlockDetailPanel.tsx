@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useBlocksStore } from "@/stores/blocks-store";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { Platform, CENTER_X, CENTER_Y, GRID_COLS } from "@/lib/constants";
+import { Platform } from "@/lib/constants";
 import { getVideoUrl, getThumbnailUrl, getEmbedUrl } from "@/lib/utils/video-url";
 
 interface Comment {
@@ -30,7 +30,6 @@ export function BlockDetailPanel() {
   const totalClaimed = useBlocksStore((s) => s.totalClaimed);
   const updateBlockLikes = useBlocksStore((s) => s.updateBlockLikes);
   const updateBlockDislikes = useBlocksStore((s) => s.updateBlockDislikes);
-  const rebalanceBlocks = useBlocksStore((s) => s.rebalanceBlocks);
   const { isAuthenticated, user, login } = useAuth();
 
   const [liked, setLiked] = useState(false);
@@ -68,6 +67,7 @@ export function BlockDetailPanel() {
   const embedUrl = block.videoId && block.platform ? getEmbedUrl(block.videoId, block.platform) : null;
   const thumbnailUrl = block.videoId && block.platform ? getThumbnailUrl(block.videoId, block.platform) : null;
   const originalUrl = block.videoId && block.platform ? getVideoUrl(block.videoId, block.platform) : "#";
+  const isPortrait = block.platform === Platform.YouTubeShort || block.platform === Platform.TikTok;
 
   const handleLike = () => {
     if (!isAuthenticated) { login(); return; }
@@ -84,7 +84,6 @@ export function BlockDetailPanel() {
       }
       updateBlockLikes(block.id, block.likes + 1);
     }
-    rebalanceBlocks();
   };
 
   const handleDislike = () => {
@@ -102,7 +101,6 @@ export function BlockDetailPanel() {
       }
       updateBlockDislikes(block.id, block.dislikes + 1);
     }
-    rebalanceBlocks();
   };
 
   const handleComment = () => {
@@ -130,12 +128,12 @@ export function BlockDetailPanel() {
 
   if (block.status === "ad") {
     return (
-      <div className="pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={close}>
+      <div className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={close}>
         <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="rounded-md bg-yellow-500/20 px-2 py-0.5 text-xs font-medium text-yellow-400">Sponsored</span>
-              <span className="text-[11px] text-muted">({block.x - CENTER_X}, {block.y - CENTER_Y}) &middot; Ring {Math.max(Math.abs(block.x - CENTER_X), Math.abs(block.y - CENTER_Y))}</span>
+              <span className="text-[11px] text-muted">({block.x}, {block.y}) &middot; Ring {Math.max(Math.abs(block.x), Math.abs(block.y))}</span>
             </div>
             <CloseBtn onClick={close} />
           </div>
@@ -152,7 +150,7 @@ export function BlockDetailPanel() {
   }
 
   return (
-    <div className="pointer-events-auto absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={close}>
+    <div className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={close}>
       <div
         className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl animate-modal-in"
         onClick={(e) => e.stopPropagation()}
@@ -161,18 +159,41 @@ export function BlockDetailPanel() {
         {/* --- video area --- */}
         <div className="relative w-full shrink-0 bg-black">
           {embedUrl ? (
-            <div className="aspect-9/16 max-h-[50vh] w-full">
-              <iframe
-                src={embedUrl}
-                className="h-full w-full"
-                allowFullScreen
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              />
-            </div>
+            isPortrait ? (
+              /* Portrait (Shorts / TikTok): drive size from height so width stays correct */
+              <div className="flex w-full justify-center">
+                <div style={{ height: "55vh", width: "calc(55vh * 9 / 16)", maxWidth: "100%" }}>
+                  <iframe
+                    src={embedUrl}
+                    className="h-full w-full"
+                    allowFullScreen
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  />
+                </div>
+              </div>
+            ) : (
+              /* Landscape: drive size from width as normal */
+              <div className="aspect-video max-h-[50vh] w-full">
+                <iframe
+                  src={embedUrl}
+                  className="h-full w-full"
+                  allowFullScreen
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                />
+              </div>
+            )
           ) : thumbnailUrl ? (
-            <img src={thumbnailUrl} alt="Thumbnail" className="aspect-9/16 max-h-[50vh] w-full object-cover" />
+            isPortrait ? (
+              <div className="flex w-full justify-center">
+                <div style={{ height: "55vh", width: "calc(55vh * 9 / 16)", maxWidth: "100%" }}>
+                  <img src={thumbnailUrl} alt="Thumbnail" className="h-full w-full object-cover" />
+                </div>
+              </div>
+            ) : (
+              <img src={thumbnailUrl} alt="Thumbnail" className="aspect-video max-h-[50vh] w-full object-cover" />
+            )
           ) : (
-            <div className="flex aspect-9/16 max-h-[50vh] w-full items-center justify-center bg-surface-light text-sm text-muted">
+            <div className="flex aspect-video max-h-[50vh] w-full items-center justify-center bg-surface-light text-sm text-muted">
               No preview
             </div>
           )}
@@ -199,7 +220,7 @@ export function BlockDetailPanel() {
                 )}
               </div>
               <p className="text-xs text-muted">
-                ({block.x - CENTER_X}, {block.y - CENTER_Y}) &middot; Score {(block.likes - block.dislikes).toLocaleString()} &middot; Ring {Math.max(Math.abs(block.x - CENTER_X), Math.abs(block.y - CENTER_Y))} &middot; {block.platform?.replace("_", " ")}
+                ({block.x}, {block.y}) &middot; Score {(block.likes - block.dislikes).toLocaleString()} &middot; Ring {Math.max(Math.abs(block.x), Math.abs(block.y))} &middot; {block.platform?.replace("_", " ")}
               </p>
             </div>
             <a href={originalUrl} target="_blank" rel="noopener noreferrer"

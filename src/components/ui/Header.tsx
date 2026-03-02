@@ -1,16 +1,23 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { LoginButton } from "@/components/auth/LoginButton";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useBlocksStore } from "@/stores/blocks-store";
 import { useContestStore } from "@/stores/contest-store";
+import { useCanvasStore } from "@/stores/canvas-store";
+import { useTopicStore } from "@/stores/topic-store";
 import { TOTAL_BLOCKS } from "@/lib/constants";
 
 export function Header() {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { totalClaimed } = useBlocksStore();
   const { activeContest, timeRemaining } = useContestStore();
+  const openAddVideoModal = useCanvasStore((s) => s.openAddVideoModal);
+  const activeTopic = useTopicStore((s) => s.activeTopic);
+  const pathname = usePathname();
+  const isHome = pathname === "/";
 
   const formatTime = (ms: number | null): string => {
     if (!ms || ms <= 0) return "Ended";
@@ -22,7 +29,7 @@ export function Header() {
   };
 
   return (
-    <header className="pointer-events-auto absolute left-0 right-0 top-0 z-40 flex items-center justify-between border-b border-border/50 bg-background/80 px-4 py-3 backdrop-blur-md">
+    <header className="sticky top-0 z-40 h-14 flex items-center justify-between border-b border-border/50 bg-background/90 px-4 backdrop-blur-md">
       <div className="flex items-center gap-4">
         <Link href="/" className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-sm font-bold text-white">
@@ -46,6 +53,30 @@ export function Header() {
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Home page: + creates a new topic */}
+        {isAuthenticated && isHome && (
+          <Link
+            href="/t/create"
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted transition-colors hover:border-accent hover:text-accent"
+            title="Create Topic"
+          >
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M8 3v10M3 8h10" />
+            </svg>
+          </Link>
+        )}
+        {/* Topic page: + adds a video */}
+        {isAuthenticated && activeTopic && (
+          <button
+            onClick={openAddVideoModal}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted transition-colors hover:border-accent hover:text-accent"
+            title="Add Video"
+          >
+            <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M8 3v10M3 8h10" />
+            </svg>
+          </button>
+        )}
         {user?.isAdmin && (
           <Link
             href="/admin"

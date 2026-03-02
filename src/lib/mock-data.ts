@@ -211,6 +211,7 @@ export function generateMockBlocks(): Block[] {
 
     blocks.push({
       id,
+      topicId: 0,
       x: gx,
       y: gy,
       videoId: vid,
@@ -219,6 +220,8 @@ export function generateMockBlocks(): Block[] {
       ownerName: `${firstName} ${lastName}`,
       likes,
       dislikes,
+      ytViews: 0,
+      ytLikes: 0,
       status: BlockStatus.Claimed,
       adImageUrl: null,
       adLinkUrl: null,
@@ -233,6 +236,7 @@ export function generateMockBlocks(): Block[] {
     if (blocks.some((b) => b.id === adId)) continue;
     blocks.push({
       id: adId,
+      topicId: 0,
       x: slot.col,
       y: slot.row,
       videoId: null,
@@ -241,6 +245,8 @@ export function generateMockBlocks(): Block[] {
       ownerName: null,
       likes: 0,
       dislikes: 0,
+      ytViews: 0,
+      ytLikes: 0,
       status: BlockStatus.Ad,
       adImageUrl: null,
       adLinkUrl: null,

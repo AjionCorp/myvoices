@@ -9,7 +9,9 @@
  */
 
 import { getConnection } from "./client";
-import { GRID_COLS, GRID_ROWS, TILE_WIDTH, TILE_HEIGHT } from "@/lib/constants";
+import { TILE_WIDTH, TILE_HEIGHT } from "@/lib/constants";
+
+const SAFE_MAX = 10000;
 
 export interface ViewportBounds {
   minX: number;
@@ -18,14 +20,9 @@ export interface ViewportBounds {
   maxY: number;
 }
 
-/** Full grid bounds for initial subscription (all blocks in 0..GRID_COLS-1, 0..GRID_ROWS-1). */
+/** Large bounds covering any realistic topic spiral. */
 export function getFullGridBounds(): ViewportBounds {
-  return {
-    minX: 0,
-    maxX: Math.max(0, GRID_COLS - 1),
-    minY: 0,
-    maxY: Math.max(0, GRID_ROWS - 1),
-  };
+  return { minX: -SAFE_MAX, maxX: SAFE_MAX, minY: -SAFE_MAX, maxY: SAFE_MAX };
 }
 
 /**
@@ -48,10 +45,10 @@ export function computeSubscriptionBounds(
   const worldY = -viewportY / zoom;
 
   return {
-    minX: Math.max(0, Math.floor(worldX / tileWidth) - buffer),
-    maxX: Math.min(GRID_COLS - 1, Math.ceil((worldX + worldW) / tileWidth) + buffer),
-    minY: Math.max(0, Math.floor(worldY / tileHeight) - buffer),
-    maxY: Math.min(GRID_ROWS - 1, Math.ceil((worldY + worldH) / tileHeight) + buffer),
+    minX: Math.floor(worldX / tileWidth) - buffer,
+    maxX: Math.ceil((worldX + worldW) / tileWidth) + buffer,
+    minY: Math.floor(worldY / tileHeight) - buffer,
+    maxY: Math.ceil((worldY + worldH) / tileHeight) + buffer,
   };
 }
 

@@ -8,7 +8,7 @@ fn now_micros(ctx: &ReducerContext) -> u64 {
 #[reducer]
 pub fn add_comment(
     ctx: &ReducerContext,
-    block_id: u32,
+    block_id: u64,
     text: String,
 ) -> Result<(), String> {
     let caller = ctx.sender().to_hex().to_string();

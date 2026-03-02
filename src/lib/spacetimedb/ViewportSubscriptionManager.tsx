@@ -14,7 +14,7 @@ import {
   subscribeToViewport,
   type ViewportBounds,
 } from "./subscriptions";
-import { VIEWPORT_SUBSCRIPTION_THRESHOLD } from "./client";
+const VIEWPORT_SUBSCRIPTION_THRESHOLD = 0;
 import type { DbConnection } from "@/module_bindings";
 
 const DEBOUNCE_MS = 300;

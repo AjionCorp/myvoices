@@ -1,7 +1,7 @@
 "use client";
 
 import { useCanvasStore } from "@/stores/canvas-store";
-import { CENTER_X, CENTER_Y, MIN_ZOOM, MAX_ZOOM } from "@/lib/constants";
+import { MIN_ZOOM, MAX_ZOOM } from "@/lib/constants";
 
 export function CanvasViewport() {
   const { zoom, setZoom, centerOnBlock, screenWidth, screenHeight } =
@@ -34,7 +34,7 @@ export function CanvasViewport() {
       </div>
 
       <button
-        onClick={() => centerOnBlock(CENTER_X, CENTER_Y)}
+        onClick={() => centerOnBlock(0, 0)}
         className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-surface/90 text-sm text-muted shadow-xl backdrop-blur-sm transition-colors hover:bg-surface-light hover:text-foreground"
         title="Center View"
       >

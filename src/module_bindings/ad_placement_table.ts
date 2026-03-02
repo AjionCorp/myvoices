@@ -12,6 +12,7 @@ import {
 
 export default __t.row({
   id: __t.u64().primaryKey(),
+  topicId: __t.u64().name("topic_id"),
   blockIdsJson: __t.string().name("block_ids_json"),
   adImageUrl: __t.string().name("ad_image_url"),
   adLinkUrl: __t.string().name("ad_link_url"),

@@ -6,3 +6,4 @@ pub mod contest;
 pub mod comment;
 pub mod seed;
 pub mod dev;
+pub mod topic;

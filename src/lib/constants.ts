@@ -1,11 +1,14 @@
 export const TILE_WIDTH = 56;
 export const TILE_HEIGHT = 100;
 export const TILE_GAP = 1;
+
+// Legacy constants kept for ad-ring calculations (topics spiral around 0,0)
 export const GRID_COLS = 1250;
 export const GRID_ROWS = 800;
 export const TOTAL_BLOCKS = GRID_COLS * GRID_ROWS;
-export const CENTER_X = Math.floor(GRID_COLS / 2);
-export const CENTER_Y = Math.floor(GRID_ROWS / 2);
+/** Center of the ad-ring coordinate system — spiral topics are centered at (0,0). */
+export const CENTER_X = 0;
+export const CENTER_Y = 0;
 
 export const MIN_ZOOM = 0.05;
 export const MAX_ZOOM = 3.0;

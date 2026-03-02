@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { DEFAULT_ZOOM, MIN_ZOOM, MAX_ZOOM, CENTER_X, CENTER_Y, TILE_WIDTH, TILE_HEIGHT } from "@/lib/constants";
+import { DEFAULT_ZOOM, MIN_ZOOM, MAX_ZOOM, TILE_WIDTH, TILE_HEIGHT } from "@/lib/constants";
 
 interface CanvasState {
   viewportX: number;
@@ -10,8 +10,8 @@ interface CanvasState {
   isDragging: boolean;
   selectedBlockId: number | null;
   showSubmissionModal: boolean;
-  submissionBlockId: number | null;
   showLoginForExploreModal: boolean;
+  showAddVideoModal: boolean;
 
   setViewport: (x: number, y: number) => void;
   panBy: (dx: number, dy: number) => void;
@@ -20,23 +20,26 @@ interface CanvasState {
   setScreenSize: (width: number, height: number) => void;
   setDragging: (dragging: boolean) => void;
   selectBlock: (blockId: number | null) => void;
-  openSubmissionModal: (blockId: number) => void;
+  openSubmissionModal: () => void;
   closeSubmissionModal: () => void;
   centerOnBlock: (gridX: number, gridY: number) => void;
+  centerOn: (gridX: number, gridY: number) => void;
   setShowLoginForExploreModal: (show: boolean) => void;
+  openAddVideoModal: () => void;
+  closeAddVideoModal: () => void;
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
-  viewportX: -(CENTER_X * TILE_WIDTH + TILE_WIDTH / 2) * DEFAULT_ZOOM + 500,
-  viewportY: -(CENTER_Y * TILE_HEIGHT + TILE_HEIGHT / 2) * DEFAULT_ZOOM + 400,
+  viewportX: 0,
+  viewportY: 0,
   zoom: DEFAULT_ZOOM,
   screenWidth: 0,
   screenHeight: 0,
   isDragging: false,
   selectedBlockId: null,
   showSubmissionModal: false,
-  submissionBlockId: null,
   showLoginForExploreModal: false,
+  showAddVideoModal: false,
 
   setViewport: (x, y) => set({ viewportX: x, viewportY: y }),
 
@@ -83,22 +86,35 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     set({ selectedBlockId: blockId });
     if (typeof window !== "undefined") {
       if (blockId !== null) {
-        window.history.replaceState({}, "", `/?block=${blockId}`);
+        window.history.replaceState({}, "", `${window.location.pathname}?block=${blockId}`);
       } else {
-        window.history.replaceState({}, "", "/");
+        window.history.replaceState({}, "", window.location.pathname);
       }
     }
   },
 
-  openSubmissionModal: (blockId) =>
-    set({ showSubmissionModal: true, submissionBlockId: blockId }),
+  openSubmissionModal: () =>
+    set({ showSubmissionModal: true }),
 
   closeSubmissionModal: () =>
-    set({ showSubmissionModal: false, submissionBlockId: null }),
+    set({ showSubmissionModal: false }),
 
   setShowLoginForExploreModal: (show) => set({ showLoginForExploreModal: show }),
 
+  openAddVideoModal: () => set({ showAddVideoModal: true }),
+  closeAddVideoModal: () => set({ showAddVideoModal: false }),
+
   centerOnBlock: (gridX, gridY) => {
+    const state = get();
+    const worldX = gridX * TILE_WIDTH + TILE_WIDTH / 2;
+    const worldY = gridY * TILE_HEIGHT + TILE_HEIGHT / 2;
+    set({
+      viewportX: state.screenWidth / 2 - worldX * state.zoom,
+      viewportY: state.screenHeight / 2 - worldY * state.zoom,
+    });
+  },
+
+  centerOn: (gridX, gridY) => {
     const state = get();
     const worldX = gridX * TILE_WIDTH + TILE_WIDTH / 2;
     const worldY = gridY * TILE_HEIGHT + TILE_HEIGHT / 2;

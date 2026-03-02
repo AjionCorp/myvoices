@@ -13,7 +13,7 @@ import {
 export default __t.row({
   id: __t.u64().primaryKey(),
   contestId: __t.u64().name("contest_id"),
-  blockId: __t.u32().name("block_id"),
+  blockId: __t.u64().name("block_id"),
   ownerIdentity: __t.string().name("owner_identity"),
   ownerName: __t.string().name("owner_name"),
   videoId: __t.string().name("video_id"),

@@ -121,17 +121,32 @@ pub fn register_user(
         return Err("User already registered".to_string());
     }
 
+    const SIGNUP_CREDITS: u64 = 10;
+    let now = now_micros(ctx);
+
     ctx.db.user_profile().try_insert(UserProfile {
-        identity: caller,
+        identity: caller.clone(),
         clerk_user_id,
         username,
         display_name,
         email,
         stripe_account_id: String::new(),
         total_earnings: 0,
+        credits: SIGNUP_CREDITS,
         is_admin: false,
-        created_at: now_micros(ctx),
+        created_at: now,
     }).map_err(|e| format!("Insert failed: {e}"))?;
+
+    ctx.db.credit_transaction_log().try_insert(CreditTransactionLog {
+        id: 0,
+        user_identity: caller,
+        tx_type: "signup_bonus".to_string(),
+        amount: SIGNUP_CREDITS as i64,
+        balance_after: SIGNUP_CREDITS,
+        stripe_payment_id: String::new(),
+        description: "Welcome bonus".to_string(),
+        created_at: now,
+    }).map_err(|e| format!("Credit log insert failed: {e}"))?;
 
     Ok(())
 }
@@ -266,6 +281,7 @@ pub fn server_delete_user(ctx: &ReducerContext, clerk_user_id: String) -> Result
             display_name: "Deleted User".to_string(),
             email: String::new(),
             stripe_account_id: String::new(),
+            credits: 0,
             is_admin: false,
             ..user
         }).map_err(|e| format!("Insert failed: {e}"))?;
@@ -302,6 +318,95 @@ pub fn set_admin(
         is_admin,
         ..target
     }).map_err(|e| format!("Insert failed: {e}"))?;
+
+    Ok(())
+}
+
+/// Called server-side (from Stripe webhook) to add purchased credits to a user.
+/// No caller auth check — security relies on SPACETIMEDB_SERVER_TOKEN being kept secret.
+#[reducer]
+pub fn add_credits(
+    ctx: &ReducerContext,
+    identity: String,
+    amount: u64,
+    stripe_payment_id: String,
+    description: String,
+) -> Result<(), String> {
+    if amount == 0 {
+        return Err("amount must be > 0".to_string());
+    }
+
+    let user = ctx
+        .db
+        .user_profile()
+        .identity()
+        .find(identity.clone())
+        .ok_or_else(|| format!("User not found: {}", identity))?;
+
+    let new_balance = user.credits.saturating_add(amount);
+
+    ctx.db.user_profile().identity().delete(identity.clone());
+    ctx.db.user_profile().try_insert(UserProfile {
+        credits: new_balance,
+        ..user
+    }).map_err(|e| format!("Insert failed: {e}"))?;
+
+    ctx.db.credit_transaction_log().try_insert(CreditTransactionLog {
+        id: 0,
+        user_identity: identity,
+        tx_type: "purchase".to_string(),
+        amount: amount as i64,
+        balance_after: new_balance,
+        stripe_payment_id,
+        description,
+        created_at: now_micros(ctx),
+    }).map_err(|e| format!("Credit log insert failed: {e}"))?;
+
+    Ok(())
+}
+
+/// Called by the authenticated client to spend credits for an in-app action.
+#[reducer]
+pub fn spend_credits(
+    ctx: &ReducerContext,
+    amount: u64,
+    description: String,
+) -> Result<(), String> {
+    if amount == 0 {
+        return Err("amount must be > 0".to_string());
+    }
+
+    let caller = ctx.sender().to_hex().to_string();
+
+    let user = ctx
+        .db
+        .user_profile()
+        .identity()
+        .find(caller.clone())
+        .ok_or("User not found")?;
+
+    if user.credits < amount {
+        return Err(format!("Insufficient credits: have {}, need {}", user.credits, amount));
+    }
+
+    let new_balance = user.credits - amount;
+
+    ctx.db.user_profile().identity().delete(caller.clone());
+    ctx.db.user_profile().try_insert(UserProfile {
+        credits: new_balance,
+        ..user
+    }).map_err(|e| format!("Insert failed: {e}"))?;
+
+    ctx.db.credit_transaction_log().try_insert(CreditTransactionLog {
+        id: 0,
+        user_identity: caller,
+        tx_type: "spend".to_string(),
+        amount: -(amount as i64),
+        balance_after: new_balance,
+        stripe_payment_id: String::new(),
+        description,
+        created_at: now_micros(ctx),
+    }).map_err(|e| format!("Credit log insert failed: {e}"))?;
 
     Ok(())
 }

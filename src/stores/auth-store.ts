@@ -6,8 +6,10 @@ export interface User {
   username: string | null;
   displayName: string;
   email: string | null;
+  imageUrl: string | null;
   stripeAccountId: string | null;
   totalEarnings: number;
+  credits: number;
   isAdmin: boolean;
 }
 

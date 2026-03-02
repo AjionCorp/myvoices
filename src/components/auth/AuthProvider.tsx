@@ -91,6 +91,7 @@ function AuthBridge({ children }: { children: ReactNode }) {
           username: clerkUsername ?? parsed.username ?? null,
           email: clerkEmail ?? parsed.email ?? null,
           displayName: parsed.displayName || clerkDisplayName,
+          imageUrl: clerkUser.imageUrl ?? null,
         };
         console.log("[Auth] setUser (from stored + Clerk):", { email: userData.email ?? "(null)", username: userData.username ?? "(null)", displayName: userData.displayName });
         setUser(userData);
@@ -102,8 +103,10 @@ function AuthBridge({ children }: { children: ReactNode }) {
         username: clerkUsername,
         displayName: clerkDisplayName,
         email: clerkEmail,
+        imageUrl: clerkUser.imageUrl ?? null,
         stripeAccountId: null,
         totalEarnings: 0,
+        credits: 0,
         isAdmin: false,
       };
       console.log("[Auth] setUser (new):", { email: userData.email ?? "(null)", username: userData.username ?? "(null)", displayName: userData.displayName });

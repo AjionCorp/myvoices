@@ -1,15 +1,16 @@
 use spacetimedb::{reducer, ReducerContext, Table};
 use crate::tables::*;
 
-const GRID_COLS: u32 = 1250;
-
 fn now_micros(ctx: &ReducerContext) -> u64 {
     ctx.timestamp.to_micros_since_unix_epoch() as u64
 }
 
+/// Register an ad placement for a topic. Block IDs in the JSON array refer to
+/// existing blocks that will be marked as "ad" status.
 #[reducer]
 pub fn place_ad(
     ctx: &ReducerContext,
+    topic_id: u64,
     block_ids_json: String,
     ad_image_url: String,
     ad_link_url: String,
@@ -27,7 +28,7 @@ pub fn place_ad(
         return Err("Only admins can place ads".to_string());
     }
 
-    let block_ids: Vec<u32> =
+    let block_ids: Vec<u64> =
         serde_json::from_str(&block_ids_json).map_err(|e| format!("Invalid block IDs: {}", e))?;
 
     for &bid in &block_ids {
@@ -44,6 +45,7 @@ pub fn place_ad(
 
     ctx.db.ad_placement().try_insert(AdPlacement {
         id: 0,
+        topic_id,
         block_ids_json: block_ids_json.clone(),
         ad_image_url: ad_image_url.clone(),
         ad_link_url: ad_link_url.clone(),
@@ -53,23 +55,17 @@ pub fn place_ad(
         expires_at: expires,
     }).map_err(|e| format!("Insert failed: {e}"))?;
 
+    // Mark blocks as ad status
     for &bid in &block_ids {
-        ctx.db.block().id().delete(bid);
-        ctx.db.block().try_insert(Block {
-            id: bid,
-            x: (bid % GRID_COLS) as i32,
-            y: (bid / GRID_COLS) as i32,
-            video_id: String::new(),
-            platform: String::new(),
-            owner_identity: String::new(),
-            owner_name: String::new(),
-            likes: 0,
-            dislikes: 0,
-            status: "ad".to_string(),
-            ad_image_url: ad_image_url.clone(),
-            ad_link_url: ad_link_url.clone(),
-            claimed_at: now,
-        }).map_err(|e| format!("Insert failed: {e}"))?;
+        if let Some(block) = ctx.db.block().id().find(bid) {
+            ctx.db.block().id().delete(bid);
+            ctx.db.block().try_insert(Block {
+                status: "ad".to_string(),
+                ad_image_url: ad_image_url.clone(),
+                ad_link_url: ad_link_url.clone(),
+                ..block
+            }).map_err(|e| format!("Block update failed: {e}"))?;
+        }
     }
 
     Ok(())
@@ -90,26 +86,19 @@ pub fn remove_ad(ctx: &ReducerContext, ad_id: u64) -> Result<(), String> {
         .find(ad_id)
         .ok_or("Ad not found")?;
 
-    let block_ids: Vec<u32> =
+    let block_ids: Vec<u64> =
         serde_json::from_str(&ad.block_ids_json).unwrap_or_default();
 
     for &bid in &block_ids {
-        ctx.db.block().id().delete(bid);
-        ctx.db.block().try_insert(Block {
-            id: bid,
-            x: (bid % GRID_COLS) as i32,
-            y: (bid / GRID_COLS) as i32,
-            video_id: String::new(),
-            platform: String::new(),
-            owner_identity: String::new(),
-            owner_name: String::new(),
-            likes: 0,
-            dislikes: 0,
-            status: "empty".to_string(),
-            ad_image_url: String::new(),
-            ad_link_url: String::new(),
-            claimed_at: 0,
-        }).map_err(|e| format!("Insert failed: {e}"))?;
+        if let Some(block) = ctx.db.block().id().find(bid) {
+            ctx.db.block().id().delete(bid);
+            ctx.db.block().try_insert(Block {
+                status: "empty".to_string(),
+                ad_image_url: String::new(),
+                ad_link_url: String::new(),
+                ..block
+            }).map_err(|e| format!("Block update failed: {e}"))?;
+        }
     }
 
     ctx.db.ad_placement().id().delete(ad_id);

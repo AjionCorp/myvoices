@@ -11,5 +11,5 @@ import {
 } from "spacetimedb";
 
 export default {
-  blockId: __t.u32(),
+  blockId: __t.u64(),
 };

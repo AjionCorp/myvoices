@@ -22,11 +22,38 @@ pub enum ContestStatus {
     Completed,
 }
 
+/// A user-created topic — each topic has its own block grid.
+#[table(accessor = topic, public)]
+#[derive(Clone)]
+pub struct Topic {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    /// URL-safe identifier, e.g. "hottest-woman"
+    #[unique]
+    pub slug: String,
+    pub title: String,
+    pub description: String,
+    /// Free-text category, e.g. "Entertainment", "Music"
+    pub category: String,
+    pub creator_identity: String,
+    /// Monotonically increasing — used to derive next spiral position.
+    pub video_count: u64,
+    pub total_likes: u64,
+    pub total_dislikes: u64,
+    pub total_views: u64,
+    pub is_active: bool,
+    pub created_at: u64,
+}
+
+/// A claimed block within a topic's grid. Blocks are created on demand (no pre-seeding).
 #[table(accessor = block, public)]
 #[derive(Clone)]
 pub struct Block {
     #[primary_key]
-    pub id: u32,
+    #[auto_inc]
+    pub id: u64,
+    pub topic_id: u64,
     pub x: i32,
     pub y: i32,
     pub video_id: String,
@@ -36,6 +63,8 @@ pub struct Block {
     pub likes: u64,
     pub dislikes: u64,
     pub status: String,
+    pub yt_views: u64,
+    pub yt_likes: u64,
     pub ad_image_url: String,
     pub ad_link_url: String,
     pub claimed_at: u64,
@@ -52,6 +81,7 @@ pub struct UserProfile {
     pub email: String,
     pub stripe_account_id: String,
     pub total_earnings: u64,
+    pub credits: u64,
     pub is_admin: bool,
     pub created_at: u64,
 }
@@ -61,7 +91,7 @@ pub struct LikeRecord {
     #[primary_key]
     #[auto_inc]
     pub id: u64,
-    pub block_id: u32,
+    pub block_id: u64,
     pub user_identity: String,
     pub created_at: u64,
 }
@@ -71,7 +101,7 @@ pub struct DislikeRecord {
     #[primary_key]
     #[auto_inc]
     pub id: u64,
-    pub block_id: u32,
+    pub block_id: u64,
     pub user_identity: String,
     pub created_at: u64,
 }
@@ -82,6 +112,7 @@ pub struct AdPlacement {
     #[primary_key]
     #[auto_inc]
     pub id: u64,
+    pub topic_id: u64,
     pub block_ids_json: String,
     pub ad_image_url: String,
     pub ad_link_url: String,
@@ -117,12 +148,26 @@ pub struct TransactionLog {
     pub created_at: u64,
 }
 
+#[table(accessor = credit_transaction_log, public)]
+pub struct CreditTransactionLog {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub user_identity: String,
+    pub tx_type: String,
+    pub amount: i64,
+    pub balance_after: u64,
+    pub stripe_payment_id: String,
+    pub description: String,
+    pub created_at: u64,
+}
+
 #[table(accessor = comment, public)]
 pub struct Comment {
     #[primary_key]
     #[auto_inc]
     pub id: u64,
-    pub block_id: u32,
+    pub block_id: u64,
     pub user_identity: String,
     pub user_name: String,
     pub text: String,
@@ -142,7 +187,7 @@ pub struct ContestWinner {
     #[auto_inc]
     pub id: u64,
     pub contest_id: u64,
-    pub block_id: u32,
+    pub block_id: u64,
     pub owner_identity: String,
     pub owner_name: String,
     pub video_id: String,

@@ -1,14 +1,14 @@
 use spacetimedb::{reducer, ReducerContext, Table};
 use crate::tables::*;
 
-const GRID_COLS: i32 = 1250;
+pub const GRID_COLS: i32 = 1250;
 const GRID_ROWS: i32 = 800;
 const CENTER_X: i32 = GRID_COLS / 2;
 const CENTER_Y: i32 = GRID_ROWS / 2;
 
-const VIDEO_COUNT: usize = 100_000;
-const SHORTS_RATIO: f64 = 0.35;
-const SEED: u32 = 42;
+pub const VIDEO_COUNT: usize = 100_000;
+pub const SHORTS_RATIO: f64 = 0.35;
+pub const SEED: u32 = 42;
 
 // 12,500+ real YouTube IDs scraped via yt-dlp
 include!("../youtube_ids.rs");
@@ -16,16 +16,16 @@ include!("../youtube_ids.rs");
 const BLOCKS_PER_RING: usize = 3000;
 const MIN_FIRST_RING: i32 = 4;
 
-struct Mulberry32 {
+pub struct Mulberry32 {
     state: u32,
 }
 
 impl Mulberry32 {
-    fn new(seed: u32) -> Self {
+    pub fn new(seed: u32) -> Self {
         Self { state: seed }
     }
 
-    fn next(&mut self) -> f64 {
+    pub fn next(&mut self) -> f64 {
         self.state = self.state.wrapping_add(0x6d2b79f5);
         let mut t = self.state ^ (self.state >> 15);
         t = t.wrapping_mul(1 | self.state);
@@ -34,7 +34,7 @@ impl Mulberry32 {
     }
 }
 
-fn build_dynamic_ad_slots(claimed_count: usize) -> Vec<(i32, i32)> {
+pub fn build_dynamic_ad_slots(claimed_count: usize) -> Vec<(i32, i32)> {
     let ring_count = (claimed_count as f64 / BLOCKS_PER_RING as f64).round().max(1.0) as usize;
     let content_radius =
         ((claimed_count.max(1) as f64 / std::f64::consts::PI).sqrt()).ceil() as i32;
@@ -105,7 +105,7 @@ fn build_dynamic_ad_slots(claimed_count: usize) -> Vec<(i32, i32)> {
     slots
 }
 
-fn batch_spiral_skip_ads(
+pub fn batch_spiral_skip_ads(
     count: usize,
     ad_set: &std::collections::HashSet<(i32, i32)>,
 ) -> Vec<(i32, i32)> {
@@ -162,7 +162,7 @@ fn batch_spiral_skip_ads(
     coords
 }
 
-const FIRST_NAMES: &[&str] = &[
+pub const FIRST_NAMES: &[&str] = &[
     "Alex", "Jordan", "Mira", "Taylor", "Casey", "Riley", "Morgan", "Quinn",
     "Sage", "Avery", "Dakota", "Finley", "Harper", "Kai", "Luna", "Nova",
     "Phoenix", "River", "Skyler", "Wren", "Ash", "Blake", "Charlie", "Drew",
@@ -181,7 +181,7 @@ const FIRST_NAMES: &[&str] = &[
     "Umber", "Veda", "Wynn", "Xena", "York", "Zephyr", "Arden", "Bliss",
 ];
 
-const LAST_NAMES: &[&str] = &[
+pub const LAST_NAMES: &[&str] = &[
     "Chen", "Park", "Kim", "Singh", "Ali", "Lopez", "Müller", "Silva",
     "Tanaka", "Costa", "Russo", "Novak", "Johansson", "Andersen", "Okafor",
     "Nguyen", "Patel", "Santos", "Meyer", "Yamamoto", "Rivera", "Kowalski",
@@ -193,17 +193,17 @@ const LAST_NAMES: &[&str] = &[
     "Colombo", "Lindgren", "Shimizu", "Sousa", "Bergman", "Inoue", "Strauss",
 ];
 
-struct RawBlock {
-    vid: String,
-    first_name: String,
-    last_name: String,
-    likes: u64,
-    dislikes: u64,
-    claimed_at: u64,
-    is_short: bool,
+pub struct RawBlock {
+    pub vid: String,
+    pub first_name: String,
+    pub last_name: String,
+    pub likes: u64,
+    pub dislikes: u64,
+    pub claimed_at: u64,
+    pub is_short: bool,
 }
 
-fn generate_all_raw(base_time: u64) -> Vec<RawBlock> {
+pub fn generate_all_raw(base_time: u64) -> Vec<RawBlock> {
     let mut rng = Mulberry32::new(SEED);
     let mut raw = Vec::with_capacity(VIDEO_COUNT);
 
@@ -240,112 +240,16 @@ fn generate_all_raw(base_time: u64) -> Vec<RawBlock> {
     raw
 }
 
+/// Deprecated — use dev_seed_topic instead.
 #[reducer]
-pub fn seed_data(ctx: &ReducerContext, batch_start: u32, batch_count: u32) -> Result<(), String> {
-    let caller = ctx.sender().to_hex().to_string();
-    let user = ctx.db.user_profile().identity().find(caller);
-    if !user.map(|u| u.is_admin).unwrap_or(false) {
-        return Err("Only admins can seed data".to_string());
-    }
-
-    let base_time = ctx.timestamp.to_micros_since_unix_epoch() as u64;
-    let raw = generate_all_raw(base_time);
-
-    let ad_slots_vec = build_dynamic_ad_slots(raw.len());
-    let ad_set: std::collections::HashSet<(i32, i32)> =
-        ad_slots_vec.iter().cloned().collect();
-    let coords = batch_spiral_skip_ads(raw.len(), &ad_set);
-
-    let start = batch_start as usize;
-    let end = (start + batch_count as usize).min(raw.len());
-
-    for i in start..end {
-        let rb = &raw[i];
-        if i >= coords.len() {
-            break;
-        }
-        let (gx, gy) = coords[i];
-        let block_id = (gy * GRID_COLS + gx) as u32;
-
-        if ctx.db.block().id().find(block_id).is_some() {
-            ctx.db.block().id().delete(block_id);
-        }
-
-        let platform = if rb.is_short {
-            "youtube_short".to_string()
-        } else {
-            "youtube".to_string()
-        };
-
-        ctx.db
-            .block()
-            .try_insert(Block {
-                id: block_id,
-                x: gx,
-                y: gy,
-                video_id: rb.vid.clone(),
-                platform,
-                owner_identity: format!("user_{}", i),
-                owner_name: format!("{} {}", rb.first_name, rb.last_name),
-                likes: rb.likes,
-                dislikes: rb.dislikes,
-                status: "claimed".to_string(),
-                ad_image_url: String::new(),
-                ad_link_url: String::new(),
-                claimed_at: rb.claimed_at,
-            })
-            .map_err(|e| format!("Insert failed at index {i}: {e}"))?;
-    }
-
-    log::info!(
-        "Seeded blocks {}..{} ({} blocks)",
-        start,
-        end,
-        end - start
-    );
-    Ok(())
+pub fn seed_data(_ctx: &ReducerContext, _batch_start: u32, _batch_count: u32) -> Result<(), String> {
+    Err("seed_data is deprecated. Use dev_seed_topic instead.".to_string())
 }
 
+/// Deprecated — ads are now managed per-topic.
 #[reducer]
-pub fn seed_ads(ctx: &ReducerContext) -> Result<(), String> {
-    let caller = ctx.sender().to_hex().to_string();
-    let user = ctx.db.user_profile().identity().find(caller);
-    if !user.map(|u| u.is_admin).unwrap_or(false) {
-        return Err("Only admins can seed data".to_string());
-    }
-
-    let claimed_count = ctx.db.block().iter().filter(|b| b.status == "claimed").count();
-    let ad_slots = build_dynamic_ad_slots(claimed_count);
-
-    let mut inserted = 0u32;
-    for (col, row) in &ad_slots {
-        let block_id = (row * GRID_COLS + col) as u32;
-        if ctx.db.block().id().find(block_id).is_some() {
-            continue;
-        }
-        ctx.db
-            .block()
-            .try_insert(Block {
-                id: block_id,
-                x: *col,
-                y: *row,
-                video_id: String::new(),
-                platform: String::new(),
-                owner_identity: String::new(),
-                owner_name: String::new(),
-                likes: 0,
-                dislikes: 0,
-                status: "ad".to_string(),
-                ad_image_url: String::new(),
-                ad_link_url: String::new(),
-                claimed_at: 0,
-            })
-            .map_err(|e| format!("Ad insert failed: {e}"))?;
-        inserted += 1;
-    }
-
-    log::info!("Seeded {} ad placeholder blocks", inserted);
-    Ok(())
+pub fn seed_ads(_ctx: &ReducerContext) -> Result<(), String> {
+    Err("seed_ads is deprecated.".to_string())
 }
 
 #[reducer]
@@ -356,11 +260,11 @@ pub fn clear_all_blocks(ctx: &ReducerContext) -> Result<(), String> {
         return Err("Only admins can clear data".to_string());
     }
 
-    let ids: Vec<u32> = ctx.db.block().iter().map(|b| b.id).collect();
-    for id in &ids {
-        ctx.db.block().id().delete(*id);
+    let ids: Vec<u64> = ctx.db.block().iter().map(|b| b.id).collect();
+    for id in ids {
+        ctx.db.block().id().delete(id);
     }
 
-    log::info!("Cleared {} blocks", ids.len());
+    log::info!("Cleared all blocks");
     Ok(())
 }

@@ -18,6 +18,7 @@ export default __t.row({
   email: __t.string(),
   stripeAccountId: __t.string().name("stripe_account_id"),
   totalEarnings: __t.u64().name("total_earnings"),
+  credits: __t.u64(),
   isAdmin: __t.bool().name("is_admin"),
   createdAt: __t.u64().name("created_at"),
 });

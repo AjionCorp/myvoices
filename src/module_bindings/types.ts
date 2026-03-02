@@ -12,6 +12,7 @@ import {
 
 export const AdPlacement = __t.object("AdPlacement", {
   id: __t.u64(),
+  topicId: __t.u64(),
   blockIdsJson: __t.string(),
   adImageUrl: __t.string(),
   adLinkUrl: __t.string(),
@@ -23,7 +24,8 @@ export const AdPlacement = __t.object("AdPlacement", {
 export type AdPlacement = __Infer<typeof AdPlacement>;
 
 export const Block = __t.object("Block", {
-  id: __t.u32(),
+  id: __t.u64(),
+  topicId: __t.u64(),
   x: __t.i32(),
   y: __t.i32(),
   videoId: __t.string(),
@@ -33,6 +35,8 @@ export const Block = __t.object("Block", {
   likes: __t.u64(),
   dislikes: __t.u64(),
   status: __t.string(),
+  ytViews: __t.u64(),
+  ytLikes: __t.u64(),
   adImageUrl: __t.string(),
   adLinkUrl: __t.string(),
   claimedAt: __t.u64(),
@@ -47,7 +51,7 @@ export type ClerkIdentityMap = __Infer<typeof ClerkIdentityMap>;
 
 export const Comment = __t.object("Comment", {
   id: __t.u64(),
-  blockId: __t.u32(),
+  blockId: __t.u64(),
   userIdentity: __t.string(),
   userName: __t.string(),
   text: __t.string(),
@@ -67,7 +71,7 @@ export type Contest = __Infer<typeof Contest>;
 export const ContestWinner = __t.object("ContestWinner", {
   id: __t.u64(),
   contestId: __t.u64(),
-  blockId: __t.u32(),
+  blockId: __t.u64(),
   ownerIdentity: __t.string(),
   ownerName: __t.string(),
   videoId: __t.string(),
@@ -78,9 +82,21 @@ export const ContestWinner = __t.object("ContestWinner", {
 });
 export type ContestWinner = __Infer<typeof ContestWinner>;
 
+export const CreditTransactionLog = __t.object("CreditTransactionLog", {
+  id: __t.u64(),
+  userIdentity: __t.string(),
+  txType: __t.string(),
+  amount: __t.i64(),
+  balanceAfter: __t.u64(),
+  stripePaymentId: __t.string(),
+  description: __t.string(),
+  createdAt: __t.u64(),
+});
+export type CreditTransactionLog = __Infer<typeof CreditTransactionLog>;
+
 export const DislikeRecord = __t.object("DislikeRecord", {
   id: __t.u64(),
-  blockId: __t.u32(),
+  blockId: __t.u64(),
   userIdentity: __t.string(),
   createdAt: __t.u64(),
 });
@@ -88,11 +104,27 @@ export type DislikeRecord = __Infer<typeof DislikeRecord>;
 
 export const LikeRecord = __t.object("LikeRecord", {
   id: __t.u64(),
-  blockId: __t.u32(),
+  blockId: __t.u64(),
   userIdentity: __t.string(),
   createdAt: __t.u64(),
 });
 export type LikeRecord = __Infer<typeof LikeRecord>;
+
+export const Topic = __t.object("Topic", {
+  id: __t.u64(),
+  slug: __t.string(),
+  title: __t.string(),
+  description: __t.string(),
+  category: __t.string(),
+  creatorIdentity: __t.string(),
+  videoCount: __t.u64(),
+  totalLikes: __t.u64(),
+  totalDislikes: __t.u64(),
+  totalViews: __t.u64(),
+  isActive: __t.bool(),
+  createdAt: __t.u64(),
+});
+export type Topic = __Infer<typeof Topic>;
 
 export const TransactionLog = __t.object("TransactionLog", {
   id: __t.u64(),
@@ -114,6 +146,7 @@ export const UserProfile = __t.object("UserProfile", {
   email: __t.string(),
   stripeAccountId: __t.string(),
   totalEarnings: __t.u64(),
+  credits: __t.u64(),
   isAdmin: __t.bool(),
   createdAt: __t.u64(),
 });

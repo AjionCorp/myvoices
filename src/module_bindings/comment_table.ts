@@ -12,7 +12,7 @@ import {
 
 export default __t.row({
   id: __t.u64().primaryKey(),
-  blockId: __t.u32().name("block_id"),
+  blockId: __t.u64().name("block_id"),
   userIdentity: __t.string().name("user_identity"),
   userName: __t.string().name("user_name"),
   text: __t.string(),

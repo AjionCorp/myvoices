@@ -1,5 +1,5 @@
 import {
-  TILE_WIDTH, TILE_HEIGHT, TILE_GAP, GRID_COLS, GRID_ROWS,
+  TILE_WIDTH, TILE_HEIGHT, TILE_GAP,
 } from "@/lib/constants";
 
 const INNER_W = TILE_WIDTH - TILE_GAP;
@@ -136,6 +136,40 @@ export function cropUV(imgW: number, imgH: number): [number, number, number, num
   }
 }
 
+function buildPlusTexture(gl: WebGL2RenderingContext): WebGLTexture {
+  const w = INNER_W * 2, h = INNER_H * 2;
+  const c = document.createElement("canvas");
+  c.width = w; c.height = h;
+  const ctx = c.getContext("2d")!;
+
+  // Transparent background — only the "+" shape is drawn
+  ctx.clearRect(0, 0, w, h);
+
+  const cx = w / 2, cy = h / 2;
+  const armLen = Math.min(w, h) * 0.28;
+  const armThick = Math.min(w, h) * 0.09;
+  const r = armThick / 2;
+
+  ctx.fillStyle = "rgba(255,255,255,0.75)";
+  // Horizontal bar (rounded ends via arc approach is complex — use rect + circle caps)
+  ctx.beginPath();
+  ctx.roundRect(cx - armLen, cy - armThick / 2, armLen * 2, armThick, r);
+  ctx.fill();
+  // Vertical bar
+  ctx.beginPath();
+  ctx.roundRect(cx - armThick / 2, cy - armLen, armThick, armLen * 2, r);
+  ctx.fill();
+
+  const t = gl.createTexture()!;
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return t;
+}
+
 function buildAdLabelTexture(gl: WebGL2RenderingContext): WebGLTexture {
   const w = 56, h = 100;
   const c = document.createElement("canvas");
@@ -171,6 +205,7 @@ export class TileRenderer {
   private iData: Float32Array;
   private dpr: number;
   private adTex: WebGLTexture;
+  private plusTex: WebGLTexture;
 
   private uScr: WebGLUniformLocation;
   private uPan: WebGLUniformLocation;
@@ -262,6 +297,7 @@ export class TileRenderer {
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
     this.adTex = buildAdLabelTexture(gl);
+    this.plusTex = buildPlusTexture(gl);
   }
 
   resize() {
@@ -463,7 +499,7 @@ export class TileRenderer {
     panX: number, panY: number, zoom: number,
     hCol: number, hRow: number, hAlpha: number, hScale: number,
   ) {
-    if (hCol < 0 || hRow < 0 || hAlpha < 0.01) return;
+    if (hCol === -9999 || hRow === -9999 || hAlpha < 0.01) return;
     const d = this.dpr;
     gl.useProgram(this.hProg);
     gl.uniform2f(this.hScr, cw, ch);
@@ -478,6 +514,39 @@ export class TileRenderer {
     gl.uniform1f(this.hFill, 0.08);
     gl.bindVertexArray(this.hVao);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.bindVertexArray(null);
+  }
+
+  drawEmptyHover(
+    col: number, row: number,
+    panX: number, panY: number, zoom: number,
+  ) {
+    const gl = this.gl;
+    const d = this.dpr;
+    gl.useProgram(this.prog);
+    gl.uniform2f(this.uScr, this.canvas.width, this.canvas.height);
+    gl.uniform2f(this.uPan, panX * d, panY * d);
+    gl.uniform1f(this.uZoom, zoom * d);
+    gl.uniform2f(this.uTile, INNER_W, INNER_H);
+    gl.bindVertexArray(this.vao);
+
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, this.plusTex);
+    gl.uniform1i(this.uTex[0], 0);
+
+    const o = 0;
+    this.iData[o]     = col * TILE_WIDTH + TILE_GAP * 0.5;
+    this.iData[o + 1] = row * TILE_HEIGHT + TILE_GAP * 0.5;
+    this.iData[o + 2] = 0;  // slot 0 (plusTex)
+    this.iData[o + 3] = 1;  // scale
+    this.iData[o + 4] = 1;  this.iData[o + 5] = 1;
+    this.iData[o + 6] = 1;  this.iData[o + 7] = 1;  // rgba tint — white, full alpha
+    this.iData[o + 8] = 0;  this.iData[o + 9] = 0;
+    this.iData[o + 10] = 1; this.iData[o + 11] = 1;
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.iBuf);
+    gl.bufferSubData(gl.ARRAY_BUFFER, 0, this.iData, 0, FLOATS_PER);
+    gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, 1);
     gl.bindVertexArray(null);
   }
 
@@ -517,6 +586,7 @@ export class TileRenderer {
     gl.deleteVertexArray(this.vao);
     gl.deleteVertexArray(this.hVao);
     gl.deleteTexture(this.adTex);
+    gl.deleteTexture(this.plusTex);
     for (const e of gpuTexCache.values()) gl.deleteTexture(e.glTex);
     gpuTexCache.clear();
   }
@@ -528,8 +598,7 @@ export class TileRenderer {
   worldToGrid(wx: number, wy: number) {
     const col = Math.floor(wx / TILE_WIDTH);
     const row = Math.floor(wy / TILE_HEIGHT);
-    return (col >= 0 && col < GRID_COLS && row >= 0 && row < GRID_ROWS)
-      ? { col, row } : { col: -1, row: -1 };
+    return { col, row };
   }
 }
 

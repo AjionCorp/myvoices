@@ -11,5 +11,8 @@ import {
 } from "spacetimedb";
 
 export default {
-  batchSize: __t.u32(),
+  identity: __t.string(),
+  amount: __t.u64(),
+  stripePaymentId: __t.string(),
+  description: __t.string(),
 };

@@ -1,4 +1,4 @@
-import { DbConnection } from "@/module_bindings";
+import { DbConnection, type SubscriptionHandle } from "@/module_bindings";
 import type { Identity } from "spacetimedb";
 import { useAuthStore } from "@/stores/auth-store";
 
@@ -7,13 +7,11 @@ const SPACETIMEDB_URI =
 const SPACETIMEDB_MODULE =
   process.env.NEXT_PUBLIC_SPACETIMEDB_MODULE || "myvoice";
 
-export const VIEWPORT_SUBSCRIPTION_THRESHOLD = parseInt(
-  process.env.NEXT_PUBLIC_VIEWPORT_SUBSCRIPTION_THRESHOLD ?? "0",
-  10
-);
-
 let connection: DbConnection | null = null;
 let connectionPromise: Promise<DbConnection> | null = null;
+
+/** Handle for the currently-active block subscription (one topic at a time). */
+let activeBlockSubscription: SubscriptionHandle | null = null;
 
 export function getConnection(): DbConnection | null {
   return connection;
@@ -26,18 +24,15 @@ export type ConnectionCallbacks = {
   onConnectError?: (error: Error) => void;
 };
 
+/** Tables that are always subscribed (user metadata + all topics for the landing page). */
 const USER_TABLES = [
   "SELECT * FROM user_profile",
+  "SELECT * FROM topic",
   "SELECT * FROM ad_placement",
   "SELECT * FROM contest",
   "SELECT * FROM contest_winner",
   "SELECT * FROM comment",
   "SELECT * FROM transaction_log",
-];
-const BLOCK_TABLES = [
-  "SELECT * FROM block",
-  "SELECT * FROM like_record",
-  "SELECT * FROM dislike_record",
 ];
 
 export function connect(
@@ -55,41 +50,27 @@ export function connect(
     if (oidcToken) {
       builder = builder.withToken(oidcToken);
     }
-    // Without token: anonymous connection (requires "Allow anonymous sign-in" in SpacetimeDB)
 
     builder
       .onConnect((conn: DbConnection, identity: Identity, token: string) => {
         connection = conn;
         useAuthStore.getState().setToken(token);
-        console.log("[SpacetimeDB] WS connected, subscribing to user tables...");
+        console.log("[SpacetimeDB] WS connected, subscribing to user+topic tables...");
 
-        // Subscribe to user/metadata tables first — fires quickly so user registration
-        // happens without waiting for the full block table to load.
         conn
           .subscriptionBuilder()
           .onApplied(() => {
-            console.log("[SpacetimeDB] user tables applied, calling onConnect");
+            console.log("[SpacetimeDB] user+topic tables applied, calling onConnect");
             callbacks?.onConnect?.(conn, identity, token);
           })
-          .subscribe(VIEWPORT_SUBSCRIPTION_THRESHOLD > 0 ? USER_TABLES : USER_TABLES);
-
-        // Subscribe to block/interaction tables separately — may take a while.
-        conn
-          .subscriptionBuilder()
-          .onApplied(() => {
-            console.log("[SpacetimeDB] block tables applied");
-            callbacks?.onBlocksLoaded?.();
-          })
-          .subscribe(VIEWPORT_SUBSCRIPTION_THRESHOLD > 0
-            ? ["SELECT * FROM block"]
-            : BLOCK_TABLES
-          );
+          .subscribe(USER_TABLES);
 
         resolve(conn);
       })
       .onDisconnect(() => {
         connection = null;
         connectionPromise = null;
+        activeBlockSubscription = null;
         callbacks?.onDisconnect?.();
       })
       .onConnectError((_ctx: unknown, error: Error) => {
@@ -103,6 +84,46 @@ export function connect(
   return connectionPromise;
 }
 
+/**
+ * Subscribe to all blocks (and interaction records) belonging to a specific topic.
+ * Calling this again with a different topicId will unsubscribe from the previous topic first.
+ */
+export function subscribeToTopicBlocks(
+  topicId: number,
+  onLoaded: () => void
+): void {
+  if (!connection) return;
+
+  // Unsubscribe from any previous topic
+  if (activeBlockSubscription) {
+    activeBlockSubscription.unsubscribe();
+    activeBlockSubscription = null;
+  }
+
+  console.log(`[SpacetimeDB] subscribing to blocks for topic ${topicId}`);
+
+  activeBlockSubscription = connection
+    .subscriptionBuilder()
+    .onApplied(() => {
+      console.log(`[SpacetimeDB] block tables for topic ${topicId} applied`);
+      onLoaded();
+    })
+    .subscribe([
+      `SELECT * FROM block WHERE topic_id = ${topicId}`,
+      `SELECT * FROM like_record`,
+      `SELECT * FROM dislike_record`,
+    ]);
+}
+
+/** Unsubscribe from the current topic's blocks (e.g. when leaving a topic page). */
+export function unsubscribeFromTopicBlocks(): void {
+  if (activeBlockSubscription) {
+    activeBlockSubscription.unsubscribe();
+    activeBlockSubscription = null;
+    console.log("[SpacetimeDB] unsubscribed from topic blocks");
+  }
+}
+
 /** Disconnect and reconnect (optionally with a fresh OIDC token) */
 export function reconnect(
   callbacks?: ConnectionCallbacks,
@@ -113,6 +134,8 @@ export function reconnect(
 }
 
 export function disconnect(): void {
+  activeBlockSubscription?.unsubscribe();
+  activeBlockSubscription = null;
   connection?.disconnect();
   connection = null;
   connectionPromise = null;

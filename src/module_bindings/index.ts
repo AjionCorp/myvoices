@@ -35,17 +35,22 @@ import {
 
 // Import all reducer arg schemas
 import AddCommentReducer from "./add_comment_reducer";
-import ClaimBlockReducer from "./claim_block_reducer";
+import AddCreditsReducer from "./add_credits_reducer";
+import ClaimBlockInTopicReducer from "./claim_block_in_topic_reducer";
 import ClearAllBlocksReducer from "./clear_all_blocks_reducer";
 import CreateContestReducer from "./create_contest_reducer";
+import CreateTopicReducer from "./create_topic_reducer";
 import DeleteCommentReducer from "./delete_comment_reducer";
 import DevClearAllUsersReducer from "./dev_clear_all_users_reducer";
+import DevSeedTopicReducer from "./dev_seed_topic_reducer";
+import DevSetAdminReducer from "./dev_set_admin_reducer";
 import DislikeVideoReducer from "./dislike_video_reducer";
 import FinalizeContestReducer from "./finalize_contest_reducer";
+import IncrementTopicViewsReducer from "./increment_topic_views_reducer";
 import LikeVideoReducer from "./like_video_reducer";
 import MarkAdPaidReducer from "./mark_ad_paid_reducer";
 import PlaceAdReducer from "./place_ad_reducer";
-import RebalanceLayoutReducer from "./rebalance_layout_reducer";
+import RebalanceTopicReducer from "./rebalance_topic_reducer";
 import RegisterUserReducer from "./register_user_reducer";
 import RemoveAdReducer from "./remove_ad_reducer";
 import SeedAdsReducer from "./seed_ads_reducer";
@@ -53,12 +58,14 @@ import SeedDataReducer from "./seed_data_reducer";
 import ServerDeleteUserReducer from "./server_delete_user_reducer";
 import ServerUpdateProfileReducer from "./server_update_profile_reducer";
 import SetAdminReducer from "./set_admin_reducer";
+import SpendCreditsReducer from "./spend_credits_reducer";
 import StoreClerkMappingReducer from "./store_clerk_mapping_reducer";
 import UnclaimBlockReducer from "./unclaim_block_reducer";
 import UndislikeVideoReducer from "./undislike_video_reducer";
 import UnlikeVideoReducer from "./unlike_video_reducer";
 import UpdateProfileReducer from "./update_profile_reducer";
 import UpdateStripeAccountReducer from "./update_stripe_account_reducer";
+import UpdateTopicReducer from "./update_topic_reducer";
 
 // Import all procedure arg schemas
 
@@ -69,8 +76,10 @@ import ClerkIdentityMapRow from "./clerk_identity_map_table";
 import CommentRow from "./comment_table";
 import ContestRow from "./contest_table";
 import ContestWinnerRow from "./contest_winner_table";
+import CreditTransactionLogRow from "./credit_transaction_log_table";
 import DislikeRecordRow from "./dislike_record_table";
 import LikeRecordRow from "./like_record_table";
+import TopicRow from "./topic_table";
 import TransactionLogRow from "./transaction_log_table";
 import UserProfileRow from "./user_profile_table";
 
@@ -144,6 +153,17 @@ const tablesSchema = __schema({
       { name: 'contest_winner_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, ContestWinnerRow),
+  credit_transaction_log: __table({
+    name: 'credit_transaction_log',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'credit_transaction_log_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, CreditTransactionLogRow),
   dislike_record: __table({
     name: 'dislike_record',
     indexes: [
@@ -166,6 +186,21 @@ const tablesSchema = __schema({
       { name: 'like_record_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, LikeRecordRow),
+  topic: __table({
+    name: 'topic',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+      { name: 'slug', algorithm: 'btree', columns: [
+        'slug',
+      ] },
+    ],
+    constraints: [
+      { name: 'topic_id_key', constraint: 'unique', columns: ['id'] },
+      { name: 'topic_slug_key', constraint: 'unique', columns: ['slug'] },
+    ],
+  }, TopicRow),
   transaction_log: __table({
     name: 'transaction_log',
     indexes: [
@@ -193,17 +228,22 @@ const tablesSchema = __schema({
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
   __reducerSchema("add_comment", AddCommentReducer),
-  __reducerSchema("claim_block", ClaimBlockReducer),
+  __reducerSchema("add_credits", AddCreditsReducer),
+  __reducerSchema("claim_block_in_topic", ClaimBlockInTopicReducer),
   __reducerSchema("clear_all_blocks", ClearAllBlocksReducer),
   __reducerSchema("create_contest", CreateContestReducer),
+  __reducerSchema("create_topic", CreateTopicReducer),
   __reducerSchema("delete_comment", DeleteCommentReducer),
   __reducerSchema("dev_clear_all_users", DevClearAllUsersReducer),
+  __reducerSchema("dev_seed_topic", DevSeedTopicReducer),
+  __reducerSchema("dev_set_admin", DevSetAdminReducer),
   __reducerSchema("dislike_video", DislikeVideoReducer),
   __reducerSchema("finalize_contest", FinalizeContestReducer),
+  __reducerSchema("increment_topic_views", IncrementTopicViewsReducer),
   __reducerSchema("like_video", LikeVideoReducer),
   __reducerSchema("mark_ad_paid", MarkAdPaidReducer),
   __reducerSchema("place_ad", PlaceAdReducer),
-  __reducerSchema("rebalance_layout", RebalanceLayoutReducer),
+  __reducerSchema("rebalance_topic", RebalanceTopicReducer),
   __reducerSchema("register_user", RegisterUserReducer),
   __reducerSchema("remove_ad", RemoveAdReducer),
   __reducerSchema("seed_ads", SeedAdsReducer),
@@ -211,12 +251,14 @@ const reducersSchema = __reducers(
   __reducerSchema("server_delete_user", ServerDeleteUserReducer),
   __reducerSchema("server_update_profile", ServerUpdateProfileReducer),
   __reducerSchema("set_admin", SetAdminReducer),
+  __reducerSchema("spend_credits", SpendCreditsReducer),
   __reducerSchema("store_clerk_mapping", StoreClerkMappingReducer),
   __reducerSchema("unclaim_block", UnclaimBlockReducer),
   __reducerSchema("undislike_video", UndislikeVideoReducer),
   __reducerSchema("unlike_video", UnlikeVideoReducer),
   __reducerSchema("update_profile", UpdateProfileReducer),
   __reducerSchema("update_stripe_account", UpdateStripeAccountReducer),
+  __reducerSchema("update_topic", UpdateTopicReducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */

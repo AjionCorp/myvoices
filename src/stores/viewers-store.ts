@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { GRID_COLS, GRID_ROWS, TILE_WIDTH, TILE_HEIGHT } from "@/lib/constants";
+import { TILE_WIDTH, TILE_HEIGHT } from "@/lib/constants";
 
 export interface Viewer {
   id: string;
@@ -52,8 +52,8 @@ function mulberry32(seed: number) {
 }
 
 const SIMULATED_COUNT = 25;
-const CENTER_WX = Math.floor(GRID_COLS / 2) * TILE_WIDTH;
-const CENTER_WY = Math.floor(GRID_ROWS / 2) * TILE_HEIGHT;
+const CENTER_WX = 0;
+const CENTER_WY = 0;
 const SPREAD = 150 * TILE_WIDTH;
 
 /**
@@ -84,8 +84,8 @@ export function startViewerSimulation(): () => void {
       const dy = (Math.random() - 0.5) * TILE_HEIGHT * 30;
       return {
         ...v,
-        worldX: Math.max(0, Math.min(GRID_COLS * TILE_WIDTH, v.worldX + dx)),
-        worldY: Math.max(0, Math.min(GRID_ROWS * TILE_HEIGHT, v.worldY + dy)),
+        worldX: v.worldX + dx,
+        worldY: v.worldY + dy,
       };
     });
     store.setViewers(next);

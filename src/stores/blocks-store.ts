@@ -1,9 +1,9 @@
 import { create } from "zustand";
-import { Platform, BlockStatus, GRID_COLS, rebuildAdLayout } from "@/lib/constants";
-import { batchSpiralCoordinates } from "@/lib/canvas/spiral-layout";
+import { Platform, BlockStatus } from "@/lib/constants";
 
 export interface Block {
   id: number;
+  topicId: number;
   x: number;
   y: number;
   videoId: string | null;
@@ -12,31 +12,41 @@ export interface Block {
   ownerName: string | null;
   likes: number;
   dislikes: number;
+  ytViews: number;
+  ytLikes: number;
   status: BlockStatus;
   adImageUrl: string | null;
   adLinkUrl: string | null;
   claimedAt: number | null;
 }
 
+/** Combined score: YouTube metrics + platform engagement. */
 export function netScore(b: Block): number {
-  return b.likes - b.dislikes;
+  const yt = Math.max(b.ytViews, b.ytLikes);
+  return yt + (b.likes - b.dislikes);
 }
 
 // Spatial bucket index: divides the grid into coarse cells for fast viewport queries.
-// Each bucket holds IDs of all blocks whose (x,y) falls inside it.
+// Handles arbitrary (including negative) coordinates.
 const BUCKET_SIZE = 32;
-const BUCKET_COLS = Math.ceil(GRID_COLS / BUCKET_SIZE);
 
 export class SpatialIndex {
-  private buckets = new Map<number, number[]>();
+  // String key "bx,by" → array of block IDs
+  private buckets = new Map<string, number[]>();
 
-  private key(bx: number, by: number) { return by * BUCKET_COLS + bx; }
+  private key(bx: number, by: number) {
+    return `${bx},${by}`;
+  }
+
+  private bucketOf(x: number): [number, number] {
+    return [Math.floor(x / BUCKET_SIZE), 0];
+  }
 
   clear() { this.buckets.clear(); }
 
   insert(block: Block) {
-    const bx = (block.x / BUCKET_SIZE) | 0;
-    const by = (block.y / BUCKET_SIZE) | 0;
+    const bx = Math.floor(block.x / BUCKET_SIZE);
+    const by = Math.floor(block.y / BUCKET_SIZE);
     const k = this.key(bx, by);
     let arr = this.buckets.get(k);
     if (!arr) { arr = []; this.buckets.set(k, arr); }
@@ -44,8 +54,8 @@ export class SpatialIndex {
   }
 
   remove(block: Block) {
-    const bx = (block.x / BUCKET_SIZE) | 0;
-    const by = (block.y / BUCKET_SIZE) | 0;
+    const bx = Math.floor(block.x / BUCKET_SIZE);
+    const by = Math.floor(block.y / BUCKET_SIZE);
     const k = this.key(bx, by);
     const arr = this.buckets.get(k);
     if (!arr) return;
@@ -55,10 +65,10 @@ export class SpatialIndex {
   }
 
   queryRange(c0: number, r0: number, c1: number, r1: number): number[] {
-    const bx0 = Math.max(0, (c0 / BUCKET_SIZE) | 0);
-    const by0 = Math.max(0, (r0 / BUCKET_SIZE) | 0);
-    const bx1 = (c1 / BUCKET_SIZE) | 0;
-    const by1 = (r1 / BUCKET_SIZE) | 0;
+    const bx0 = Math.floor(c0 / BUCKET_SIZE);
+    const by0 = Math.floor(r0 / BUCKET_SIZE);
+    const bx1 = Math.floor(c1 / BUCKET_SIZE);
+    const by1 = Math.floor(r1 / BUCKET_SIZE);
     const result: number[] = [];
     for (let by = by0; by <= by1; by++) {
       for (let bx = bx0; bx <= bx1; bx++) {
@@ -72,8 +82,8 @@ export class SpatialIndex {
   }
 
   hasBucket(col: number, row: number): boolean {
-    const bx = (col / BUCKET_SIZE) | 0;
-    const by = (row / BUCKET_SIZE) | 0;
+    const bx = Math.floor(col / BUCKET_SIZE);
+    const by = Math.floor(row / BUCKET_SIZE);
     const arr = this.buckets.get(this.key(bx, by));
     return !!arr && arr.length > 0;
   }
@@ -89,6 +99,8 @@ export interface ContentBounds {
 interface BlocksState {
   blocks: Map<number, Block>;
   spatial: SpatialIndex;
+  /** Maps "x,y" → block.id for O(1) cell lookup */
+  positionIndex: Map<string, number>;
   videoIdIndex: Map<string, number>;
   rankIndex: Map<number, number>;
   contentBounds: ContentBounds;
@@ -99,16 +111,20 @@ interface BlocksState {
 
   setBlock: (block: Block) => void;
   setBlocks: (blocks: Block[]) => void;
-  updateBlockPosition: (id: number, x: number, y: number) => void;
+  removeBlock: (id: number) => void;
   updateBlockLikes: (id: number, likes: number) => void;
   updateBlockDislikes: (id: number, dislikes: number) => void;
-  rebalanceBlocks: () => void;
   setTopBlocks: (blocks: Block[]) => void;
   getBlock: (id: number) => Block | undefined;
+  getBlockAtPosition: (x: number, y: number) => Block | undefined;
   getBlockByVideoId: (videoId: string) => Block | undefined;
   getRank: (id: number) => number | undefined;
   setStats: (claimed: number, likes: number) => void;
   setLoading: (v: boolean) => void;
+}
+
+function posKey(x: number, y: number): string {
+  return `${x},${y}`;
 }
 
 function rebuildVideoIdIndex(blocks: Map<number, Block>): Map<string, number> {
@@ -123,6 +139,12 @@ function rebuildSpatialIndex(blocks: Map<number, Block>): SpatialIndex {
   const si = new SpatialIndex();
   for (const b of blocks.values()) si.insert(b);
   return si;
+}
+
+function rebuildPositionIndex(blocks: Map<number, Block>): Map<string, number> {
+  const pi = new Map<string, number>();
+  for (const b of blocks.values()) pi.set(posKey(b.x, b.y), b.id);
+  return pi;
 }
 
 function computeContentBounds(blocks: Map<number, Block>): ContentBounds {
@@ -158,6 +180,7 @@ function rebuildRankIndex(blocks: Map<number, Block>): Map<number, number> {
 export const useBlocksStore = create<BlocksState>((set, get) => ({
   blocks: new Map(),
   spatial: new SpatialIndex(),
+  positionIndex: new Map(),
   videoIdIndex: new Map(),
   rankIndex: new Map(),
   contentBounds: { minCol: 0, maxCol: 0, minRow: 0, maxRow: 0 },
@@ -167,14 +190,27 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
   loading: true,
 
   setBlock: (block) => {
-    const current = get().blocks;
-    const old = current.get(block.id);
-    if (old) get().spatial.remove(old);
-    current.set(block.id, block);
+    const blocks = get().blocks;
+    const old = blocks.get(block.id);
+    if (old) {
+      get().spatial.remove(old);
+      get().positionIndex.delete(posKey(old.x, old.y));
+    }
+    blocks.set(block.id, block);
     get().spatial.insert(block);
+    get().positionIndex.set(posKey(block.x, block.y), block.id);
     const videoIdIndex = get().videoIdIndex;
     if (block.videoId) videoIdIndex.set(block.videoId, block.id);
-    set({ blocks: current, videoIdIndex });
+    // Update content bounds incrementally
+    const cb = get().contentBounds;
+    const pad = 2;
+    const newBounds: ContentBounds = {
+      minCol: Math.min(cb.minCol, block.x - pad),
+      maxCol: Math.max(cb.maxCol, block.x + pad),
+      minRow: Math.min(cb.minRow, block.y - pad),
+      maxRow: Math.max(cb.maxRow, block.y + pad),
+    };
+    set({ blocks, videoIdIndex, contentBounds: newBounds });
   },
 
   setBlocks: (blocks) => {
@@ -184,21 +220,24 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
       map.set(b.id, b);
       if (b.status === BlockStatus.Claimed) claimedCount++;
     }
-    rebuildAdLayout(claimedCount);
-    set({ blocks: map, videoIdIndex: rebuildVideoIdIndex(map), spatial: rebuildSpatialIndex(map), rankIndex: rebuildRankIndex(map), contentBounds: computeContentBounds(map) });
+    set({
+      blocks: map,
+      videoIdIndex: rebuildVideoIdIndex(map),
+      spatial: rebuildSpatialIndex(map),
+      positionIndex: rebuildPositionIndex(map),
+      rankIndex: rebuildRankIndex(map),
+      contentBounds: computeContentBounds(map),
+      totalClaimed: claimedCount,
+    });
   },
 
-  updateBlockPosition: (id, x, y) => {
+  removeBlock: (id) => {
     const blocks = get().blocks;
     const block = blocks.get(id);
     if (!block) return;
-    const spatial = get().spatial;
-    spatial.remove(block);
-    const newId = y * GRID_COLS + x;
+    get().spatial.remove(block);
+    get().positionIndex.delete(posKey(block.x, block.y));
     blocks.delete(id);
-    const updated = { ...block, id: newId, x, y };
-    blocks.set(newId, updated);
-    spatial.insert(updated);
     set({ blocks });
   },
 
@@ -218,41 +257,14 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
     set({ blocks });
   },
 
-  rebalanceBlocks: () => {
-    const blocks = get().blocks;
-    const claimed: Block[] = [];
-    for (const b of blocks.values()) {
-      if (b.status === BlockStatus.Claimed) claimed.push(b);
-    }
-
-    claimed.sort((a, b) => netScore(b) - netScore(a));
-
-    rebuildAdLayout(claimed.length);
-    const coords = batchSpiralCoordinates(claimed.length);
-    const newBlocks = new Map(blocks);
-
-    for (let i = 0; i < claimed.length; i++) {
-      const b = claimed[i];
-      const coord = coords[i];
-      const newId = coord.y * GRID_COLS + coord.x;
-
-      newBlocks.delete(b.id);
-
-      const updated: Block = {
-        ...b,
-        id: newId,
-        x: coord.x,
-        y: coord.y,
-      };
-      newBlocks.set(newId, updated);
-    }
-
-    set({ blocks: newBlocks, videoIdIndex: rebuildVideoIdIndex(newBlocks), spatial: rebuildSpatialIndex(newBlocks), rankIndex: rebuildRankIndex(newBlocks), contentBounds: computeContentBounds(newBlocks) });
-  },
-
   setTopBlocks: (blocks) => set({ topBlocks: blocks }),
 
   getBlock: (id) => get().blocks.get(id),
+
+  getBlockAtPosition: (x, y) => {
+    const id = get().positionIndex.get(posKey(x, y));
+    return id !== undefined ? get().blocks.get(id) : undefined;
+  },
 
   getBlockByVideoId: (videoId) => {
     const id = get().videoIdIndex.get(videoId);

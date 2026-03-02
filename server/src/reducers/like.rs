@@ -5,8 +5,32 @@ fn now_micros(ctx: &ReducerContext) -> u64 {
     ctx.timestamp.to_micros_since_unix_epoch() as u64
 }
 
+fn update_topic_likes(ctx: &ReducerContext, topic_id: u64, delta: i64) {
+    if let Some(topic) = ctx.db.topic().id().find(topic_id) {
+        ctx.db.topic().id().delete(topic_id);
+        let new_likes = if delta > 0 {
+            topic.total_likes.saturating_add(delta as u64)
+        } else {
+            topic.total_likes.saturating_sub((-delta) as u64)
+        };
+        let _ = ctx.db.topic().try_insert(Topic { total_likes: new_likes, ..topic });
+    }
+}
+
+fn update_topic_dislikes(ctx: &ReducerContext, topic_id: u64, delta: i64) {
+    if let Some(topic) = ctx.db.topic().id().find(topic_id) {
+        ctx.db.topic().id().delete(topic_id);
+        let new_dislikes = if delta > 0 {
+            topic.total_dislikes.saturating_add(delta as u64)
+        } else {
+            topic.total_dislikes.saturating_sub((-delta) as u64)
+        };
+        let _ = ctx.db.topic().try_insert(Topic { total_dislikes: new_dislikes, ..topic });
+    }
+}
+
 #[reducer]
-pub fn like_video(ctx: &ReducerContext, block_id: u32) -> Result<(), String> {
+pub fn like_video(ctx: &ReducerContext, block_id: u64) -> Result<(), String> {
     let caller = ctx.sender().to_hex().to_string();
 
     let block = ctx
@@ -55,14 +79,19 @@ pub fn like_video(ctx: &ReducerContext, block_id: u32) -> Result<(), String> {
     ctx.db.block().try_insert(Block {
         likes: block.likes + 1,
         dislikes: block.dislikes.saturating_sub(dislikes_delta),
-        ..block
+        ..block.clone()
     }).map_err(|e| format!("Insert failed: {e}"))?;
+
+    update_topic_likes(ctx, block.topic_id, 1);
+    if dislikes_delta > 0 {
+        update_topic_dislikes(ctx, block.topic_id, -1);
+    }
 
     Ok(())
 }
 
 #[reducer]
-pub fn unlike_video(ctx: &ReducerContext, block_id: u32) -> Result<(), String> {
+pub fn unlike_video(ctx: &ReducerContext, block_id: u64) -> Result<(), String> {
     let caller = ctx.sender().to_hex().to_string();
 
     let block = ctx
@@ -87,14 +116,16 @@ pub fn unlike_video(ctx: &ReducerContext, block_id: u32) -> Result<(), String> {
     ctx.db.block().id().delete(block_id);
     ctx.db.block().try_insert(Block {
         likes: new_likes,
-        ..block
+        ..block.clone()
     }).map_err(|e| format!("Insert failed: {e}"))?;
+
+    update_topic_likes(ctx, block.topic_id, -1);
 
     Ok(())
 }
 
 #[reducer]
-pub fn dislike_video(ctx: &ReducerContext, block_id: u32) -> Result<(), String> {
+pub fn dislike_video(ctx: &ReducerContext, block_id: u64) -> Result<(), String> {
     let caller = ctx.sender().to_hex().to_string();
 
     let block = ctx
@@ -143,14 +174,19 @@ pub fn dislike_video(ctx: &ReducerContext, block_id: u32) -> Result<(), String> 
     ctx.db.block().try_insert(Block {
         likes: block.likes.saturating_sub(likes_delta),
         dislikes: block.dislikes + 1,
-        ..block
+        ..block.clone()
     }).map_err(|e| format!("Insert failed: {e}"))?;
+
+    update_topic_dislikes(ctx, block.topic_id, 1);
+    if likes_delta > 0 {
+        update_topic_likes(ctx, block.topic_id, -1);
+    }
 
     Ok(())
 }
 
 #[reducer]
-pub fn undislike_video(ctx: &ReducerContext, block_id: u32) -> Result<(), String> {
+pub fn undislike_video(ctx: &ReducerContext, block_id: u64) -> Result<(), String> {
     let caller = ctx.sender().to_hex().to_string();
 
     let block = ctx
@@ -175,8 +211,10 @@ pub fn undislike_video(ctx: &ReducerContext, block_id: u32) -> Result<(), String
     ctx.db.block().id().delete(block_id);
     ctx.db.block().try_insert(Block {
         dislikes: new_dislikes,
-        ..block
+        ..block.clone()
     }).map_err(|e| format!("Insert failed: {e}"))?;
+
+    update_topic_dislikes(ctx, block.topic_id, -1);
 
     Ok(())
 }
