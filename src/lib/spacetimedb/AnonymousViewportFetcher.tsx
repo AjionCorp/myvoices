@@ -94,7 +94,7 @@ function debouncedRecomputeStats() {
 
 // --- Component ---
 
-export function AnonymousViewportFetcher() {
+export function AnonymousViewportFetcher({ topicId }: { topicId?: number | null }) {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightRef = useRef(false);
   const fetchCountRef = useRef(0);
@@ -161,6 +161,7 @@ export function AnonymousViewportFetcher() {
         minY: String(bounds.minY),
         maxY: String(bounds.maxY),
       });
+      if (topicId != null) params.set("topicId", String(topicId));
 
       fetch(`/api/v1/data?${params}`)
         .then((res) => {

@@ -1,6 +1,11 @@
 import Stripe from "stripe";
 
 let stripe: Stripe | null = null;
+const DEFAULT_BASE_URL = "http://localhost:3000";
+
+function resolveBaseUrl(baseUrl?: string): string {
+  return baseUrl || process.env.NEXT_PUBLIC_BASE_URL || DEFAULT_BASE_URL;
+}
 
 export function getStripeServer(): Stripe {
   if (!stripe) {
@@ -17,8 +22,10 @@ export async function createCheckoutSession(params: {
   linkUrl: string;
   durationDays: number;
   customerEmail?: string;
+  baseUrl?: string;
 }): Promise<string> {
   const s = getStripeServer();
+  const baseUrl = resolveBaseUrl(params.baseUrl);
   const session = await s.checkout.sessions.create({
     mode: "payment",
     payment_method_types: ["card"],
@@ -42,17 +49,21 @@ export async function createCheckoutSession(params: {
       durationDays: String(params.durationDays),
     },
     customer_email: params.customerEmail,
-    success_url: `${process.env.NEXT_PUBLIC_BASE_URL}/admin/ads?success=true`,
-    cancel_url: `${process.env.NEXT_PUBLIC_BASE_URL}/admin/ads?canceled=true`,
+    success_url: `${baseUrl}/admin/ads?success=true`,
+    cancel_url: `${baseUrl}/admin/ads?canceled=true`,
   });
   return session.url || "";
 }
 
-export async function createConnectedAccount(email: string): Promise<{
+export async function createConnectedAccount(
+  email: string,
+  baseUrl?: string
+): Promise<{
   accountId: string;
   onboardingUrl: string;
 }> {
   const s = getStripeServer();
+  const resolvedBaseUrl = resolveBaseUrl(baseUrl);
   const account = await s.accounts.create({
     type: "express",
     email,
@@ -63,8 +74,8 @@ export async function createConnectedAccount(email: string): Promise<{
 
   const link = await s.accountLinks.create({
     account: account.id,
-    refresh_url: `${process.env.NEXT_PUBLIC_BASE_URL}/profile?refresh=true`,
-    return_url: `${process.env.NEXT_PUBLIC_BASE_URL}/profile?onboarded=true`,
+    refresh_url: `${resolvedBaseUrl}/profile?refresh=true`,
+    return_url: `${resolvedBaseUrl}/profile?onboarded=true`,
     type: "account_onboarding",
   });
 
@@ -86,11 +97,13 @@ export async function createCreditsCheckoutSession(params: {
   credits: number;
   successUrl?: string;
   cancelUrl?: string;
+  baseUrl?: string;
 }): Promise<string> {
   const tier = CREDITS_TIERS.find((t) => t.credits === params.credits);
   const priceCents = tier?.priceCents ?? params.credits * 10; // fallback: 10¢/credit
 
   const s = getStripeServer();
+  const baseUrl = resolveBaseUrl(params.baseUrl);
   const session = await s.checkout.sessions.create({
     mode: "payment",
     payment_method_types: ["card"],
@@ -112,8 +125,8 @@ export async function createCreditsCheckoutSession(params: {
       identity: params.identity,
       credits: String(params.credits),
     },
-    success_url: params.successUrl ?? `${process.env.NEXT_PUBLIC_BASE_URL}/profile?credits=success`,
-    cancel_url: params.cancelUrl ?? `${process.env.NEXT_PUBLIC_BASE_URL}/profile?credits=canceled`,
+    success_url: params.successUrl ?? `${baseUrl}/profile?credits=success`,
+    cancel_url: params.cancelUrl ?? `${baseUrl}/profile?credits=canceled`,
   });
   return session.url || "";
 }

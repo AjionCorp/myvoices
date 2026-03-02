@@ -19,6 +19,10 @@ import { useTopicStore } from "@/stores/topic-store";
 import { useTopicBlocksSubscription } from "@/components/spacetimedb/SpacetimeDBProvider";
 import { getConnection } from "@/lib/spacetimedb/client";
 import { startViewerSimulation } from "@/stores/viewers-store";
+import { AnonymousViewportFetcher } from "@/lib/spacetimedb/AnonymousViewportFetcher";
+import { useAuthStore } from "@/stores/auth-store";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 const VideoCanvas = dynamic(
   () =>
@@ -49,16 +53,17 @@ function TopicHeader({ slug }: { slug: string }) {
                 {topic.title}
               </h1>
               <span className="flex items-center gap-3 text-xs text-muted shrink-0">
-                <span className="rounded-md bg-surface px-2 py-0.5 text-xs">
+                <Badge variant="outline" className="rounded-md bg-surface text-xs">
                   {topic.category}
-                </span>
+                </Badge>
                 <span>{totalClaimed.toLocaleString()} / ∞ videos</span>
-                <button
+                <Button
                   onClick={() => useCanvasStore.getState().openSubmissionModal()}
-                  className="pointer-events-auto rounded-lg bg-accent px-3 py-1 text-xs font-semibold text-white hover:bg-accent-light transition-colors"
+                  size="sm"
+                  className="pointer-events-auto h-7 rounded-lg px-3 text-xs font-semibold"
                 >
                   + Add Video
-                </button>
+                </Button>
               </span>
             </>
           ) : (
@@ -82,6 +87,7 @@ export default function TopicPage() {
   const { centerOn, screenWidth } = useCanvasStore();
   const loading = useBlocksStore((s) => s.loading);
   const { topics, setActiveTopic, getTopicBySlug } = useTopicStore();
+  const { isLoading: authLoading, isAuthenticated } = useAuthStore();
 
   // Resolve topic from slug
   const topic = getTopicBySlug(slug);
@@ -153,6 +159,9 @@ export default function TopicPage() {
     <div className="relative h-screen w-screen overflow-hidden bg-background">
       <VideoCanvas />
       <ViewerCursors />
+      {!authLoading && !isAuthenticated && topicId !== null && (
+        <AnonymousViewportFetcher topicId={topicId} />
+      )}
 
       <div className="pointer-events-none absolute inset-0 z-30">
         <TopicHeader slug={slug} />

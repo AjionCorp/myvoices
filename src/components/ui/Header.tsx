@@ -2,17 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Plus } from "lucide-react";
 import { LoginButton } from "@/components/auth/LoginButton";
 import { useAuth } from "@/components/auth/AuthProvider";
-import { useBlocksStore } from "@/stores/blocks-store";
 import { useContestStore } from "@/stores/contest-store";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useTopicStore } from "@/stores/topic-store";
-import { TOTAL_BLOCKS } from "@/lib/constants";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 export function Header() {
   const { user, isAuthenticated } = useAuth();
-  const { totalClaimed } = useBlocksStore();
   const { activeContest, timeRemaining } = useContestStore();
   const openAddVideoModal = useCanvasStore((s) => s.openAddVideoModal);
   const activeTopic = useTopicStore((s) => s.activeTopic);
@@ -29,63 +29,52 @@ export function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-40 h-14 flex items-center justify-between border-b border-border/50 bg-background/90 px-4 backdrop-blur-md">
-      <div className="flex items-center gap-4">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-sm font-bold text-white">
-            mV
-          </div>
-          <span className="text-lg font-bold text-foreground">myVoice</span>
-        </Link>
-
-        <div className="hidden items-center gap-3 sm:flex">
-          <span className="rounded-md bg-surface px-2 py-1 text-xs tabular-nums text-muted">
-            {totalClaimed.toLocaleString()}/{(TOTAL_BLOCKS / 1000).toFixed(0)}K blocks
-          </span>
+    <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md backdrop-saturate-150">
+      <div className="mx-auto flex max-w-screen-2xl items-center justify-between px-5 py-4 sm:px-8">
+        {/* Left: logo + badge */}
+        <div className="flex items-center gap-4">
+          <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-sm font-bold text-white shadow-sm shadow-accent/30">
+              mV
+            </div>
+            <span className="text-[17px] font-bold tracking-tight text-foreground">myVoice</span>
+          </Link>
 
           {activeContest && (
-            <span className="flex items-center gap-1.5 rounded-md bg-accent/10 px-2 py-1 text-xs text-accent-light">
+            <Badge variant="outline" className="hidden items-center gap-1.5 border-primary/40 bg-primary/10 text-primary sm:flex">
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent-light" />
               {formatTime(timeRemaining)} left
-            </span>
+            </Badge>
           )}
         </div>
-      </div>
 
-      <div className="flex items-center gap-3">
-        {/* Home page: + creates a new topic */}
-        {isAuthenticated && isHome && (
-          <Link
-            href="/t/create"
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted transition-colors hover:border-accent hover:text-accent"
-            title="Create Topic"
-          >
-            <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M8 3v10M3 8h10" />
-            </svg>
-          </Link>
-        )}
-        {/* Topic page: + adds a video */}
-        {isAuthenticated && activeTopic && (
-          <button
-            onClick={openAddVideoModal}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted transition-colors hover:border-accent hover:text-accent"
-            title="Add Video"
-          >
-            <svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M8 3v10M3 8h10" />
-            </svg>
-          </button>
-        )}
-        {user?.isAdmin && (
-          <Link
-            href="/admin"
-            className="rounded-lg border border-border px-3 py-1.5 text-sm text-muted transition-colors hover:border-foreground hover:text-foreground"
-          >
-            Admin
-          </Link>
-        )}
-        <LoginButton />
+        {/* Right: actions */}
+        <div className="flex items-center gap-2">
+          {isAuthenticated && isHome && (
+            <Button asChild variant="ghost" size="icon" className="text-foreground hover:bg-accent/20">
+              <Link href="/t/create" title="Create Topic">
+                <Plus />
+              </Link>
+            </Button>
+          )}
+          {isAuthenticated && activeTopic && (
+            <Button
+              onClick={openAddVideoModal}
+              variant="ghost"
+              size="icon"
+              className="text-foreground hover:bg-accent/20"
+              title="Add Video"
+            >
+              <Plus />
+            </Button>
+          )}
+          {user?.isAdmin && (
+            <Button asChild variant="outline" size="sm" className="text-muted hover:text-foreground">
+              <Link href="/admin">Admin</Link>
+            </Button>
+          )}
+          <LoginButton />
+        </div>
       </div>
     </header>
   );

@@ -6,6 +6,11 @@ import { useTopicStore } from "@/stores/topic-store";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getConnection } from "@/lib/spacetimedb/client";
 import { extractYouTubeId } from "@/lib/utils/youtube";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 interface VideoMeta {
   videoId: string;
@@ -87,8 +92,6 @@ export function AddVideoModal() {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, []);
-
-  if (!showAddVideoModal) return null;
 
   const handleInputChange = (value: string) => {
     setInput(value);
@@ -193,39 +196,23 @@ export function AddVideoModal() {
   const likes = meta ? formatLikes(meta.likeCount) : "";
 
   return (
-    <div
-      className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={handleClose}
-    >
-      <div
-        className="flex w-full max-w-md flex-col overflow-y-auto rounded-2xl border border-border bg-surface p-6 shadow-2xl"
-        style={{ maxHeight: "90vh" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-foreground">Add Video</h2>
-          <button
-            onClick={handleClose}
-            className="text-muted transition-colors hover:text-foreground"
-          >
-            <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M4 4l8 8M12 4l-8 8" />
-            </svg>
-          </button>
-        </div>
+    <Dialog open={showAddVideoModal} onOpenChange={(open) => { if (!open) handleClose(); }}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto border-border bg-surface sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add Video</DialogTitle>
+        </DialogHeader>
 
         {/* Input */}
         <div className="mb-4">
           <label className="mb-1.5 block text-sm font-medium text-muted">
             YouTube URL or Video ID
           </label>
-          <input
+          <Input
             type="text"
             value={input}
             onChange={(e) => handleInputChange(e.target.value)}
             placeholder="https://youtube.com/watch?v=... or dQw4w9WgXcQ"
-            className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder-muted outline-none transition-colors focus:border-accent"
+            className="h-10 bg-background"
             autoFocus
           />
           {error && (
@@ -240,105 +227,82 @@ export function AddVideoModal() {
           </div>
         )}
 
-        {/* Preview Card */}
-        {meta && !loading && (
-          <div className="overflow-hidden rounded-lg border border-border">
-            {meta.isShortsEligible ? (
-              /* Portrait (Short): side-by-side — thumbnail left, info right */
-              <div className="flex gap-3 p-3">
-                <div
-                  className="relative shrink-0 overflow-hidden rounded-md"
-                  style={{ width: "101px", height: "180px" }}
-                >
-                  <img
-                    src={meta.thumbnail.url}
-                    alt={meta.title}
-                    className="h-full w-full object-cover"
-                  />
-                  {duration && (
-                    <span className="absolute bottom-1 right-1 rounded bg-black/80 px-1 py-0.5 text-[10px] font-medium text-white">
-                      {duration}
-                    </span>
-                  )}
-                  <span className="absolute left-1 top-1 rounded bg-accent/90 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                    Short
+        {/* Preview Card — always side-by-side so nothing ever overflows */}
+        {meta && !loading && (() => {
+          const isPortrait = meta.thumbnail.height > meta.thumbnail.width || meta.isShortsEligible;
+          const thumbW = isPortrait ? 96 : 160;
+          const thumbH = isPortrait ? 170 : 90;
+          return (
+            <Card className="gap-0 border-border bg-background/50 py-0 shadow-none">
+              <CardContent className="flex gap-3 p-3">
+              {/* Thumbnail */}
+              <div
+                className="relative shrink-0 overflow-hidden rounded-lg bg-black"
+                style={{ width: thumbW, height: thumbH }}
+              >
+                <img
+                  src={meta.thumbnail.url}
+                  alt={meta.title}
+                  className="h-full w-full object-cover"
+                />
+                {duration && (
+                  <span className="absolute bottom-1.5 right-1.5 rounded-md bg-black/80 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                    {duration}
+                  </span>
+                )}
+                {meta.isLiveContent && (
+                  <Badge className="absolute left-1.5 top-1.5 rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                    Live
+                  </Badge>
+                )}
+              </div>
+
+              {/* Info */}
+              <div className="flex min-w-0 flex-1 flex-col gap-2">
+                <h3 className="line-clamp-3 text-sm font-semibold leading-snug text-foreground">
+                  {meta.title}
+                </h3>
+                <div className="flex items-center gap-1.5">
+                  <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/20 text-[9px] font-bold text-accent-light">
+                    {(meta.ownerChannelName || meta.author).charAt(0).toUpperCase()}
+                  </div>
+                  <span className="truncate text-xs font-medium text-muted">
+                    {meta.ownerChannelName || meta.author}
                   </span>
                 </div>
-
-                <div className="flex min-w-0 flex-1 flex-col gap-2">
-                  <h3 className="line-clamp-3 text-sm font-semibold leading-snug text-foreground">
-                    {meta.title}
-                  </h3>
+                <div className="flex flex-col gap-1 text-[11px] text-muted">
                   <div className="flex items-center gap-1.5">
-                    <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/20 text-[9px] font-bold text-accent-light">
-                      {(meta.ownerChannelName || meta.author).charAt(0).toUpperCase()}
+                    {meta.viewCount !== "0" && <span>{formatViews(meta.viewCount)} views</span>}
+                    {likes && <><span className="opacity-30">·</span><span>{likes} likes</span></>}
+                  </div>
+                  {(meta.category || meta.publishDate) && (
+                    <div className="flex items-center gap-1.5">
+                      {meta.category && <span>{meta.category}</span>}
+                      {meta.category && meta.publishDate && <span className="opacity-30">·</span>}
+                      {meta.publishDate && <span>{formatDate(meta.publishDate)}</span>}
                     </div>
-                    <span className="truncate text-xs text-muted">
-                      {meta.ownerChannelName || meta.author}
-                    </span>
-                  </div>
-                  <div className="flex flex-col gap-0.5 text-xs text-muted">
-                    {meta.viewCount !== "0" && <span>{formatViews(meta.viewCount)}</span>}
-                    {likes && <span>{likes} likes</span>}
-                    {meta.category && <span>{meta.category}</span>}
-                    {meta.publishDate && <span>{formatDate(meta.publishDate)}</span>}
-                  </div>
+                  )}
                 </div>
+                {isPortrait && (
+                  <Badge variant="secondary" className="w-fit bg-accent/15 text-accent-light">
+                    Short
+                  </Badge>
+                )}
               </div>
-            ) : (
-              /* Landscape: thumbnail on top, info below */
-              <>
-                <div className="relative">
-                  <img
-                    src={meta.thumbnail.url}
-                    alt={meta.title}
-                    className="aspect-video w-full object-cover"
-                  />
-                  {duration && (
-                    <span className="absolute bottom-2 right-2 rounded bg-black/80 px-1.5 py-0.5 text-xs font-medium text-white">
-                      {duration}
-                    </span>
-                  )}
-                  {meta.isLiveContent && (
-                    <span className="absolute bottom-2 left-2 rounded bg-red-600 px-1.5 py-0.5 text-xs font-bold text-white">
-                      LIVE
-                    </span>
-                  )}
-                </div>
-
-                <div className="space-y-2 p-3">
-                  <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-foreground">
-                    {meta.title}
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/20 text-[10px] font-bold text-accent-light">
-                      {(meta.ownerChannelName || meta.author).charAt(0).toUpperCase()}
-                    </div>
-                    <span className="truncate text-xs text-muted">
-                      {meta.ownerChannelName || meta.author}
-                    </span>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
-                    {meta.viewCount !== "0" && <span>{formatViews(meta.viewCount)}</span>}
-                    {likes && <><span className="text-border">|</span><span>{likes} likes</span></>}
-                    {meta.category && <><span className="text-border">|</span><span>{meta.category}</span></>}
-                    {meta.publishDate && <><span className="text-border">|</span><span>{formatDate(meta.publishDate)}</span></>}
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-        )}
+              </CardContent>
+            </Card>
+          );
+        })()}
 
         {/* Submit button */}
         {meta && !loading && (
-          <button
+          <Button
             onClick={handleSubmit}
             disabled={submitting}
-            className="mt-4 w-full rounded-lg bg-accent py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-light disabled:opacity-50"
+            className="mt-4 w-full"
           >
             {submitting ? "Adding…" : "Add to Grid"}
-          </button>
+          </Button>
         )}
 
         {/* Footer */}
@@ -347,7 +311,7 @@ export function AddVideoModal() {
             Paste a YouTube link to preview video details
           </p>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

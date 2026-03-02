@@ -6,6 +6,10 @@ import { useBlocksStore } from "@/stores/blocks-store";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Platform } from "@/lib/constants";
 import { getVideoUrl, getThumbnailUrl, getEmbedUrl } from "@/lib/utils/video-url";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 interface Comment {
   id: string;
@@ -42,6 +46,7 @@ export function BlockDetailPanel() {
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLiked(false);
     setDisliked(false);
     setShowComments(false);
@@ -129,32 +134,31 @@ export function BlockDetailPanel() {
   if (block.status === "ad") {
     return (
       <div className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={close}>
-        <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <Card className="w-full max-w-sm gap-3 border-border bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="rounded-md bg-yellow-500/20 px-2 py-0.5 text-xs font-medium text-yellow-400">Sponsored</span>
+              <Badge className="rounded-md bg-yellow-500/20 text-yellow-400">Sponsored</Badge>
               <span className="text-[11px] text-muted">({block.x}, {block.y}) &middot; Ring {Math.max(Math.abs(block.x), Math.abs(block.y))}</span>
             </div>
             <CloseBtn onClick={close} />
           </div>
           {block.adImageUrl && <img src={block.adImageUrl} alt="Ad" className="mb-3 w-full rounded-lg" />}
           {block.adLinkUrl && (
-            <a href={block.adLinkUrl} target="_blank" rel="noopener noreferrer"
-              className="block w-full rounded-lg bg-accent py-2.5 text-center text-sm font-medium text-white transition-colors hover:bg-accent-light">
-              Learn More
-            </a>
+            <Button asChild className="w-full">
+              <a href={block.adLinkUrl} target="_blank" rel="noopener noreferrer">Learn More</a>
+            </Button>
           )}
-        </div>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={close}>
+    <div className="pointer-events-auto fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm" onClick={close}>
+      <div className="flex min-h-full items-center justify-center p-4">
       <div
         className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl animate-modal-in"
         onClick={(e) => e.stopPropagation()}
-        style={{ maxHeight: "90vh" }}
       >
         {/* --- video area --- */}
         <div className="relative w-full shrink-0 bg-black">
@@ -162,7 +166,7 @@ export function BlockDetailPanel() {
             isPortrait ? (
               /* Portrait (Shorts / TikTok): drive size from height so width stays correct */
               <div className="flex w-full justify-center">
-                <div style={{ height: "55vh", width: "calc(55vh * 9 / 16)", maxWidth: "100%" }}>
+                <div style={{ height: "min(55vh, 300px)", width: "calc(min(55vh, 300px) * 9 / 16)", maxWidth: "100%" }}>
                   <iframe
                     src={embedUrl}
                     className="h-full w-full"
@@ -185,7 +189,7 @@ export function BlockDetailPanel() {
           ) : thumbnailUrl ? (
             isPortrait ? (
               <div className="flex w-full justify-center">
-                <div style={{ height: "55vh", width: "calc(55vh * 9 / 16)", maxWidth: "100%" }}>
+                <div style={{ height: "min(55vh, 300px)", width: "calc(min(55vh, 300px) * 9 / 16)", maxWidth: "100%" }}>
                   <img src={thumbnailUrl} alt="Thumbnail" className="h-full w-full object-cover" />
                 </div>
               </div>
@@ -214,29 +218,27 @@ export function BlockDetailPanel() {
               <div className="flex items-center gap-2">
                 <p className="truncate text-sm font-semibold text-foreground">{block.ownerName || "Anonymous"}</p>
                 {rank && (
-                  <span className="shrink-0 rounded-md bg-accent/15 px-1.5 py-0.5 text-[11px] font-bold tabular-nums text-accent-light">
+                  <Badge variant="secondary" className="shrink-0 bg-accent/15 text-[11px] font-bold tabular-nums text-accent-light">
                     #{rank.toLocaleString()}{totalClaimed > 0 && <span className="font-normal text-muted"> / {totalClaimed.toLocaleString()}</span>}
-                  </span>
+                  </Badge>
                 )}
               </div>
               <p className="text-xs text-muted">
                 ({block.x}, {block.y}) &middot; Score {(block.likes - block.dislikes).toLocaleString()} &middot; Ring {Math.max(Math.abs(block.x), Math.abs(block.y))} &middot; {block.platform?.replace("_", " ")}
               </p>
             </div>
-            <a href={originalUrl} target="_blank" rel="noopener noreferrer"
-              className="shrink-0 rounded-lg bg-accent px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-accent-light">
-              Watch Original
-            </a>
+            <Button asChild size="sm" className="shrink-0">
+              <a href={originalUrl} target="_blank" rel="noopener noreferrer">Watch Original</a>
+            </Button>
           </div>
 
           {/* like / dislike / comment toggle */}
           <div className="flex items-center gap-2">
             {/* like */}
-            <button onClick={handleLike}
+            <Button onClick={handleLike}
+              variant={liked ? "default" : "secondary"}
               className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-all duration-150 ${
-                liked
-                  ? "bg-accent text-white shadow-lg shadow-accent/25"
-                  : "bg-surface-light text-foreground hover:bg-surface-light/80"
+                liked ? "shadow-lg shadow-accent/25" : ""
               } ${likeAnim ? "scale-110" : ""}`}>
               <svg width="16" height="16" viewBox="0 0 24 24"
                 fill={liked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2"
@@ -244,14 +246,13 @@ export function BlockDetailPanel() {
                 <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
               </svg>
               <span className="tabular-nums">{block.likes.toLocaleString()}</span>
-            </button>
+            </Button>
 
             {/* dislike */}
-            <button onClick={handleDislike}
+            <Button onClick={handleDislike}
+              variant={disliked ? "destructive" : "secondary"}
               className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-all duration-150 ${
-                disliked
-                  ? "bg-red-500/20 text-red-400"
-                  : "bg-surface-light text-foreground hover:bg-surface-light/80"
+                disliked ? "text-red-100" : ""
               } ${dislikeAnim ? "scale-110" : ""}`}>
               <svg width="16" height="16" viewBox="0 0 24 24"
                 fill={disliked ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2"
@@ -259,20 +260,21 @@ export function BlockDetailPanel() {
                 <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
               </svg>
               <span className="tabular-nums">{block.dislikes.toLocaleString()}</span>
-            </button>
+            </Button>
 
             <div className="flex-1" />
 
             {/* comment toggle */}
-            <button onClick={() => setShowComments(!showComments)}
+            <Button onClick={() => setShowComments(!showComments)}
+              variant={showComments ? "default" : "secondary"}
               className={`flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition-colors ${
-                showComments ? "bg-accent/15 text-accent-light" : "bg-surface-light text-muted hover:text-foreground"
+                showComments ? "bg-accent/15 text-accent-light" : "text-muted hover:text-foreground"
               }`}>
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
               <span className="tabular-nums">{comments.length}</span>
-            </button>
+            </Button>
           </div>
 
           {/* comments section */}
@@ -306,30 +308,32 @@ export function BlockDetailPanel() {
               <div className="flex items-center gap-2 border-t border-border px-3 py-2">
                 {isAuthenticated ? (
                   <>
-                    <input
+                    <Input
                       type="text"
                       value={commentText}
                       onChange={(e) => setCommentText(e.target.value)}
                       onKeyDown={handleKeyDown}
                       placeholder="Add a comment..."
-                      className="min-w-0 flex-1 bg-transparent text-xs text-foreground placeholder-muted outline-none"
+                      className="h-8 min-w-0 flex-1 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0"
                     />
-                    <button
+                    <Button
                       onClick={handleComment}
                       disabled={!commentText.trim()}
-                      className="shrink-0 rounded-md bg-accent px-2.5 py-1 text-[11px] font-semibold text-white transition-colors hover:bg-accent-light disabled:opacity-30">
+                      size="sm"
+                      className="h-7 shrink-0 text-[11px]">
                       Post
-                    </button>
+                    </Button>
                   </>
                 ) : (
-                  <button onClick={login} className="w-full py-1 text-center text-xs text-accent-light hover:underline">
+                  <Button onClick={login} variant="ghost" className="w-full py-1 text-xs text-accent-light hover:underline">
                     Sign in to comment
-                  </button>
+                  </Button>
                 )}
               </div>
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );
@@ -337,10 +341,10 @@ export function BlockDetailPanel() {
 
 function CloseBtn({ onClick }: { onClick: () => void }) {
   return (
-    <button onClick={onClick} className="text-muted transition-colors hover:text-foreground">
+    <Button onClick={onClick} variant="ghost" size="icon-sm" className="text-muted hover:text-foreground">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
         <path d="M4 4l8 8M12 4l-8 8" />
       </svg>
-    </button>
+    </Button>
   );
 }

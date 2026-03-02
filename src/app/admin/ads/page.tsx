@@ -2,6 +2,9 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 interface AdForm {
   blockIds: string;
@@ -77,36 +80,41 @@ export default function AdsManagement() {
       </h1>
 
       {success && (
-        <div className="mb-6 rounded-lg border border-green-500/30 bg-green-500/10 p-4 text-sm text-green-400">
+        <Card className="mb-6 gap-0 rounded-lg border-green-500/30 bg-green-500/10 py-0 text-sm text-green-400">
+          <CardContent className="p-4">
           Payment successful! The ad placement is being processed.
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       {canceled && (
-        <div className="mb-6 rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4 text-sm text-yellow-400">
+        <Card className="mb-6 gap-0 rounded-lg border-yellow-500/30 bg-yellow-500/10 py-0 text-sm text-yellow-400">
+          <CardContent className="p-4">
           Payment was canceled. No changes were made.
-        </div>
+          </CardContent>
+        </Card>
       )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-border bg-surface p-6">
-          <h2 className="mb-4 text-lg font-semibold text-foreground">
-            Place New Ad
-          </h2>
+        <Card className="gap-0 rounded-xl border-border bg-surface py-0">
+          <CardHeader>
+            <CardTitle className="text-lg">Place New Ad</CardTitle>
+          </CardHeader>
+          <CardContent>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="mb-1.5 block text-sm font-medium text-muted">
                 Block IDs (comma-separated)
               </label>
-              <input
+              <Input
                 type="text"
                 value={form.blockIds}
                 onChange={(e) =>
                   setForm({ ...form, blockIds: e.target.value })
                 }
                 placeholder="500500, 500501, 500502"
-                className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder-muted outline-none focus:border-accent"
+                className="bg-background"
               />
               <p className="mt-1 text-xs text-muted">
                 Select blocks on the canvas or enter IDs manually
@@ -117,14 +125,14 @@ export default function AdsManagement() {
               <label className="mb-1.5 block text-sm font-medium text-muted">
                 Ad Image URL
               </label>
-              <input
+              <Input
                 type="url"
                 value={form.imageUrl}
                 onChange={(e) =>
                   setForm({ ...form, imageUrl: e.target.value })
                 }
                 placeholder="https://example.com/ad-image.jpg"
-                className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder-muted outline-none focus:border-accent"
+                className="bg-background"
               />
             </div>
 
@@ -132,14 +140,14 @@ export default function AdsManagement() {
               <label className="mb-1.5 block text-sm font-medium text-muted">
                 Ad Link URL
               </label>
-              <input
+              <Input
                 type="url"
                 value={form.linkUrl}
                 onChange={(e) =>
                   setForm({ ...form, linkUrl: e.target.value })
                 }
                 placeholder="https://example.com"
-                className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder-muted outline-none focus:border-accent"
+                className="bg-background"
               />
             </div>
 
@@ -147,7 +155,7 @@ export default function AdsManagement() {
               <label className="mb-1.5 block text-sm font-medium text-muted">
                 Duration (days)
               </label>
-              <input
+              <Input
                 type="number"
                 min={1}
                 max={365}
@@ -158,7 +166,7 @@ export default function AdsManagement() {
                     durationDays: parseInt(e.target.value, 10) || 30,
                   })
                 }
-                className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-accent"
+                className="bg-background"
               />
             </div>
 
@@ -166,14 +174,14 @@ export default function AdsManagement() {
               <label className="mb-1.5 block text-sm font-medium text-muted">
                 Billing Email
               </label>
-              <input
+              <Input
                 type="email"
                 value={form.email}
                 onChange={(e) =>
                   setForm({ ...form, email: e.target.value })
                 }
                 placeholder="billing@company.com"
-                className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder-muted outline-none focus:border-accent"
+                className="bg-background"
               />
             </div>
 
@@ -195,25 +203,27 @@ export default function AdsManagement() {
                 ({form.blockIds.split(",").filter((s) => s.trim()).length}{" "}
                 blocks x {form.durationDays} days)
               </p>
-              <button
+              <Button
                 type="submit"
                 disabled={isSubmitting}
-                className="rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-light disabled:opacity-50"
               >
                 {isSubmitting ? "Processing..." : "Pay & Place Ad"}
-              </button>
+              </Button>
             </div>
           </form>
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="rounded-xl border border-border bg-surface p-6">
-          <h2 className="mb-4 text-lg font-semibold text-foreground">
-            Active Ads
-          </h2>
+        <Card className="gap-0 rounded-xl border-border bg-surface py-0">
+          <CardHeader>
+            <CardTitle className="text-lg">Active Ads</CardTitle>
+          </CardHeader>
+          <CardContent>
           <p className="py-12 text-center text-sm text-muted">
             No active ads. Place your first ad to get started.
           </p>
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

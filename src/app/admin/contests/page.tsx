@@ -4,6 +4,10 @@ import { useState } from "react";
 import { useContestStore } from "@/stores/contest-store";
 import { Platform } from "@/lib/constants";
 import { getThumbnailUrl } from "@/lib/utils/video-url";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 export default function ContestsManagement() {
   const { activeContest, winners, leaderboard } = useContestStore();
@@ -55,10 +59,11 @@ export default function ContestsManagement() {
       </h1>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-border bg-surface p-6">
-          <h2 className="mb-4 text-lg font-semibold text-foreground">
-            {activeContest ? "Active Contest" : "Create Contest"}
-          </h2>
+        <Card className="gap-0 rounded-xl border-border bg-surface py-0">
+          <CardHeader>
+            <CardTitle className="text-lg">{activeContest ? "Active Contest" : "Create Contest"}</CardTitle>
+          </CardHeader>
+          <CardContent>
 
           {activeContest ? (
             <div className="space-y-4">
@@ -90,12 +95,13 @@ export default function ContestsManagement() {
               </div>
 
               {activeContest.status === "active" && (
-                <button
+                <Button
                   onClick={handleFinalize}
-                  className="w-full rounded-lg border border-red-500/30 bg-red-500/10 py-2.5 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/20"
+                  variant="destructive"
+                  className="w-full border border-red-500/30 bg-red-500/10 text-red-200 hover:bg-red-500/20"
                 >
                   Finalize Contest
-                </button>
+                </Button>
               )}
             </div>
           ) : (
@@ -104,42 +110,44 @@ export default function ContestsManagement() {
                 <label className="mb-1.5 block text-sm font-medium text-muted">
                   Duration (days)
                 </label>
-                <input
+                <Input
                   type="number"
                   min={1}
                   max={365}
                   value={durationDays}
                   onChange={(e) => setDurationDays(parseInt(e.target.value, 10) || 30)}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-accent"
+                  className="bg-background"
                 />
               </div>
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-muted">
                   Prize Pool ($)
                 </label>
-                <input
+                <Input
                   type="number"
                   min={1}
                   value={prizePool}
                   onChange={(e) => setPrizePool(parseInt(e.target.value, 10) || 0)}
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-accent"
+                  className="bg-background"
                 />
               </div>
-              <button
+              <Button
                 onClick={handleCreate}
                 disabled={isCreating}
-                className="w-full rounded-lg bg-accent py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-light disabled:opacity-50"
+                className="w-full"
               >
                 {isCreating ? "Creating..." : "Start Contest"}
-              </button>
+              </Button>
             </div>
           )}
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="rounded-xl border border-border bg-surface p-6">
-          <h2 className="mb-4 text-lg font-semibold text-foreground">
-            Winners
-          </h2>
+        <Card className="gap-0 rounded-xl border-border bg-surface py-0">
+          <CardHeader>
+            <CardTitle className="text-lg">Winners</CardTitle>
+          </CardHeader>
+          <CardContent>
           {winners.length === 0 ? (
             <p className="py-12 text-center text-sm text-muted">
               {activeContest
@@ -155,13 +163,13 @@ export default function ContestsManagement() {
                 >
                   <div className="mb-2 flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span
+                      <Badge
                         className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold text-white ${
                           winner.rank === 1 ? "bg-yellow-500" : "bg-gray-500"
                         }`}
                       >
                         #{winner.rank}
-                      </span>
+                      </Badge>
                       <div>
                         <p className="text-sm font-medium text-foreground">
                           {winner.ownerName}
@@ -186,7 +194,8 @@ export default function ContestsManagement() {
               ))}
             </div>
           )}
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

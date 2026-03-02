@@ -4,6 +4,8 @@ import { useBlocksStore } from "@/stores/blocks-store";
 import { useContestStore } from "@/stores/contest-store";
 import { TOTAL_BLOCKS, Platform } from "@/lib/constants";
 import { getThumbnailUrl } from "@/lib/utils/video-url";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 function StatCard({
   label,
@@ -15,13 +17,15 @@ function StatCard({
   sub?: string;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-surface p-5">
+    <Card className="gap-0 rounded-xl border-border bg-surface py-0">
+      <CardContent className="p-5">
       <p className="mb-1 text-sm text-muted">{label}</p>
       <p className="text-2xl font-semibold tabular-nums text-foreground">
         {value}
       </p>
       {sub && <p className="mt-1 text-xs text-muted">{sub}</p>}
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -64,10 +68,11 @@ export default function AdminOverview() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="rounded-xl border border-border bg-surface p-5">
-          <h2 className="mb-4 text-lg font-semibold text-foreground">
-            Top Videos
-          </h2>
+        <Card className="gap-0 rounded-xl border-border bg-surface py-0">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg">Top Videos</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
           {topBlocks.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted">
               No videos submitted yet
@@ -79,9 +84,9 @@ export default function AdminOverview() {
                   key={block.id}
                   className="flex items-center gap-3 rounded-lg bg-surface-light p-3"
                 >
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent/20 text-xs font-bold text-accent-light">
+                  <Badge variant="secondary" className="flex h-7 w-7 items-center justify-center rounded-full bg-accent/20 p-0 text-xs font-bold text-accent-light">
                     {i + 1}
-                  </span>
+                  </Badge>
                   {block.videoId && block.platform && getThumbnailUrl(block.videoId, block.platform as Platform) && (
                     <img
                       src={getThumbnailUrl(block.videoId, block.platform as Platform)!}
@@ -101,12 +106,14 @@ export default function AdminOverview() {
               ))}
             </div>
           )}
-        </div>
+          </CardContent>
+        </Card>
 
-        <div className="rounded-xl border border-border bg-surface p-5">
-          <h2 className="mb-4 text-lg font-semibold text-foreground">
-            Leaderboard
-          </h2>
+        <Card className="gap-0 rounded-xl border-border bg-surface py-0">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-lg">Leaderboard</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
           {leaderboard.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted">
               No contest activity yet
@@ -133,7 +140,8 @@ export default function AdminOverview() {
               ))}
             </div>
           )}
-        </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );

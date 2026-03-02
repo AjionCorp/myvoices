@@ -1,6 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 
 interface UserEntry {
   identity: string;
@@ -30,16 +34,17 @@ export default function UsersManagement() {
       </h1>
 
       <div className="mb-6">
-        <input
+        <Input
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search users by name, email, or identity..."
-          className="w-full max-w-md rounded-lg border border-border bg-surface px-3 py-2.5 text-sm text-foreground placeholder-muted outline-none focus:border-accent"
+          className="w-full max-w-md bg-surface"
         />
       </div>
 
-      <div className="rounded-xl border border-border bg-surface">
+      <Card className="gap-0 rounded-xl border-border bg-surface py-0">
+        <CardContent className="p-0">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -105,7 +110,7 @@ export default function UsersManagement() {
                       ${(user.totalEarnings / 100).toFixed(2)}
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span
+                      <Badge
                         className={`rounded-md px-2 py-0.5 text-xs font-medium ${
                           user.isAdmin
                             ? "bg-accent/20 text-accent-light"
@@ -113,12 +118,12 @@ export default function UsersManagement() {
                         }`}
                       >
                         {user.isAdmin ? "Admin" : "User"}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button className="text-xs text-muted transition-colors hover:text-foreground">
+                      <Button variant="ghost" size="sm" className="text-xs text-muted hover:text-foreground">
                         Manage
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))
@@ -126,7 +131,8 @@ export default function UsersManagement() {
             </tbody>
           </table>
         </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

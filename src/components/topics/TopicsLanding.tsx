@@ -5,16 +5,18 @@ import Link from "next/link";
 import { useTopicStore } from "@/stores/topic-store";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { TopicCard } from "./TopicCard";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
 function SkeletonCard() {
   return (
-    <div className="animate-pulse overflow-hidden rounded-2xl border border-border bg-surface-light">
+    <Card className="animate-pulse gap-0 overflow-hidden border-border bg-surface-light py-0">
       <div className="w-full bg-surface" style={{ aspectRatio: "4/3" }} />
-      <div className="space-y-2 px-3 py-3">
+      <CardContent className="space-y-2 px-3 py-3">
         <div className="h-3.5 w-3/4 rounded-md bg-surface" />
         <div className="h-3 w-1/2 rounded-md bg-surface" />
-      </div>
-    </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -35,6 +37,7 @@ export function TopicsLanding() {
 
   // Mark ready after first non-empty sync via useEffect (safe pattern)
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (topics.size > 0) setReady(true);
   }, [topics.size]);
 
@@ -93,12 +96,9 @@ export function TopicsLanding() {
           Be the first to create a topic and start building a community video grid.
         </p>
         {isAuthenticated && (
-          <Link
-            href="/t/create"
-            className="rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent-light"
-          >
-            Create First Topic
-          </Link>
+          <Button asChild className="rounded-xl">
+            <Link href="/t/create">Create First Topic</Link>
+          </Button>
         )}
       </div>
     );
@@ -110,18 +110,19 @@ export function TopicsLanding() {
       {categories.length > 2 && (
         <div className="mb-5 flex gap-2 overflow-x-auto pb-1">
           {categories.map((cat) => (
-            <button
+            <Button
               key={cat}
               onClick={() => setActiveCategory(cat)}
-              className="shrink-0 rounded-full px-3.5 py-1.5 text-xs font-medium transition-all"
-              style={
+              size="sm"
+              variant={activeCategory === cat ? "default" : "ghost"}
+              className={
                 activeCategory === cat
-                  ? { background: "#6d28d9", color: "#fff" }
-                  : { background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.45)" }
+                  ? "shrink-0 rounded-full px-3.5 text-xs"
+                  : "shrink-0 rounded-full border border-border/60 px-3.5 text-xs text-muted-foreground hover:text-foreground"
               }
             >
               {cat}
-            </button>
+            </Button>
           ))}
         </div>
       )}

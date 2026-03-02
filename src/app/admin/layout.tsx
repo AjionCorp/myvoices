@@ -4,6 +4,9 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
 const navItems = [
   { href: "/admin", label: "Overview" },
@@ -28,20 +31,19 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   if (!isAuthenticated || !user?.isAdmin) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-background">
-        <div className="rounded-2xl border border-border bg-surface p-8 text-center">
+        <Card className="gap-0 rounded-2xl border-border bg-surface py-0 text-center">
+          <CardContent className="p-8">
           <h1 className="mb-2 text-xl font-semibold text-foreground">
             Admin Access Required
           </h1>
           <p className="mb-4 text-sm text-muted">
             You need admin privileges to access this area.
           </p>
-          <Link
-            href="/"
-            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-accent-light"
-          >
-            Back to Canvas
-          </Link>
-        </div>
+          <Button asChild className="rounded-lg">
+            <Link href="/">Back to Canvas</Link>
+          </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -90,7 +92,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
               <p className="truncate text-sm font-medium text-foreground">
                 {user.displayName}
               </p>
-              <p className="truncate text-xs text-muted">Admin</p>
+            <Badge variant="outline" className="truncate text-xs text-muted">Admin</Badge>
             </div>
           </div>
         </div>

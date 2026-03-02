@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import type { Topic } from "@/stores/topic-store";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface TopicCardProps {
   topic: Topic;
@@ -33,17 +35,18 @@ export function TopicCard({ topic }: TopicCardProps) {
   return (
     <Link
       href={`/t/${topic.slug}`}
-      className="group flex w-full flex-col overflow-hidden rounded-2xl border border-border bg-surface-light transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-xl hover:shadow-black/60"
+      className="group block w-full min-w-0 max-w-80"
       style={{ minWidth: 0, maxWidth: 320 }}
     >
-      {/* Thumbnail — inline gradient so it always renders */}
-      <div
-        className="relative w-full overflow-hidden"
-        style={{
-          aspectRatio: "4/3",
-          background: `linear-gradient(135deg, ${colorA} 0%, ${colorB} 100%)`,
-        }}
-      >
+      <Card className="gap-0 overflow-hidden border-border bg-surface-light py-0 transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-xl hover:shadow-black/60">
+        {/* Thumbnail — inline gradient so it always renders */}
+        <div
+          className="relative w-full overflow-hidden"
+          style={{
+            aspectRatio: "4/3",
+            background: `linear-gradient(135deg, ${colorA} 0%, ${colorB} 100%)`,
+          }}
+        >
         {/* Big watermark title */}
         <div className="absolute inset-0 flex items-center justify-center p-4 overflow-hidden">
           <span
@@ -72,26 +75,25 @@ export function TopicCard({ topic }: TopicCardProps) {
         {/* Trending badge */}
         {isTrending && (
           <div className="absolute left-2.5 top-2.5">
-            <span className="rounded-full bg-accent px-2 py-0.5 text-[10px] font-bold text-white">
-              Hot
-            </span>
+            <Badge className="rounded-full bg-accent text-[10px] font-bold text-white">Hot</Badge>
           </div>
         )}
-      </div>
+        </div>
 
-      {/* Info */}
-      <div className="flex flex-1 flex-col gap-1.5 px-3 py-3">
+        {/* Info */}
+        <CardContent className="flex flex-1 flex-col gap-1.5 px-3 py-3">
         <h3 className="truncate text-sm font-semibold text-foreground transition-colors group-hover:text-accent">
           {topic.title}
         </h3>
 
         <div className="flex items-center gap-1.5 text-[11px] text-muted">
-          <span
+          <Badge
+            variant="secondary"
             className="rounded-full px-2 py-0.5 text-[10px] font-medium"
             style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)" }}
           >
             {topic.category || "General"}
-          </span>
+          </Badge>
           <span className="ml-auto tabular-nums">
             {topic.totalViews > 0 ? `${topic.totalViews.toLocaleString()} views` : "New"}
           </span>
@@ -99,7 +101,8 @@ export function TopicCard({ topic }: TopicCardProps) {
             <span className="text-green-400">+{netLikes.toLocaleString()}</span>
           )}
         </div>
-      </div>
+        </CardContent>
+      </Card>
     </Link>
   );
 }

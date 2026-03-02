@@ -12,7 +12,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { accountId, onboardingUrl } = await createConnectedAccount(email);
+    const { accountId, onboardingUrl } = await createConnectedAccount(
+      email,
+      request.nextUrl.origin
+    );
 
     return NextResponse.json({ accountId, onboardingUrl });
   } catch (err) {

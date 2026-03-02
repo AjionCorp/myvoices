@@ -22,6 +22,7 @@ export async function POST(request: NextRequest) {
       linkUrl,
       durationDays,
       customerEmail: body.email,
+      baseUrl: request.nextUrl.origin,
     });
 
     return NextResponse.json({ url: checkoutUrl });

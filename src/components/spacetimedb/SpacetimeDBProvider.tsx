@@ -219,6 +219,7 @@ function registerTableCallbacks(conn: DbConnection) {
         username: row.username || null,
         displayName: row.displayName,
         email: row.email || null,
+        imageUrl: currentUser.imageUrl,
         stripeAccountId: row.stripeAccountId || null,
         totalEarnings: Number(row.totalEarnings),
         credits: Number(row.credits ?? 0),
@@ -236,6 +237,7 @@ function registerTableCallbacks(conn: DbConnection) {
         username: row.username || null,
         displayName: row.displayName,
         email: row.email || null,
+        imageUrl: currentUser.imageUrl,
         stripeAccountId: row.stripeAccountId || null,
         totalEarnings: Number(row.totalEarnings),
         credits: Number(row.credits ?? 0),
@@ -252,10 +254,11 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
 
   // Keep a stable ref to the latest Clerk-sourced user fields so onConnect
   // can read them without depending on Zustand state.
-  const clerkUserRef = useRef<{ email: string | null; username: string | null; displayName: string }>({
+  const clerkUserRef = useRef<{ email: string | null; username: string | null; displayName: string; imageUrl: string | null }>({
     email: null,
     username: null,
     displayName: "User",
+    imageUrl: null,
   });
   useEffect(() => {
     if (authUser) {
@@ -263,9 +266,10 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
         email: authUser.email,
         username: authUser.username ?? null,
         displayName: authUser.displayName,
+        imageUrl: authUser.imageUrl ?? null,
       };
     }
-  }, [authUser?.email, authUser?.username, authUser?.displayName]);
+  }, [authUser?.email, authUser?.username, authUser?.displayName, authUser?.imageUrl]);
 
   const callbacks: ConnectionCallbacks = {
     onConnect: (connection, identity, token) => {
@@ -278,6 +282,7 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
       const clerkEmail = clerkUserRef.current.email;
       const clerkUsername = clerkUserRef.current.username;
       const clerkDisplayName = clerkUserRef.current.displayName;
+      const clerkImageUrl = clerkUserRef.current.imageUrl;
       const clerkUserId = useAuthStore.getState().clerkUserId ?? "";
       console.log("[SpacetimeDB] onConnect — clerkUserRef:", { email: clerkEmail ?? "(null)", username: clerkUsername ?? "(null)", displayName: clerkDisplayName });
 
@@ -289,6 +294,7 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
           username: profile.username || clerkUsername || null,
           displayName: profile.displayName || clerkDisplayName,
           email: profile.email || clerkEmail,
+          imageUrl: clerkImageUrl,
           stripeAccountId: profile.stripeAccountId || null,
           totalEarnings: Number(profile.totalEarnings),
           credits: Number(profile.credits ?? 0),
@@ -316,6 +322,7 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
           username: clerkUsername,
           displayName,
           email: email || null,
+          imageUrl: clerkImageUrl,
           stripeAccountId: null,
           totalEarnings: 0,
           credits: 0,
@@ -371,6 +378,24 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, isAuthenticated, oidcToken]);
+
+  // Anonymous users: load topics via HTTP so the home page and topic pages render
+  useEffect(() => {
+    if (authLoading || isAuthenticated) return;
+    fetch("/api/v1/topics")
+      .then((r) => r.json())
+      .then((d: { topics?: Topic[] }) => {
+        if (d.topics?.length) {
+          useTopicStore.getState().setTopics(d.topics);
+          console.log(`[SpacetimeDB] anonymous topics loaded: ${d.topics.length}`);
+        }
+        useAuthStore.getState().setLoading(false);
+      })
+      .catch((err) => {
+        console.error("[SpacetimeDB] anonymous topics fetch failed:", err);
+        useAuthStore.getState().setLoading(false);
+      });
+  }, [authLoading, isAuthenticated]);
 
   return <>{children}</>;
 }

@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface Transaction {
   id: string;
@@ -37,44 +40,47 @@ export default function FinanceDashboard() {
       </h1>
 
       <div className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-xl border border-border bg-surface p-5">
+        <Card className="gap-0 rounded-xl border-border bg-surface py-0">
+          <CardContent className="p-5">
           <p className="mb-1 text-sm text-muted">Total Revenue</p>
           <p className="text-2xl font-semibold tabular-nums text-green-400">
             ${(totalRevenue / 100).toFixed(2)}
           </p>
           <p className="mt-1 text-xs text-muted">From ad placements</p>
-        </div>
-        <div className="rounded-xl border border-border bg-surface p-5">
+          </CardContent>
+        </Card>
+        <Card className="gap-0 rounded-xl border-border bg-surface py-0">
+          <CardContent className="p-5">
           <p className="mb-1 text-sm text-muted">Total Payouts</p>
           <p className="text-2xl font-semibold tabular-nums text-blue-400">
             ${(totalPayouts / 100).toFixed(2)}
           </p>
           <p className="mt-1 text-xs text-muted">To contest winners</p>
-        </div>
-        <div className="rounded-xl border border-border bg-surface p-5">
+          </CardContent>
+        </Card>
+        <Card className="gap-0 rounded-xl border-border bg-surface py-0">
+          <CardContent className="p-5">
           <p className="mb-1 text-sm text-muted">Net Balance</p>
           <p className="text-2xl font-semibold tabular-nums text-foreground">
             ${((totalRevenue - totalPayouts) / 100).toFixed(2)}
           </p>
           <p className="mt-1 text-xs text-muted">Revenue - Payouts</p>
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
-      <div className="rounded-xl border border-border bg-surface">
-        <div className="flex items-center justify-between border-b border-border p-4">
-          <h2 className="text-lg font-semibold text-foreground">
-            Transaction History
-          </h2>
+      <Card className="gap-0 rounded-xl border-border bg-surface py-0">
+        <CardHeader className="border-b border-border p-4">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-lg">Transaction History</CardTitle>
           <div className="flex gap-2">
             {["all", "ad_payment", "prize_payout", "refund"].map((f) => (
-              <button
+              <Button
                 key={f}
                 onClick={() => setFilter(f)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                  filter === f
-                    ? "bg-accent/20 text-accent-light"
-                    : "text-muted hover:bg-surface-light hover:text-foreground"
-                }`}
+                variant={filter === f ? "secondary" : "ghost"}
+                size="sm"
+                className="text-xs"
               >
                 {f === "all"
                   ? "All"
@@ -82,12 +88,13 @@ export default function FinanceDashboard() {
                       .split("_")
                       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
                       .join(" ")}
-              </button>
+              </Button>
             ))}
           </div>
-        </div>
+          </div>
+        </CardHeader>
 
-        <div className="overflow-x-auto">
+        <CardContent className="overflow-x-auto p-0">
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
@@ -125,7 +132,7 @@ export default function FinanceDashboard() {
                       {new Date(tx.createdAt / 1000).toLocaleString()}
                     </td>
                     <td className="px-4 py-3">
-                      <span
+                      <Badge
                         className={`rounded-md px-2 py-0.5 text-xs font-medium ${
                           tx.type === "ad_payment"
                             ? "bg-green-500/20 text-green-400"
@@ -138,7 +145,7 @@ export default function FinanceDashboard() {
                           .split("_")
                           .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
                           .join(" ")}
-                      </span>
+                      </Badge>
                     </td>
                     <td className="px-4 py-3 text-sm text-foreground">
                       {tx.description}
@@ -161,8 +168,8 @@ export default function FinanceDashboard() {
               )}
             </tbody>
           </table>
-        </div>
-      </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -12,6 +12,7 @@ function strOrNull(v: unknown): string | null {
 function mapBlock(row: Record<string, unknown>): any {
   return {
     id: row.id,
+    topicId: Number(row.topic_id ?? row.topicId ?? 0),
     x: row.x,
     y: row.y,
     videoId: strOrNull(row.video_id ?? row.videoId),
@@ -46,16 +47,24 @@ export async function GET(request: NextRequest) {
     const maxX = searchParams.get("maxX");
     const minY = searchParams.get("minY");
     const maxY = searchParams.get("maxY");
+    const topicIdParam = searchParams.get("topicId");
 
     const hasViewport =
       minX != null && maxX != null && minY != null && maxY != null &&
       minX !== "" && maxX !== "" && minY !== "" && maxY !== "";
 
-    const blockWhere = hasViewport
-      ? ` WHERE x >= ${Math.max(0, parseInt(minX, 10))} AND x <= ${Math.min(GRID_COLS - 1, parseInt(maxX, 10))} AND y >= ${Math.max(0, parseInt(minY, 10))} AND y <= ${Math.min(GRID_ROWS - 1, parseInt(maxY, 10))}`
-      : "";
+    const conditions: string[] = [];
+    if (topicIdParam) conditions.push(`topic_id = ${parseInt(topicIdParam, 10)}`);
+    if (hasViewport) {
+      conditions.push(
+        `x >= ${Math.max(0, parseInt(minX!, 10))}`,
+        `x <= ${Math.min(GRID_COLS - 1, parseInt(maxX!, 10))}`,
+        `y >= ${Math.max(0, parseInt(minY!, 10))}`,
+        `y <= ${Math.min(GRID_ROWS - 1, parseInt(maxY!, 10))}`,
+      );
+    }
+    const blockWhere = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
 
-    // SpacetimeDB HTTP API does not support multiple statements per request
     const blockPromise = runSql(`SELECT * FROM block${blockWhere}`);
     const commentPromise = hasViewport
       ? Promise.resolve([] as SqlResult[])

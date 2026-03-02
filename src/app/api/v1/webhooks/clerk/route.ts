@@ -7,7 +7,7 @@
  * 3. Subscribe to: user.created, user.updated, user.deleted
  * 4. Copy the Signing Secret into CLERK_WEBHOOK_SECRET in .env.local
  *
- * For local dev: use `npx ngrok http 3000` or Clerk's dashboard tunnel.
+ * For local dev: use `npx ngrok http 3000` or `npx ngrok http 3001` (match your local port).
  */
 
 import { NextRequest, NextResponse } from "next/server";

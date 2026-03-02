@@ -6,6 +6,11 @@ import { useTopicStore } from "@/stores/topic-store";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { extractYouTubeId } from "@/lib/utils/youtube";
 import { getConnection } from "@/lib/spacetimedb/client";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 interface VideoMeta {
   videoId: string;
@@ -87,8 +92,6 @@ export function SubmissionModal() {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, []);
-
-  if (!showSubmissionModal) return null;
 
   const handleClose = () => {
     closeSubmissionModal();
@@ -196,32 +199,26 @@ export function SubmissionModal() {
   const likes = meta ? formatLikes(meta.likeCount) : "";
 
   return (
-    <div className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-2xl">
+    <Dialog open={showSubmissionModal} onOpenChange={(open) => { if (!open) handleClose(); }}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto border-border bg-surface sm:max-w-md">
         {/* Header */}
-        <div className="mb-4 flex items-center justify-between">
+        <DialogHeader className="mb-2">
           <div>
-            <h2 className="text-lg font-semibold text-foreground">Add Video</h2>
+            <DialogTitle>Add Video</DialogTitle>
             {activeTopic && (
               <p className="text-xs text-muted">
                 to <span className="font-medium text-foreground">{activeTopic.title}</span>
               </p>
             )}
           </div>
-          <button
-            onClick={handleClose}
-            className="text-muted transition-colors hover:text-foreground"
-          >
-            <svg width="20" height="20" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M4 4l8 8M12 4l-8 8" />
-            </svg>
-          </button>
-        </div>
+        </DialogHeader>
 
         {!isAuthenticated && (
-          <div className="mb-4 rounded-lg border border-accent/30 bg-accent/10 p-3 text-sm text-accent-light">
+          <Card className="mb-4 gap-0 border-accent/30 bg-accent/10 py-0 shadow-none">
+            <CardContent className="p-3 text-sm text-accent-light">
             You need to sign in to add a video.
-          </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Input */}
@@ -229,12 +226,12 @@ export function SubmissionModal() {
           <label className="mb-1.5 block text-sm font-medium text-muted">
             YouTube URL
           </label>
-          <input
+          <Input
             type="url"
             value={url}
             onChange={(e) => handleUrlChange(e.target.value)}
             placeholder="https://youtube.com/watch?v=..."
-            className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground placeholder-muted outline-none transition-colors focus:border-accent"
+            className="h-10 bg-background"
             disabled={isSubmitting}
           />
           {error && (
@@ -249,77 +246,72 @@ export function SubmissionModal() {
           </div>
         )}
 
-        {/* Metadata preview */}
-        {meta && !loading && (
-          <div className="mb-4 overflow-hidden rounded-lg border border-border">
+        {/* Metadata preview — always side-by-side so nothing overflows */}
+        {meta && !loading && (() => {
+          const isPortrait = meta.thumbnail.height > meta.thumbnail.width || meta.isShortsEligible;
+          const thumbW = isPortrait ? 96 : 160;
+          const thumbH = isPortrait ? 170 : 90;
+          return (
+          <Card className="mb-4 gap-0 border-border bg-background/50 py-0 shadow-none">
+            <CardContent className="flex gap-3 p-3">
             {/* Thumbnail */}
-            <div className="relative">
+            <div
+              className="relative shrink-0 overflow-hidden rounded-lg bg-black"
+              style={{ width: thumbW, height: thumbH }}
+            >
               <img
                 src={meta.thumbnail.url}
                 alt={meta.title}
-                className={`${meta.isShortsEligible ? "aspect-9/16" : "aspect-video"} w-full object-cover`}
+                className="h-full w-full object-cover"
               />
               {duration && (
-                <span className="absolute bottom-2 right-2 rounded bg-black/80 px-1.5 py-0.5 text-xs font-medium text-white">
+                <span className="absolute bottom-1.5 right-1.5 rounded-md bg-black/80 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                   {duration}
                 </span>
               )}
               {meta.isLiveContent && (
-                <span className="absolute bottom-2 left-2 rounded bg-red-600 px-1.5 py-0.5 text-xs font-bold text-white">
-                  LIVE
-                </span>
+                <Badge className="absolute left-1.5 top-1.5 rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
+                  Live
+                </Badge>
               )}
             </div>
 
             {/* Info */}
-            <div className="space-y-2 p-3">
-              <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-foreground">
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <h3 className="line-clamp-3 text-sm font-semibold leading-snug text-foreground">
                 {meta.title}
               </h3>
-
-              {/* Channel */}
-              <div className="flex items-center gap-2">
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent/20 text-[10px] font-bold text-accent-light">
+              <div className="flex items-center gap-1.5">
+                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent/20 text-[9px] font-bold text-accent-light">
                   {(meta.ownerChannelName || meta.author).charAt(0).toUpperCase()}
                 </div>
-                <span className="truncate text-xs text-muted">
+                <span className="truncate text-xs font-medium text-muted">
                   {meta.ownerChannelName || meta.author}
                 </span>
               </div>
-
-              {/* Stats */}
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
-                {meta.viewCount !== "0" && (
-                  <span>{formatViews(meta.viewCount)}</span>
-                )}
-                {likes && (
-                  <>
-                    <span className="text-border">·</span>
-                    <span>{likes} likes</span>
-                  </>
-                )}
-                {meta.category && (
-                  <>
-                    <span className="text-border">·</span>
-                    <span>{meta.category}</span>
-                  </>
-                )}
-                {meta.publishDate && (
-                  <>
-                    <span className="text-border">·</span>
-                    <span>{formatDate(meta.publishDate)}</span>
-                  </>
+              <div className="flex flex-col gap-1 text-[11px] text-muted">
+                <div className="flex items-center gap-1.5">
+                  {meta.viewCount !== "0" && <span>{formatViews(meta.viewCount)} views</span>}
+                  {likes && <><span className="opacity-30">·</span><span>{likes} likes</span></>}
+                </div>
+                {(meta.category || meta.publishDate) && (
+                  <div className="flex items-center gap-1.5">
+                    {meta.category && <span>{meta.category}</span>}
+                    {meta.category && meta.publishDate && <span className="opacity-30">·</span>}
+                    {meta.publishDate && <span>{formatDate(meta.publishDate)}</span>}
+                  </div>
                 )}
               </div>
-
-              {meta.isShortsEligible && (
-                <span className="inline-block rounded-md bg-accent/10 px-2 py-0.5 text-[11px] font-medium text-accent-light">
+              {isPortrait && (
+                <Badge variant="secondary" className="w-fit bg-accent/15 text-accent-light">
                   Short
-                </span>
+                </Badge>
               )}
             </div>
-          </div>
-        )}
+            </CardContent>
+          </Card>
+          );
+        })()}
 
         {/* Empty state hint */}
         {!meta && !loading && !error && url.trim() === "" && (
@@ -330,30 +322,31 @@ export function SubmissionModal() {
 
         {/* Actions */}
         <div className="flex gap-3">
-          <button
+          <Button
             onClick={handleClose}
-            className="flex-1 rounded-lg border border-border py-2.5 text-sm font-medium text-muted transition-colors hover:border-foreground hover:text-foreground"
+            variant="outline"
+            className="flex-1"
             disabled={isSubmitting}
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleSubmit}
             disabled={!meta || loading || isSubmitting}
-            className="flex-1 rounded-lg bg-accent py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-light disabled:opacity-50"
+            className="flex-1"
           >
             {isSubmitting
               ? "Adding..."
               : isAuthenticated
                 ? "Add Video"
                 : "Sign In to Add"}
-          </button>
+          </Button>
         </div>
 
         <p className="mt-3 text-center text-xs text-muted">
           Your video will be added to the next available position in the spiral.
         </p>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
