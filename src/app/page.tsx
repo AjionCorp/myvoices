@@ -1,15 +1,16 @@
 "use client";
 
 import { Header } from "@/components/ui/Header";
-import { TopicsLanding } from "@/components/topics/TopicsLanding";
+import { LandingCanvas } from "@/components/landing/LandingCanvas";
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      <main className="mx-auto w-full max-w-5xl px-4 pb-16 pt-6">
-        <TopicsLanding />
-      </main>
+    <div className="h-screen overflow-hidden bg-background">
+      {/* Header floats above the canvas */}
+      <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 40 }}>
+        <Header />
+      </div>
+      <LandingCanvas />
     </div>
   );
 }

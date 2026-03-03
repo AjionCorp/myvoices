@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { TopicPickerModal } from "@/components/compare/TopicPickerModal";
 
 const VideoCanvas = dynamic(
   () =>
@@ -390,6 +391,7 @@ function TopicModerationMenu({ topicId, topicCreatorIdentity }: { topicId: numbe
 }
 
 function TopicHeader({ slug }: { slug: string }) {
+  const router = useRouter();
   const topics = useTopicStore((s) => s.topics);
   const taxonomyNodes = useTopicStore((s) => s.taxonomyNodes);
   const moderators = useTopicStore((s) => s.moderators);
@@ -398,6 +400,7 @@ function TopicHeader({ slug }: { slug: string }) {
   const { totalClaimed } = useBlocksStore();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [showSubtopics, setShowSubtopics] = useState(false);
+  const [comparePickerOpen, setComparePickerOpen] = useState(false);
   const moderatorCount = useMemo(() => {
     if (!topic) return 0;
     return [...moderators.values()].filter((m) => m.topicId === topic.id && m.status === "active").length;
@@ -479,6 +482,14 @@ function TopicHeader({ slug }: { slug: string }) {
                   </div>
                 )}
                 <Button
+                  onClick={() => setComparePickerOpen(true)}
+                  variant="outline"
+                  size="sm"
+                  className="pointer-events-auto h-7 rounded-lg px-3 text-xs"
+                >
+                  Compare
+                </Button>
+                <Button
                   onClick={() => useCanvasStore.getState().openSubmissionModal()}
                   size="sm"
                   className="pointer-events-auto h-7 rounded-lg px-3 text-xs font-semibold"
@@ -507,6 +518,14 @@ function TopicHeader({ slug }: { slug: string }) {
           <LoginButton />
         </div>
       </div>
+
+      <TopicPickerModal
+        open={comparePickerOpen}
+        onClose={() => setComparePickerOpen(false)}
+        excludeSlugs={topic ? [topic.slug] : []}
+        onSelect={(picked) => router.push(`/compare/${slug}/${picked}`)}
+        title="Compare with another topic"
+      />
     </div>
   );
 }

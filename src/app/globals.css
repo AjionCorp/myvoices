@@ -99,6 +99,12 @@ body {
   scrollbar-color: var(--border) transparent;
 }
 
+@keyframes pulse-ring {
+  0% { opacity: 0.7; transform: scale(1); }
+  70% { opacity: 0; transform: scale(1.12); }
+  100% { opacity: 0; transform: scale(1.12); }
+}
+
 @keyframes modal-in {
   from {
     opacity: 0;
