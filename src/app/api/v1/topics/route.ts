@@ -1,5 +1,41 @@
 import { NextResponse } from "next/server";
+import { readFileSync } from "fs";
+import { resolve } from "path";
 import { runSql, rowToObject } from "@/lib/spacetimedb/http-sql";
+
+// ---------------------------------------------------------------------------
+// Mock-data fast path — activated by USE_MOCK_DATA=true in .env.local
+// ---------------------------------------------------------------------------
+interface MockTopic {
+  id: number;
+  thumbnailVideoId?: string;
+  thumbnailUrl?: string;
+}
+
+let _mockCache: { topVideos: Record<number, { videoId: string; platform: string; thumbnailUrl: string | null }> } | null = null;
+
+function getMockTopVideos() {
+  if (_mockCache) return _mockCache;
+  try {
+    const filePath = resolve(process.cwd(), "src", "lib", "mock-topics.json");
+    const raw = JSON.parse(readFileSync(filePath, "utf8")) as { topics: MockTopic[] };
+    const topVideos: Record<number, { videoId: string; platform: string; thumbnailUrl: string | null }> = {};
+    for (const t of raw.topics) {
+      if (t.thumbnailVideoId) {
+        topVideos[t.id] = {
+          videoId: t.thumbnailVideoId,
+          platform: "youtube",
+          thumbnailUrl: t.thumbnailUrl ?? null,
+        };
+      }
+    }
+    _mockCache = { topVideos };
+  } catch (err) {
+    console.warn("[api/v1/topics] could not load mock-topics.json", err);
+    _mockCache = { topVideos: {} };
+  }
+  return _mockCache;
+}
 
 const TOPIC_COLUMNS = [
   "id", "slug", "title", "description", "category", "creator_identity",
@@ -33,6 +69,11 @@ function mapTopic(row: Record<string, unknown>): any {
 }
 
 export async function GET() {
+  // Fast path: serve pre-generated mock data without hitting SpacetimeDB
+  if (process.env.USE_MOCK_DATA === "true") {
+    return NextResponse.json(getMockTopVideos());
+  }
+
   try {
     const topicResults = await runSql("SELECT * FROM topic");
 

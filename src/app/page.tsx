@@ -1,7 +1,8 @@
 "use client";
 
 import { Header } from "@/components/ui/Header";
-import { LandingCanvas } from "@/components/landing/LandingCanvas";
+import { CircuitCanvas } from "@/components/landing/CircuitCanvas";
+import { ExploreSidebar } from "@/components/layout/ExploreSidebar";
 
 export default function Home() {
   return (
@@ -10,7 +11,8 @@ export default function Home() {
       <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 40 }}>
         <Header />
       </div>
-      <LandingCanvas />
+      <ExploreSidebar />
+      <CircuitCanvas />
     </div>
   );
 }

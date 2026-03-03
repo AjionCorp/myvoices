@@ -1,31 +1,18 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useBlocksStore } from "@/stores/blocks-store";
+import { useCommentsStore } from "@/stores/comments-store";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Platform } from "@/lib/constants";
 import { getVideoUrl, getThumbnailUrl, getEmbedUrl } from "@/lib/utils/video-url";
 import { getConnection } from "@/lib/spacetimedb/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-
-interface Comment {
-  id: string;
-  author: string;
-  text: string;
-  timestamp: number;
-}
-
-function timeAgo(ts: number): string {
-  const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60) return "just now";
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
-  return `${Math.floor(s / 86400)}d ago`;
-}
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
+import { CommentThread } from "@/components/comments/CommentThread";
 
 export function BlockDetailPanel() {
   const selectedBlockId = useCanvasStore((s) => s.selectedBlockId);
@@ -41,38 +28,24 @@ export function BlockDetailPanel() {
   const [disliked, setDisliked] = useState(false);
   const [likeAnim, setLikeAnim] = useState(false);
   const [dislikeAnim, setDislikeAnim] = useState(false);
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [commentText, setCommentText] = useState("");
   const [showComments, setShowComments] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isEmbedLoading, setIsEmbedLoading] = useState(false);
   const [resolvedEmbedUrl, setResolvedEmbedUrl] = useState<string | null>(null);
-  const commentsEndRef = useRef<HTMLDivElement>(null);
+
+  const topLevelCount = useCommentsStore((s) =>
+    selectedBlockId != null ? s.getTopLevelComments(selectedBlockId).length : 0
+  );
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLiked(false);
     setDisliked(false);
     setShowComments(false);
-    setCommentText("");
     setConfirmDelete(false);
     setIsDeleting(false);
-
-    if (selectedBlockId !== null) {
-      setComments([
-        { id: "1", author: "Alex", text: "This is so good! Deserves to win.", timestamp: Date.now() - 3600000 },
-        { id: "2", author: "Mira", text: "Voted. Let's get this to the center!", timestamp: Date.now() - 1800000 },
-        { id: "3", author: "Jordan", text: "Absolute fire content right here", timestamp: Date.now() - 600000 },
-      ]);
-    }
   }, [selectedBlockId]);
-
-  useEffect(() => {
-    if (showComments) {
-      commentsEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [comments.length, showComments]);
 
   const embedUrl = block?.videoId && block?.platform ? getEmbedUrl(block.videoId, block.platform) : null;
   const thumbnailUrl = block?.videoId && block?.platform
@@ -171,27 +144,6 @@ export function BlockDetailPanel() {
     }
   };
 
-  const handleComment = () => {
-    if (!commentText.trim() || !isAuthenticated) return;
-    setComments((prev) => [
-      ...prev,
-      {
-        id: String(Date.now()),
-        author: user?.displayName || "You",
-        text: commentText.trim(),
-        timestamp: Date.now(),
-      },
-    ]);
-    setCommentText("");
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleComment();
-    }
-  };
-
   const isOwner = isAuthenticated && !!user?.identity && user.identity === block?.ownerIdentity;
 
   const handleDelete = async () => {
@@ -212,14 +164,14 @@ export function BlockDetailPanel() {
 
   if (block.status === "ad") {
     return (
-      <div className="pointer-events-auto fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={close}>
-        <Card className="w-full max-w-sm gap-3 border-border bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <Dialog open onOpenChange={(v) => !v && close()}>
+        <DialogContent className="max-w-sm p-5 gap-3">
+          <VisuallyHidden><DialogTitle>Sponsored content</DialogTitle></VisuallyHidden>
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Badge className="rounded-md bg-yellow-500/20 text-yellow-400">Sponsored</Badge>
               <span className="text-[11px] text-muted">({block.x}, {block.y}) &middot; Ring {Math.max(Math.abs(block.x), Math.abs(block.y))}</span>
             </div>
-            <CloseBtn onClick={close} />
           </div>
           {block.adImageUrl && <img src={block.adImageUrl} alt="Ad" className="mb-3 w-full rounded-lg" />}
           {block.adLinkUrl && (
@@ -227,17 +179,17 @@ export function BlockDetailPanel() {
               <a href={block.adLinkUrl} target="_blank" rel="noopener noreferrer">Learn More</a>
             </Button>
           )}
-        </Card>
-      </div>
+        </DialogContent>
+      </Dialog>
     );
   }
 
   return (
-    <div className="pointer-events-auto fixed inset-0 z-50 overflow-y-auto bg-black/60 backdrop-blur-sm" onClick={close}>
-      <div className="flex min-h-full items-center justify-center p-4">
+    <Dialog open onOpenChange={(v) => !v && close()}>
+      <DialogContent className="max-w-lg p-0 gap-0 overflow-hidden rounded-2xl border-border bg-surface animate-modal-in [&>button]:hidden">
+      <VisuallyHidden><DialogTitle>Video details</DialogTitle></VisuallyHidden>
       <div
-        className="flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl animate-modal-in"
-        onClick={(e) => e.stopPropagation()}
+        className="flex w-full flex-col overflow-hidden"
       >
         {/* --- video area --- */}
         <div className="relative w-full shrink-0 bg-black">
@@ -310,10 +262,14 @@ export function BlockDetailPanel() {
               This video cannot be embedded here. Use <span className="font-semibold">Watch Original</span>.
             </div>
           )}
-          <button onClick={close}
-            className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-white/80 backdrop-blur-sm transition-colors hover:bg-black/70 hover:text-white">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={close}
+            className="absolute right-3 top-3 h-8 w-8 rounded-full bg-black/50 text-white/80 backdrop-blur-sm hover:bg-black/70 hover:text-white"
+          >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M4 4l8 8M12 4l-8 8" /></svg>
-          </button>
+          </Button>
         </div>
 
         {/* --- info + actions --- */}
@@ -382,7 +338,7 @@ export function BlockDetailPanel() {
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
-              <span className="tabular-nums">{comments.length}</span>
+              <span className="tabular-nums">{topLevelCount}</span>
             </Button>
 
             {/* delete (owner only) */}
@@ -431,64 +387,15 @@ export function BlockDetailPanel() {
           )}
 
           {/* comments section */}
-          {showComments && (
-            <div className="flex flex-col rounded-xl border border-border bg-background">
-              <div className="max-h-48 overflow-y-auto px-3 py-2">
-                {comments.length === 0 ? (
-                  <p className="py-6 text-center text-xs text-muted">No comments yet. Be the first!</p>
-                ) : (
-                  <div className="flex flex-col gap-2.5">
-                    {comments.map((c) => (
-                      <div key={c.id} className="group flex gap-2">
-                        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-surface-light text-[10px] font-bold text-muted">
-                          {c.author.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-baseline gap-1.5">
-                            <span className="text-xs font-semibold text-foreground">{c.author}</span>
-                            <span className="text-[10px] text-muted">{timeAgo(c.timestamp)}</span>
-                          </div>
-                          <p className="text-xs leading-relaxed text-foreground/80">{c.text}</p>
-                        </div>
-                      </div>
-                    ))}
-                    <div ref={commentsEndRef} />
-                  </div>
-                )}
-              </div>
-
-              {/* input */}
-              <div className="flex items-center gap-2 border-t border-border px-3 py-2">
-                {isAuthenticated ? (
-                  <>
-                    <Input
-                      type="text"
-                      value={commentText}
-                      onChange={(e) => setCommentText(e.target.value)}
-                      onKeyDown={handleKeyDown}
-                      placeholder="Add a comment..."
-                      className="h-8 min-w-0 flex-1 border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0"
-                    />
-                    <Button
-                      onClick={handleComment}
-                      disabled={!commentText.trim()}
-                      size="sm"
-                      className="h-7 shrink-0 text-[11px]">
-                      Post
-                    </Button>
-                  </>
-                ) : (
-                  <Button onClick={login} variant="ghost" className="w-full py-1 text-xs text-accent-light hover:underline">
-                    Sign in to comment
-                  </Button>
-                )}
-              </div>
+          {showComments && block && (
+            <div className="rounded-xl border border-border bg-background p-4">
+              <CommentThread blockId={block.id} />
             </div>
           )}
         </div>
       </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

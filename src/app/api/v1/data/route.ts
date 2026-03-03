@@ -33,6 +33,8 @@ function mapBlock(row: Record<string, unknown>): any {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapComment(row: Record<string, unknown>): any {
+  const parentRaw = row.parent_comment_id ?? row.parentCommentId;
+  const repostRaw = row.repost_of_id ?? row.repostOfId;
   return {
     id: Number(row.id ?? 0),
     blockId: Number(row.block_id ?? row.blockId ?? 0),
@@ -40,6 +42,11 @@ function mapComment(row: Record<string, unknown>): any {
     userName: String(row.user_name ?? row.userName ?? ""),
     text: String(row.text ?? ""),
     createdAt: Number(row.created_at ?? row.createdAt ?? 0),
+    parentCommentId: parentRaw != null ? Number(parentRaw) : null,
+    repostOfId: repostRaw != null ? Number(repostRaw) : null,
+    likesCount: Number(row.likes_count ?? row.likesCount ?? 0),
+    repliesCount: Number(row.replies_count ?? row.repliesCount ?? 0),
+    repostsCount: Number(row.reposts_count ?? row.repostsCount ?? 0),
   };
 }
 

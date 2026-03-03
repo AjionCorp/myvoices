@@ -17,6 +17,9 @@ export interface Topic {
   isActive: boolean;
   createdAt: number;
   moderatorCount?: number;
+  // Present in mock data (mock-topics.json) — not stored in SpacetimeDB
+  thumbnailVideoId?: string;
+  thumbnailUrl?: string;
 }
 
 export interface TopicTaxonomyNode {

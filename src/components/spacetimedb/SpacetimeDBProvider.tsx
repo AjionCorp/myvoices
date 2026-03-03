@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { connect, disconnect, reconnect, getConnection, type ConnectionCallbacks } from "@/lib/spacetimedb/client";
+import { connect, disconnect, reconnect, getConnection, subscribeToNotifications, type ConnectionCallbacks } from "@/lib/spacetimedb/client";
 import { useBlocksStore, type Block as StoreBlock } from "@/stores/blocks-store";
 import {
   useTopicStore,
@@ -13,7 +13,9 @@ import {
 import { useContestStore } from "@/stores/contest-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useCommentsStore } from "@/stores/comments-store";
-import { BlockStatus, type Platform } from "@/lib/constants";
+import { useNotificationsStore } from "@/stores/notifications-store";
+import { BlockStatus, Platform } from "@/lib/constants";
+import { batchSpiralCoordinates } from "@/lib/canvas/spiral-layout";
 import { useAuth } from "@/components/auth/AuthProvider";
 import type { DbConnection } from "@/module_bindings";
 
@@ -160,7 +162,7 @@ function bulkLoadTopicModeratorApplications(conn: DbConnection) {
 }
 
 function bulkLoadComments(conn: DbConnection) {
-  const all: Array<{ id: number; blockId: number; userIdentity: string; userName: string; text: string; createdAt: number }> = [];
+  const all = [];
   for (const row of conn.db.comment.iter()) {
     all.push({
       id: Number(row.id),
@@ -169,10 +171,51 @@ function bulkLoadComments(conn: DbConnection) {
       userName: row.userName,
       text: row.text,
       createdAt: Number(row.createdAt),
+      parentCommentId: row.parentCommentId != null ? Number(row.parentCommentId) : null,
+      repostOfId: row.repostOfId != null ? Number(row.repostOfId) : null,
+      likesCount: Number(row.likesCount ?? 0),
+      repliesCount: Number(row.repliesCount ?? 0),
+      repostsCount: Number(row.repostsCount ?? 0),
     });
   }
   if (all.length > 0) {
     useCommentsStore.getState().setComments(all);
+  }
+}
+
+function bulkLoadCommentLikes(conn: DbConnection) {
+  const all = [];
+  for (const row of conn.db.comment_like.iter()) {
+    all.push({
+      id: Number(row.id),
+      commentId: Number(row.commentId),
+      userIdentity: row.userIdentity,
+      createdAt: Number(row.createdAt),
+    });
+  }
+  if (all.length > 0) {
+    useCommentsStore.getState().setCommentLikes(all);
+  }
+}
+
+function bulkLoadNotifications(conn: DbConnection) {
+  const all = [];
+  for (const row of conn.db.notification.iter()) {
+    all.push({
+      id: Number(row.id),
+      recipientIdentity: row.recipientIdentity,
+      actorIdentity: row.actorIdentity,
+      actorName: row.actorName,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      notificationType: row.notificationType as any,
+      blockId: Number(row.blockId),
+      commentId: Number(row.commentId),
+      isRead: row.isRead,
+      createdAt: Number(row.createdAt),
+    });
+  }
+  if (all.length > 0) {
+    useNotificationsStore.getState().setNotifications(all);
   }
 }
 
@@ -276,11 +319,75 @@ function registerTableCallbacks(conn: DbConnection) {
       userName: row.userName,
       text: row.text,
       createdAt: Number(row.createdAt),
+      parentCommentId: row.parentCommentId != null ? Number(row.parentCommentId) : null,
+      repostOfId: row.repostOfId != null ? Number(row.repostOfId) : null,
+      likesCount: Number(row.likesCount ?? 0),
+      repliesCount: Number(row.repliesCount ?? 0),
+      repostsCount: Number(row.repostsCount ?? 0),
+    });
+  });
+
+  conn.db.comment.onUpdate((_ctx, _old, row) => {
+    useCommentsStore.getState().updateComment({
+      id: Number(row.id),
+      blockId: Number(row.blockId),
+      userIdentity: row.userIdentity,
+      userName: row.userName,
+      text: row.text,
+      createdAt: Number(row.createdAt),
+      parentCommentId: row.parentCommentId != null ? Number(row.parentCommentId) : null,
+      repostOfId: row.repostOfId != null ? Number(row.repostOfId) : null,
+      likesCount: Number(row.likesCount ?? 0),
+      repliesCount: Number(row.repliesCount ?? 0),
+      repostsCount: Number(row.repostsCount ?? 0),
     });
   });
 
   conn.db.comment.onDelete((_ctx, row) => {
     useCommentsStore.getState().removeComment(Number(row.id));
+  });
+
+  conn.db.comment_like.onInsert((_ctx, row) => {
+    useCommentsStore.getState().addCommentLike({
+      id: Number(row.id),
+      commentId: Number(row.commentId),
+      userIdentity: row.userIdentity,
+      createdAt: Number(row.createdAt),
+    });
+  });
+
+  conn.db.comment_like.onDelete((_ctx, row) => {
+    useCommentsStore.getState().removeCommentLike(Number(row.id));
+  });
+
+  conn.db.notification.onInsert((_ctx, row) => {
+    useNotificationsStore.getState().addNotification({
+      id: Number(row.id),
+      recipientIdentity: row.recipientIdentity,
+      actorIdentity: row.actorIdentity,
+      actorName: row.actorName,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      notificationType: row.notificationType as any,
+      blockId: Number(row.blockId),
+      commentId: Number(row.commentId),
+      isRead: row.isRead,
+      createdAt: Number(row.createdAt),
+    });
+  });
+
+  conn.db.notification.onUpdate((_ctx, _old, row) => {
+    useNotificationsStore.getState().updateNotification({
+      id: Number(row.id),
+      recipientIdentity: row.recipientIdentity,
+      actorIdentity: row.actorIdentity,
+      actorName: row.actorName,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      notificationType: row.notificationType as any,
+      blockId: Number(row.blockId),
+      commentId: Number(row.commentId),
+      isRead: row.isRead,
+      createdAt: Number(row.createdAt),
+    });
   });
 
   conn.db.contest.onInsert((_ctx, row) => {
@@ -361,6 +468,8 @@ function registerTableCallbacks(conn: DbConnection) {
   });
 }
 
+const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
+
 export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
   const prevToken = useRef<string | undefined>(undefined);
   const { oidcToken, isLoading: authLoading, isAuthenticated, user: authUser } = useAuth();
@@ -393,6 +502,9 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
       bulkLoadTopicModerators(connection);
       bulkLoadTopicModeratorApplications(connection);
       bulkLoadComments(connection);
+      bulkLoadCommentLikes(connection);
+      bulkLoadNotifications(connection);
+      subscribeToNotifications(identity.toHexString());
 
       const clerkEmail = clerkUserRef.current.email;
       const clerkUsername = clerkUserRef.current.username;
@@ -463,6 +575,9 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // In mock-data mode the store is seeded by MockDataLoader — skip SpacetimeDB
+    // so a logged-in user's real data (few real topics) doesn't overwrite the 10k mock set.
+    if (USE_MOCK) return;
     if (authLoading) return;
     if (!isAuthenticated || !oidcToken) {
       console.log("[SpacetimeDB] skipping connect:", { authLoading, isAuthenticated, hasToken: !!oidcToken });
@@ -495,6 +610,7 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
 
   // Anonymous users: load topics via HTTP so the home page and topic pages render
   useEffect(() => {
+    if (USE_MOCK) return;  // mock data is already loaded by MockDataLoader
     if (authLoading || isAuthenticated) return;
     fetch("/api/v1/topics")
       .then((r) => r.json())
@@ -520,17 +636,72 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
  */
 export function useTopicBlocksSubscription(topicId: number | null) {
   useEffect(() => {
-    const conn = getConnection();
-    if (!topicId || !conn) return;
+    if (!topicId) return;
 
-    // Import lazily to avoid circular dependency
+    // ── Mock mode: build blocks from related topics already in the topic store ──
+    if (USE_MOCK) {
+      const { setBlocks, setLoading } = useBlocksStore.getState();
+      setLoading(true);
+
+      // Defer one tick so the topic page can finish rendering first
+      const timer = setTimeout(() => {
+        const { topics } = useTopicStore.getState();
+        const currentTopic = topics.get(topicId);
+
+        // Gather sibling topics from the same taxonomy leaf node,
+        // then fall back to same category, capped at 200.
+        const pool = [...topics.values()].filter((t) =>
+          t.id !== topicId &&
+          t.thumbnailVideoId &&
+          (
+            (currentTopic?.taxonomyNodeId != null && t.taxonomyNodeId === currentTopic.taxonomyNodeId) ||
+            t.category === currentTopic?.category
+          )
+        ).slice(0, 200);
+
+        const coords = batchSpiralCoordinates(pool.length);
+
+        const blocks: StoreBlock[] = pool.map((t, i) => ({
+          id: topicId * 100_000 + i + 1,
+          topicId,
+          x: coords[i]?.x ?? i,
+          y: coords[i]?.y ?? 0,
+          videoId: t.thumbnailVideoId ?? null,
+          platform: Platform.YouTube,
+          ownerIdentity: t.creatorIdentity,
+          ownerName: `@${t.creatorIdentity}`,
+          likes: Math.round(t.totalLikes / 10),
+          dislikes: Math.round(t.totalDislikes / 10),
+          ytViews: Math.round(t.totalViews / 10),
+          ytLikes: Math.round(t.totalLikes / 10),
+          thumbnailUrl: t.thumbnailUrl ?? null,
+          status: BlockStatus.Claimed,
+          adImageUrl: null,
+          adLinkUrl: null,
+          claimedAt: t.createdAt,
+        }));
+
+        setBlocks(blocks);
+        setLoading(false);
+      }, 50);
+
+      return () => {
+        clearTimeout(timer);
+        useBlocksStore.getState().setBlocks([]);
+        useBlocksStore.getState().setLoading(true);
+      };
+    }
+
+    // ── Live SpacetimeDB path (unchanged) ──────────────────────────────────────
+    const conn = getConnection();
+    if (!conn) return;
+
     import("@/lib/spacetimedb/client").then(({ subscribeToTopicBlocks }) => {
       subscribeToTopicBlocks(topicId, () => {
         const c = getConnection();
         if (!c) return;
-        // Bulk-load after subscription applied
         const { setBlocks, setLoading } = useBlocksStore.getState();
-        const blocks: import("@/stores/blocks-store").Block[] = [];
+        const blocks: StoreBlock[] = [];
         for (const row of c.db.block.iter()) {
           blocks.push(mapBlock(row));
         }

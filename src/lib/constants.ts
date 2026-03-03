@@ -1,3 +1,162 @@
+// ---------------------------------------------------------------------------
+// Topic categories — single source of truth for frontend + API validation.
+// Mirror any changes to server/src/reducers/topic.rs VALID_CATEGORIES.
+// ---------------------------------------------------------------------------
+export const CATEGORIES = [
+  // Discourse & Ideas
+  "Ideas & Solutions",
+  "Politics",
+  "News & Media",
+  "Geopolitics & War",
+  "Society & Culture",
+  "LGBTQ+",
+  "Conspiracy & Alternative",
+  "Paranormal & Supernatural",
+  "Philosophy & Ethics",
+  "Religion & Spirituality",
+  "Nonprofits & Activism",
+  // Knowledge
+  "History",
+  "Science",
+  "Space & Astronomy",
+  "Technology",
+  "Artificial Intelligence",
+  "Education",
+  "Literature & Books",
+  "Science Fiction & Fantasy",
+  "Psychology & Behavior",
+  "Language & Linguistics",
+  "Environment",
+  // Life & Wellbeing
+  "Health & Wellness",
+  "Mental Health",
+  "Fitness & Exercise",
+  "Self-Improvement & Motivation",
+  "Parenting & Family",
+  "Relationships & Dating",
+  "Business & Finance",
+  "Cryptocurrency & Web3",
+  "Real Estate & Housing",
+  "Law & Crime",
+  // Entertainment & Media
+  "Entertainment",
+  "Film & Animation",
+  "Anime & Manga",
+  "Music",
+  "Sports",
+  "Martial Arts & Combat Sports",
+  "Gaming",
+  "Tabletop & Board Games",
+  "Celebrity & Pop Culture",
+  "Comedy",
+  // Lifestyle
+  "Food & Cooking",
+  "Travel",
+  "Fashion & Beauty",
+  "Art & Creativity",
+  "Photography & Film Production",
+  "DIY & Hobbies",
+  "Howto & Style",
+  "Architecture & Interior Design",
+  "Outdoors & Adventure",
+  "Survival & Preparedness",
+  "Automotive",
+  "Animals & Nature",
+  "People & Blogs",
+  "Cultures & Traditions",
+  "Other",
+] as const;
+
+export type Category = (typeof CATEGORIES)[number];
+
+export const CATEGORY_SET: ReadonlySet<string> = new Set(CATEGORIES);
+
+// Grouped structure — used in dropdowns for easier navigation.
+export const CATEGORY_GROUPS: { label: string; items: readonly string[] }[] = [
+  {
+    label: "Discourse & Ideas",
+    items: [
+      "Ideas & Solutions",
+      "Politics",
+      "News & Media",
+      "Geopolitics & War",
+      "Society & Culture",
+      "LGBTQ+",
+      "Conspiracy & Alternative",
+      "Paranormal & Supernatural",
+      "Philosophy & Ethics",
+      "Religion & Spirituality",
+      "Nonprofits & Activism",
+    ],
+  },
+  {
+    label: "Knowledge",
+    items: [
+      "History",
+      "Science",
+      "Space & Astronomy",
+      "Technology",
+      "Artificial Intelligence",
+      "Education",
+      "Literature & Books",
+      "Science Fiction & Fantasy",
+      "Psychology & Behavior",
+      "Language & Linguistics",
+      "Environment",
+    ],
+  },
+  {
+    label: "Life & Wellbeing",
+    items: [
+      "Health & Wellness",
+      "Mental Health",
+      "Fitness & Exercise",
+      "Self-Improvement & Motivation",
+      "Parenting & Family",
+      "Relationships & Dating",
+      "Business & Finance",
+      "Cryptocurrency & Web3",
+      "Real Estate & Housing",
+      "Law & Crime",
+    ],
+  },
+  {
+    label: "Entertainment & Media",
+    items: [
+      "Entertainment",
+      "Film & Animation",
+      "Anime & Manga",
+      "Music",
+      "Sports",
+      "Martial Arts & Combat Sports",
+      "Gaming",
+      "Tabletop & Board Games",
+      "Celebrity & Pop Culture",
+      "Comedy",
+    ],
+  },
+  {
+    label: "Lifestyle",
+    items: [
+      "Food & Cooking",
+      "Travel",
+      "Fashion & Beauty",
+      "Art & Creativity",
+      "Photography & Film Production",
+      "DIY & Hobbies",
+      "Howto & Style",
+      "Architecture & Interior Design",
+      "Outdoors & Adventure",
+      "Survival & Preparedness",
+      "Automotive",
+      "Animals & Nature",
+      "People & Blogs",
+      "Cultures & Traditions",
+      "Other",
+    ],
+  },
+];
+
 export const TILE_WIDTH = 56;
 export const TILE_HEIGHT = 100;
 export const TILE_GAP = 1;

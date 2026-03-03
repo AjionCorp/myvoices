@@ -10,6 +10,8 @@ import { resolveVideoMeta, type ResolvedVideoMeta } from "@/lib/utils/video-meta
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { ClearableInput } from "@/components/ui/clearable-input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export function AddVideoModal() {
   const { showAddVideoModal, closeAddVideoModal } = useCanvasStore();
@@ -154,31 +156,32 @@ export function AddVideoModal() {
           {activeTopic && !topicTargeting.isChildTopic && topicTargeting.childOptions.length > 0 && (
             <div className="mb-3 space-y-2">
               <label className="block text-sm font-medium text-muted">Post into child (optional)</label>
-              <Input
+              <ClearableInput
                 type="text"
                 value={childSearch}
                 onChange={(e) => setChildSearch(e.target.value)}
+                onClear={() => setChildSearch("")}
                 placeholder="Search child topics..."
                 className="h-10 bg-background"
                 disabled={submitting}
               />
-              <select
-                value={
-                  targetTopicId && targetTopicId !== activeTopic.id ? String(targetTopicId) : ""
-                }
-                onChange={(e) =>
-                  setTargetTopicId(e.target.value ? Number(e.target.value) : activeTopic.id)
-                }
-                className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm text-foreground"
+              <Select
+                value={targetTopicId && targetTopicId !== activeTopic.id ? String(targetTopicId) : "__main__"}
+                onValueChange={(v) => setTargetTopicId(v === "__main__" ? activeTopic.id : Number(v))}
                 disabled={submitting}
               >
-                <option value="">Keep in {activeTopic.title}</option>
-                {filteredChildOptions.map((option) => (
-                  <option key={option.id} value={option.id}>
-                    {option.title}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger className="h-10 w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__main__">Keep in {activeTopic.title}</SelectItem>
+                  {filteredChildOptions.map((option) => (
+                    <SelectItem key={option.id} value={String(option.id)}>
+                      {option.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {childSearch.trim() && filteredChildOptions.length === 0 && (
                 <p className="text-xs text-muted">No child topics match your search.</p>
               )}

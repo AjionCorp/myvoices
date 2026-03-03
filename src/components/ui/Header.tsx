@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, Menu } from "lucide-react";
 import { LoginButton } from "@/components/auth/LoginButton";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useContestStore } from "@/stores/contest-store";
 import { useCanvasStore } from "@/stores/canvas-store";
 import { useTopicStore } from "@/stores/topic-store";
+import { useExploreStore } from "@/stores/explore-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -16,6 +18,7 @@ export function Header() {
   const { activeContest, timeRemaining } = useContestStore();
   const openAddVideoModal = useCanvasStore((s) => s.openAddVideoModal);
   const activeTopic = useTopicStore((s) => s.activeTopic);
+  const toggleSidebar = useExploreStore((s) => s.toggleSidebar);
   const pathname = usePathname();
   const isHome = pathname === "/";
 
@@ -31,8 +34,20 @@ export function Header() {
   return (
     <header className="sticky top-0 z-40 bg-background/80 backdrop-blur-md backdrop-saturate-150">
       <div className="mx-auto flex max-w-screen-2xl items-center justify-between px-5 py-4 sm:px-8">
-        {/* Left: logo + badge */}
+        {/* Left: hamburger + logo + badge */}
         <div className="flex items-center gap-4">
+          {isHome && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleSidebar}
+              className="h-8 w-8 text-foreground hover:bg-accent/20"
+              title="Explore Universe"
+              aria-label="Open explore sidebar"
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+          )}
           <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-sm font-bold text-white shadow-sm shadow-accent/30">
               mV
@@ -74,6 +89,7 @@ export function Header() {
               <Link href="/admin">Admin</Link>
             </Button>
           )}
+          {isAuthenticated && <NotificationBell />}
           <LoginButton />
         </div>
       </div>

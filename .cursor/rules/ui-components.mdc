@@ -1,0 +1,44 @@
+---
+description: UI component standards — always use shadcn/ui
+globs: **/*.tsx
+alwaysApply: false
+---
+
+# UI Components
+
+Always use **shadcn/ui** components for all UI elements. Never build raw HTML replacements when a shadcn primitive exists.
+
+## Available primitives (non-exhaustive)
+
+`Button`, `Input`, `Badge`, `Dialog`, `Sheet`, `Checkbox`, `Select`, `Separator`, `ScrollArea`, `Tooltip`, `Popover`, `DropdownMenu`, `Tabs`, `Card`, `Avatar`, `Skeleton`, `Switch`, `Label`, `Textarea`
+
+## Rules
+
+- **Buttons** → `<Button variant="..." size="...">` — never `<button>` raw
+- **Text inputs / search** → `<Input>` — never `<input>` raw
+- **Slide-out drawers / sidebars** → `<Sheet>` with `<SheetContent side="left|right">`
+- **Checkboxes** → `<Checkbox>` — never custom-drawn boxes
+- **Modals** → `<Dialog>` — never custom overlay divs
+- **Badges / counts** → `<Badge>`
+- **Tooltips** → `<Tooltip>` / `<TooltipProvider>`
+
+## Adding new shadcn components
+
+```bash
+npx shadcn@latest add <component-name>
+```
+
+## Example
+
+```tsx
+// ❌ BAD — raw elements
+<button onClick={fn}>Save</button>
+<input placeholder="Search..." />
+
+// ✅ GOOD — shadcn primitives
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
+<Button onClick={fn}>Save</Button>
+<Input placeholder="Search..." />
+```

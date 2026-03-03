@@ -67,6 +67,7 @@ export const BLOCK_COLUMNS = [
 /** Comment table column order for positional fallback. */
 export const COMMENT_COLUMNS = [
   "id", "block_id", "user_identity", "user_name", "text", "created_at",
+  "parent_comment_id", "repost_of_id", "likes_count", "replies_count", "reposts_count",
 ];
 
 /** Map a SQL row (array or object) to a plain object using schema element names. */

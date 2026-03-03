@@ -220,6 +220,7 @@ pub struct CreditTransactionLog {
 }
 
 #[table(accessor = comment, public)]
+#[derive(Clone)]
 pub struct Comment {
     #[primary_key]
     #[auto_inc]
@@ -228,6 +229,46 @@ pub struct Comment {
     pub user_identity: String,
     pub user_name: String,
     pub text: String,
+    pub created_at: u64,
+    /// null = top-level comment; set = reply to that comment id
+    #[default(None::<u64>)]
+    pub parent_comment_id: Option<u64>,
+    /// null = original; set = this is a repost of that comment id
+    #[default(None::<u64>)]
+    pub repost_of_id: Option<u64>,
+    #[default(0u64)]
+    pub likes_count: u64,
+    #[default(0u64)]
+    pub replies_count: u64,
+    #[default(0u64)]
+    pub reposts_count: u64,
+}
+
+#[table(accessor = comment_like, public)]
+#[derive(Clone)]
+pub struct CommentLike {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub comment_id: u64,
+    pub user_identity: String,
+    pub created_at: u64,
+}
+
+#[table(accessor = notification, public)]
+#[derive(Clone)]
+pub struct Notification {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub recipient_identity: String,
+    pub actor_identity: String,
+    pub actor_name: String,
+    /// "comment_reply" | "comment_like" | "comment_repost"
+    pub notification_type: String,
+    pub block_id: u64,
+    pub comment_id: u64,
+    pub is_read: bool,
     pub created_at: u64,
 }
 

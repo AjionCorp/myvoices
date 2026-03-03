@@ -5,32 +5,17 @@ import { useRouter } from "next/navigation";
 import { getConnection } from "@/lib/spacetimedb/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useTopicStore } from "@/stores/topic-store";
-import { Platform } from "@/lib/constants";
+import { Platform, CATEGORIES, CATEGORY_GROUPS } from "@/lib/constants";
 import { getThumbnailUrl, normalizeThumbnailForStorage } from "@/lib/utils/video-url";
 import { resolveVideoMeta, type ResolvedVideoMeta } from "@/lib/utils/video-meta";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ClearableInput } from "@/components/ui/clearable-input";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-const CATEGORIES = [
-  "Entertainment",
-  "Music",
-  "Sports",
-  "Gaming",
-  "Comedy",
-  "Education",
-  "News",
-  "Food",
-  "Travel",
-  "Fashion",
-  "Technology",
-  "Science",
-  "Art",
-  "Animals",
-  "Other",
-] as const;
 
 const GRADIENTS = [
   "from-violet-700 to-indigo-950",
@@ -95,7 +80,7 @@ function PreviewCard({
       <div className="bg-surface px-3 py-2.5">
         <p className="truncate text-sm font-semibold text-foreground">{displayTitle}</p>
         <div className="mt-1 flex items-center gap-1.5 text-[11px] text-muted">
-          <span className="rounded-full bg-surface-light px-2 py-0.5 text-[10px]">{category}</span>
+          <Badge variant="secondary" className="rounded-full px-2 py-0.5 text-[10px]">{category}</Badge>
         </div>
       </div>
     </div>
@@ -154,10 +139,10 @@ export function CreateTopicForm() {
     () => activeNodes.filter((n) => n.depth === 0 && n.parentId === null),
     [activeNodes]
   );
-  const topLevelNames = useMemo(
-    () => (topLevelNodes.length > 0 ? topLevelNodes.map((n) => n.name) : [...CATEGORIES]),
-    [topLevelNodes]
-  );
+  // Always use the CATEGORIES constant as the authoritative list so the
+  // category sent to createTopic always passes backend VALID_CATEGORIES
+  // validation. Taxonomy nodes are used only for subcategory lookups below.
+  const topLevelNames = [...CATEGORIES] as string[];
   const normalizedCategory =
     topLevelNames.find((value) => value.toLowerCase() === categoryInput.trim().toLowerCase()) ?? null;
   const categoryMatches = topLevelNames.filter((value) =>
@@ -195,13 +180,12 @@ export function CreateTopicForm() {
   const ctaLabel = isSubmitting ? "Creating..." : isAuthenticated ? "Create Topic" : "Sign in to Create";
 
   useEffect(() => {
-    if (topLevelNames.length === 0) return;
-    const hasCurrent = topLevelNames.some((name) => name.toLowerCase() === categoryInput.trim().toLowerCase());
+    const hasCurrent = CATEGORIES.some((name) => name.toLowerCase() === categoryInput.trim().toLowerCase());
     if (!hasCurrent) {
-      setCategoryInput(topLevelNames[0]);
+      setCategoryInput(CATEGORIES[0]);
       setSubcategoryInput("");
     }
-  }, [topLevelNames, categoryInput]);
+  }, [categoryInput]);
 
   useEffect(() => {
     const value = starterUrl.trim();
@@ -442,36 +426,60 @@ export function CreateTopicForm() {
             >
               Category
             </label>
-            <Input
+            <ClearableInput
               id="topic-category-search"
               value={categorySearch}
               onChange={(e) => {
                 setCategorySearch(e.target.value);
                 setError(null);
               }}
+              onClear={() => { setCategorySearch(""); setError(null); }}
               placeholder="Search categories..."
               className="h-11 w-full rounded-xl border-border bg-surface-light px-4"
               disabled={isSubmitting}
             />
-            <select
-              id="topic-category"
+            <Select
               value={categoryInput}
-              onChange={(e) => {
-                setCategoryInput(e.target.value);
+              onValueChange={(v) => {
+                setCategoryInput(v);
                 setSubcategoryInput("");
                 setSubcategorySearch("");
                 setNewSubcategoryName("");
                 setError(null);
               }}
               disabled={isSubmitting}
-              className="mt-2 h-11 w-full rounded-xl border border-border bg-surface-light px-4 text-sm text-foreground"
             >
-              {categoryMatches.map((label) => (
-                <option key={label} value={label}>
-                  {label}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="topic-category" className="mt-2 h-11 w-full rounded-xl bg-surface-light">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {categorySearch.trim() ? (
+                  // Flat filtered results while searching
+                  categoryMatches.length > 0
+                    ? categoryMatches.map((label) => (
+                        <SelectItem key={label} value={label}>
+                          {label}
+                        </SelectItem>
+                      ))
+                    : <SelectItem value="__empty__" disabled>No matches</SelectItem>
+                ) : (
+                  // Grouped list when not searching
+                  CATEGORY_GROUPS.map((group, gi) => (
+                    <SelectGroup key={group.label}>
+                      {gi > 0 && <SelectSeparator />}
+                      <SelectLabel className="text-[11px] uppercase tracking-widest text-muted-foreground/60 px-2 pb-1">
+                        {group.label}
+                      </SelectLabel>
+                      {group.items.map((label) => (
+                        <SelectItem key={label} value={label}>
+                          {label}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
             {childNodes.length > 0 && (
               <>
                 <label
@@ -480,13 +488,14 @@ export function CreateTopicForm() {
                 >
                   Subcategory search <span className="font-normal normal-case tracking-normal">optional</span>
                 </label>
-                <Input
+                <ClearableInput
                   id="topic-subcategory-search"
                   value={subcategorySearch}
                   onChange={(e) => {
                     setSubcategorySearch(e.target.value);
                     setError(null);
                   }}
+                  onClear={() => { setSubcategorySearch(""); setError(null); }}
                   placeholder="Search subcategories..."
                   className="h-11 w-full rounded-xl border-border bg-surface-light px-4"
                   disabled={isSubmitting}
@@ -497,23 +506,26 @@ export function CreateTopicForm() {
                 >
                   Subcategory <span className="font-normal normal-case tracking-normal">optional</span>
                 </label>
-                <select
-                  id="topic-subcategory"
-                  value={subcategoryInput}
-                  onChange={(e) => {
-                    setSubcategoryInput(e.target.value);
+                <Select
+                  value={subcategoryInput || "__none__"}
+                  onValueChange={(v) => {
+                    setSubcategoryInput(v === "__none__" ? "" : v);
                     setError(null);
                   }}
                   disabled={isSubmitting}
-                  className="h-11 w-full rounded-xl border border-border bg-surface-light px-4 text-sm text-foreground"
                 >
-                  <option value="">None</option>
-                  {subcategoryMatches.map((node) => (
-                    <option key={node.id} value={node.name}>
-                      {node.name}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger id="topic-subcategory" className="h-11 w-full rounded-xl bg-surface-light">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
+                    {subcategoryMatches.map((node) => (
+                      <SelectItem key={node.id} value={node.name}>
+                        {node.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {subcategorySearch.trim() && subcategoryMatches.length === 0 && (
                   <p className="mt-1 text-xs text-muted">No matching subcategories. Leave as None or create one below.</p>
                 )}
@@ -555,25 +567,36 @@ export function CreateTopicForm() {
             </p>
           )}
 
-          <div className="hidden lg:block">
-            <Button
-              type="submit"
-              disabled={!canSubmit && isAuthenticated}
-              className="h-11 w-full rounded-xl"
-            >
-              {isSubmitting ? (
-                <span className="flex items-center justify-center gap-2">
-                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-                  </svg>
-                  {ctaLabel}
-                </span>
-              ) : (
-                ctaLabel
-              )}
-            </Button>
+          <div className="hidden lg:block space-y-2">
+            <div className="flex gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => router.back()}
+                disabled={isSubmitting}
+                className="h-11 flex-1 rounded-xl"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={!canSubmit && isAuthenticated}
+                className="h-11 flex-2 rounded-xl"
+              >
+                {isSubmitting ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                    </svg>
+                    {ctaLabel}
+                  </span>
+                ) : (
+                  ctaLabel
+                )}
+              </Button>
+            </div>
             {canSubmit && !isSubmitting && (
-              <p className="mt-2 text-center text-xs text-muted">
+              <p className="text-center text-xs text-muted">
                 You will be taken straight to your new topic.{" "}
                 <kbd className="rounded bg-surface-light px-1 py-0.5 font-mono text-[10px]">Ctrl/Cmd + Enter</kbd>
               </p>
@@ -594,25 +617,36 @@ export function CreateTopicForm() {
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-background/90 px-5 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-sm sm:px-8 lg:hidden">
-        <div className="mx-auto w-full max-w-3xl">
-          <Button
-            type="submit"
-            disabled={!canSubmit && isAuthenticated}
-            className="h-11 w-full rounded-xl"
-          >
-            {isSubmitting ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-                </svg>
-                {ctaLabel}
-              </span>
-            ) : (
-              ctaLabel
-            )}
-          </Button>
+        <div className="mx-auto w-full max-w-3xl space-y-1.5">
+          <div className="flex gap-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.back()}
+              disabled={isSubmitting}
+              className="h-11 flex-1 rounded-xl"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              disabled={!canSubmit && isAuthenticated}
+              className="h-11 flex-2 rounded-xl"
+            >
+              {isSubmitting ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                  </svg>
+                  {ctaLabel}
+                </span>
+              ) : (
+                ctaLabel
+              )}
+            </Button>
+          </div>
           {canSubmit && !isSubmitting && (
-            <p className="mt-1.5 text-center text-xs text-muted">You will be taken straight to your new topic.</p>
+            <p className="text-center text-xs text-muted">You will be taken straight to your new topic.</p>
           )}
         </div>
       </div>

@@ -17,4 +17,9 @@ export default __t.row({
   userName: __t.string().name("user_name"),
   text: __t.string(),
   createdAt: __t.u64().name("created_at"),
+  parentCommentId: __t.option(__t.u64()).name("parent_comment_id"),
+  repostOfId: __t.option(__t.u64()).name("repost_of_id"),
+  likesCount: __t.u64().name("likes_count"),
+  repliesCount: __t.u64().name("replies_count"),
+  repostsCount: __t.u64().name("reposts_count"),
 });

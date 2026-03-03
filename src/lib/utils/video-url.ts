@@ -61,8 +61,8 @@ export function getThumbnailUrl(
   switch (platform) {
     case Platform.YouTube:
     case Platform.YouTubeShort:
-      // Always derive from videoId — no storage required.
-      return proxiedThumbnailUrl(`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`);
+      // Always derive from videoId — img.youtube.com is a public CDN, no proxy needed.
+      return `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`;
 
     case Platform.TikTok:
       // Served fresh by the tiktok thumbnail endpoint (handles CDN expiry + caching).

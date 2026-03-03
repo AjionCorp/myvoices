@@ -13,4 +13,5 @@ import {
 export default {
   blockId: __t.u64(),
   text: __t.string(),
+  parentCommentId: __t.option(__t.u64()),
 };

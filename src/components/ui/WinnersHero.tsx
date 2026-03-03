@@ -3,6 +3,7 @@
 import { useContestStore } from "@/stores/contest-store";
 import { Platform } from "@/lib/constants";
 import { getVideoUrl, getThumbnailUrl, getEmbedUrl } from "@/lib/utils/video-url";
+import { Badge } from "@/components/ui/badge";
 
 export function WinnersHero() {
   const { winners } = useContestStore();
@@ -70,9 +71,9 @@ export function WinnersHero() {
                       {winner.likes.toLocaleString()} likes
                     </p>
                   </div>
-                  <span className="rounded-lg bg-green-500/20 px-2 py-1 text-sm font-semibold text-green-400">
+                  <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-sm font-semibold px-2 py-1 h-auto">
                     ${(winner.prizeAmount / 100).toFixed(2)}
-                  </span>
+                  </Badge>
                 </div>
                 <a
                   href={videoUrl}

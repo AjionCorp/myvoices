@@ -2,6 +2,7 @@
 
 import { useCanvasStore } from "@/stores/canvas-store";
 import { MIN_ZOOM, MAX_ZOOM } from "@/lib/constants";
+import { Button } from "@/components/ui/button";
 
 export function CanvasViewport() {
   const { zoom, setZoom, centerOnBlock, screenWidth, screenHeight } =
@@ -12,30 +13,36 @@ export function CanvasViewport() {
   return (
     <div className="pointer-events-auto absolute bottom-6 right-6 flex flex-col items-center gap-2">
       <div className="flex flex-col items-center gap-1 rounded-xl border border-border bg-surface/90 p-2 shadow-xl backdrop-blur-sm">
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={() => setZoom(Math.min(MAX_ZOOM, zoom * 1.3), screenWidth / 2, screenHeight / 2)}
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-lg text-foreground transition-colors hover:bg-surface-light"
+          className="h-9 w-9 rounded-lg text-lg text-foreground hover:bg-surface-light"
           title="Zoom In"
         >
           +
-        </button>
+        </Button>
 
         <span className="px-1 text-xs tabular-nums text-muted">
           {zoomPercent}%
         </span>
 
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={() => setZoom(Math.max(MIN_ZOOM, zoom * 0.7), screenWidth / 2, screenHeight / 2)}
-          className="flex h-9 w-9 items-center justify-center rounded-lg text-lg text-foreground transition-colors hover:bg-surface-light"
+          className="h-9 w-9 rounded-lg text-lg text-foreground hover:bg-surface-light"
           title="Zoom Out"
         >
           -
-        </button>
+        </Button>
       </div>
 
-      <button
+      <Button
+        variant="ghost"
+        size="icon"
         onClick={() => centerOnBlock(0, 0)}
-        className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-surface/90 text-sm text-muted shadow-xl backdrop-blur-sm transition-colors hover:bg-surface-light hover:text-foreground"
+        className="h-9 w-9 rounded-xl border border-border bg-surface/90 text-sm text-muted shadow-xl backdrop-blur-sm hover:bg-surface-light hover:text-foreground"
         title="Center View"
       >
         <svg
@@ -52,7 +59,7 @@ export function CanvasViewport() {
           <line x1="1" y1="8" x2="4" y2="8" />
           <line x1="12" y1="8" x2="15" y2="8" />
         </svg>
-      </button>
+      </Button>
     </div>
   );
 }

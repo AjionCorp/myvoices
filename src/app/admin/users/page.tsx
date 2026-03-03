@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { ClearableInput } from "@/components/ui/clearable-input";
 
 interface UserEntry {
   identity: string;
@@ -34,10 +34,11 @@ export default function UsersManagement() {
       </h1>
 
       <div className="mb-6">
-        <Input
+        <ClearableInput
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          onClear={() => setSearch("")}
           placeholder="Search users by name, email, or identity..."
           className="w-full max-w-md bg-surface"
         />

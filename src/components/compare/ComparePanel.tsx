@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { getThumbnailUrl } from "@/lib/utils/video-url";
 import { Platform } from "@/lib/constants";
 import type { ComparePanel as ComparePanelData, CompareBlock } from "@/app/api/v1/compare/route";
@@ -35,9 +36,10 @@ function VideoCard({
   const platformLabel = PLATFORM_LABELS[block.platform] ?? block.platform;
 
   return (
-    <button
+    <Button
+      variant="ghost"
       onClick={onClick}
-      className="group w-full flex gap-3 rounded-xl p-2.5 hover:bg-surface transition-colors text-left"
+      className="group w-full flex gap-3 rounded-xl p-2.5 hover:bg-surface h-auto items-start text-left"
     >
       {/* Thumbnail */}
       <div className="relative w-28 h-16 shrink-0 rounded-lg overflow-hidden bg-surface">
@@ -92,7 +94,7 @@ function VideoCard({
           )}
         </div>
       </div>
-    </button>
+    </Button>
   );
 }
 
@@ -165,7 +167,8 @@ export function ComparePanel({
       </div>
 
       {/* Video list */}
-      <div className="flex-1 overflow-y-auto overscroll-contain px-2 py-2 space-y-0.5">
+      <ScrollArea className="flex-1 px-2 py-2">
+        <div className="space-y-0.5">
         {blocks.length === 0 && (
           <div className="py-12 text-center text-sm text-muted-foreground">
             No videos yet in this topic
@@ -178,7 +181,8 @@ export function ComparePanel({
             onClick={() => onSelectBlock(block)}
           />
         ))}
-      </div>
+        </div>
+      </ScrollArea>
 
       {/* Footer — description teaser */}
       {topic.description && (

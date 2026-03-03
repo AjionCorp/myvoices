@@ -51,13 +51,17 @@ import DevSetAdminReducer from "./dev_set_admin_reducer";
 import DislikeVideoReducer from "./dislike_video_reducer";
 import FinalizeContestReducer from "./finalize_contest_reducer";
 import IncrementTopicViewsReducer from "./increment_topic_views_reducer";
+import LikeCommentReducer from "./like_comment_reducer";
 import LikeVideoReducer from "./like_video_reducer";
 import MarkAdPaidReducer from "./mark_ad_paid_reducer";
+import MarkAllNotificationsReadReducer from "./mark_all_notifications_read_reducer";
+import MarkNotificationReadReducer from "./mark_notification_read_reducer";
 import PlaceAdReducer from "./place_ad_reducer";
 import RebalanceTopicReducer from "./rebalance_topic_reducer";
 import RegisterUserReducer from "./register_user_reducer";
 import RemoveAdReducer from "./remove_ad_reducer";
 import RemoveTopicModeratorReducer from "./remove_topic_moderator_reducer";
+import RepostCommentReducer from "./repost_comment_reducer";
 import ReviewTopicModeratorApplicationReducer from "./review_topic_moderator_application_reducer";
 import SeedAdsReducer from "./seed_ads_reducer";
 import SeedDataReducer from "./seed_data_reducer";
@@ -69,6 +73,7 @@ import SpendCreditsReducer from "./spend_credits_reducer";
 import StoreClerkMappingReducer from "./store_clerk_mapping_reducer";
 import UnclaimBlockReducer from "./unclaim_block_reducer";
 import UndislikeVideoReducer from "./undislike_video_reducer";
+import UnlikeCommentReducer from "./unlike_comment_reducer";
 import UnlikeVideoReducer from "./unlike_video_reducer";
 import UpdateProfileReducer from "./update_profile_reducer";
 import UpdateStripeAccountReducer from "./update_stripe_account_reducer";
@@ -81,11 +86,13 @@ import AdPlacementRow from "./ad_placement_table";
 import BlockRow from "./block_table";
 import ClerkIdentityMapRow from "./clerk_identity_map_table";
 import CommentRow from "./comment_table";
+import CommentLikeRow from "./comment_like_table";
 import ContestRow from "./contest_table";
 import ContestWinnerRow from "./contest_winner_table";
 import CreditTransactionLogRow from "./credit_transaction_log_table";
 import DislikeRecordRow from "./dislike_record_table";
 import LikeRecordRow from "./like_record_table";
+import NotificationRow from "./notification_table";
 import TopicRow from "./topic_table";
 import TopicModeratorRow from "./topic_moderator_table";
 import TopicModeratorApplicationRow from "./topic_moderator_application_table";
@@ -141,6 +148,17 @@ const tablesSchema = __schema({
       { name: 'comment_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, CommentRow),
+  comment_like: __table({
+    name: 'comment_like',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'comment_like_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, CommentLikeRow),
   contest: __table({
     name: 'contest',
     indexes: [
@@ -196,6 +214,17 @@ const tablesSchema = __schema({
       { name: 'like_record_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, LikeRecordRow),
+  notification: __table({
+    name: 'notification',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'notification_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, NotificationRow),
   topic: __table({
     name: 'topic',
     indexes: [
@@ -291,13 +320,17 @@ const reducersSchema = __reducers(
   __reducerSchema("dislike_video", DislikeVideoReducer),
   __reducerSchema("finalize_contest", FinalizeContestReducer),
   __reducerSchema("increment_topic_views", IncrementTopicViewsReducer),
+  __reducerSchema("like_comment", LikeCommentReducer),
   __reducerSchema("like_video", LikeVideoReducer),
   __reducerSchema("mark_ad_paid", MarkAdPaidReducer),
+  __reducerSchema("mark_all_notifications_read", MarkAllNotificationsReadReducer),
+  __reducerSchema("mark_notification_read", MarkNotificationReadReducer),
   __reducerSchema("place_ad", PlaceAdReducer),
   __reducerSchema("rebalance_topic", RebalanceTopicReducer),
   __reducerSchema("register_user", RegisterUserReducer),
   __reducerSchema("remove_ad", RemoveAdReducer),
   __reducerSchema("remove_topic_moderator", RemoveTopicModeratorReducer),
+  __reducerSchema("repost_comment", RepostCommentReducer),
   __reducerSchema("review_topic_moderator_application", ReviewTopicModeratorApplicationReducer),
   __reducerSchema("seed_ads", SeedAdsReducer),
   __reducerSchema("seed_data", SeedDataReducer),
@@ -309,6 +342,7 @@ const reducersSchema = __reducers(
   __reducerSchema("store_clerk_mapping", StoreClerkMappingReducer),
   __reducerSchema("unclaim_block", UnclaimBlockReducer),
   __reducerSchema("undislike_video", UndislikeVideoReducer),
+  __reducerSchema("unlike_comment", UnlikeCommentReducer),
   __reducerSchema("unlike_video", UnlikeVideoReducer),
   __reducerSchema("update_profile", UpdateProfileReducer),
   __reducerSchema("update_stripe_account", UpdateStripeAccountReducer),

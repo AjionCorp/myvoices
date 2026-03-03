@@ -57,8 +57,21 @@ export const Comment = __t.object("Comment", {
   userName: __t.string(),
   text: __t.string(),
   createdAt: __t.u64(),
+  parentCommentId: __t.option(__t.u64()),
+  repostOfId: __t.option(__t.u64()),
+  likesCount: __t.u64(),
+  repliesCount: __t.u64(),
+  repostsCount: __t.u64(),
 });
 export type Comment = __Infer<typeof Comment>;
+
+export const CommentLike = __t.object("CommentLike", {
+  id: __t.u64(),
+  commentId: __t.u64(),
+  userIdentity: __t.string(),
+  createdAt: __t.u64(),
+});
+export type CommentLike = __Infer<typeof CommentLike>;
 
 export const Contest = __t.object("Contest", {
   id: __t.u64(),
@@ -110,6 +123,19 @@ export const LikeRecord = __t.object("LikeRecord", {
   createdAt: __t.u64(),
 });
 export type LikeRecord = __Infer<typeof LikeRecord>;
+
+export const Notification = __t.object("Notification", {
+  id: __t.u64(),
+  recipientIdentity: __t.string(),
+  actorIdentity: __t.string(),
+  actorName: __t.string(),
+  notificationType: __t.string(),
+  blockId: __t.u64(),
+  commentId: __t.u64(),
+  isRead: __t.bool(),
+  createdAt: __t.u64(),
+});
+export type Notification = __Infer<typeof Notification>;
 
 export const Topic = __t.object("Topic", {
   id: __t.u64(),

@@ -1,8 +1,17 @@
 "use client";
 
 import { memo } from "react";
-import { Search, X, ChevronDown, Home } from "lucide-react";
+import { Search, Home } from "lucide-react";
 import type { SortKey } from "@/lib/landing/cluster-layout";
+import { ClearableInput } from "@/components/ui/clearable-input";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface GlobalStats {
   topicCount: number;
@@ -50,8 +59,6 @@ export const LandingHUD = memo(function LandingHUD({
   onZoomIn,
   onZoomOut,
 }: LandingHUDProps) {
-  const sortLabel = SORT_OPTIONS.find((o) => o.key === sortKey)?.label ?? "Sort";
-
   return (
     <>
       {/* ── Top bar ── */}
@@ -130,77 +137,38 @@ export const LandingHUD = memo(function LandingHUD({
             }}
           >
             <Search size={14} style={{ color: "rgba(255,255,255,0.35)", flexShrink: 0 }} />
-            <input
+            <ClearableInput
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
+              onClear={() => onSearchChange("")}
               placeholder="Search topics…"
-              style={{
-                flex: 1,
-                background: "transparent",
-                border: "none",
-                outline: "none",
-                fontSize: 13,
-                color: "#ffffff",
-                caretColor: "#ea580c",
-              }}
+              className="flex-1 border-0 bg-transparent p-0 text-[13px] text-white shadow-none focus-visible:ring-0 placeholder:text-white/35 h-auto [&+button]:text-white/40 [&+button]:hover:text-white/80 [&+button]:hover:bg-transparent"
+              style={{ caretColor: "#ea580c" }}
             />
-            {search && (
-              <button
-                onClick={() => onSearchChange("")}
-                style={{
-                  background: "none",
-                  border: "none",
-                  padding: 0,
-                  cursor: "pointer",
-                  color: "rgba(255,255,255,0.4)",
-                  display: "flex",
-                  alignItems: "center",
-                  flexShrink: 0,
-                }}
-              >
-                <X size={12} />
-              </button>
-            )}
           </div>
 
           {/* Sort dropdown */}
-          <div style={{ position: "relative", flexShrink: 0 }}>
-            <select
-              value={sortKey}
-              onChange={(e) => onSortChange(e.target.value as SortKey)}
+          <Select value={sortKey} onValueChange={(v) => onSortChange(v as SortKey)}>
+            <SelectTrigger
+              className="w-auto shrink-0 text-[12px] font-medium text-white/75 focus:ring-0 border-white/10"
               style={{
                 background: "rgba(14,14,14,0.90)",
                 backdropFilter: "blur(12px)",
-                border: "1px solid rgba(255,255,255,0.10)",
                 borderRadius: 12,
-                padding: "7px 28px 7px 12px",
-                fontSize: 12,
-                color: "rgba(255,255,255,0.75)",
-                cursor: "pointer",
-                outline: "none",
-                appearance: "none",
-                WebkitAppearance: "none",
-                fontWeight: 500,
-              } as React.CSSProperties}
-            >
-              {SORT_OPTIONS.map((o) => (
-                <option key={o.key} value={o.key} style={{ background: "#1e1e1e" }}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-            <ChevronDown
-              size={12}
-              style={{
-                position: "absolute",
-                right: 9,
-                top: "50%",
-                transform: "translateY(-50%)",
-                color: "rgba(255,255,255,0.4)",
-                pointerEvents: "none",
+                padding: "7px 12px",
+                height: "auto",
               }}
-            />
-          </div>
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SORT_OPTIONS.map((o) => (
+                <SelectItem key={o.key} value={o.key}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* Right side — nothing for now (zoom controls are below) */}
@@ -232,25 +200,15 @@ export const LandingHUD = memo(function LandingHUD({
           }}
         >
           <span>{activeCategory}</span>
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={onClearCategory}
-            style={{
-              background: "rgba(255,255,255,0.1)",
-              border: "none",
-              borderRadius: "50%",
-              width: 16,
-              height: 16,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              cursor: "pointer",
-              color: "#fb923c",
-              padding: 0,
-            }}
             title="Clear filter"
+            className="h-4 w-4 p-0 rounded-full bg-white/10 text-orange-400 hover:bg-white/20 hover:text-orange-300 shrink-0"
           >
             <X size={9} />
-          </button>
+          </Button>
         </div>
       )}
 
@@ -271,18 +229,28 @@ export const LandingHUD = memo(function LandingHUD({
           { label: "+", onClick: onZoomIn, title: "Zoom in" },
           { label: "−", onClick: onZoomOut, title: "Zoom out" },
         ].map((btn) => (
-          <button
+          <Button
             key={btn.label}
+            variant="ghost"
+            size="icon"
             onClick={btn.onClick}
             title={btn.title}
+            className="h-9 w-9 text-lg font-semibold text-white/70 hover:text-white hover:bg-white/10"
             style={controlBtnStyle}
           >
             {btn.label}
-          </button>
+          </Button>
         ))}
-        <button onClick={onHome} title="Fit all" style={controlBtnStyle}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={onHome}
+          title="Fit all"
+          className="h-9 w-9 text-white/70 hover:text-white hover:bg-white/10"
+          style={controlBtnStyle}
+        >
           <Home size={14} />
-        </button>
+        </Button>
 
         {/* Zoom level indicator */}
         <div
@@ -306,24 +274,12 @@ export const LandingHUD = memo(function LandingHUD({
   );
 });
 
-const controlBtnStyle: React.CSSProperties = {
-  width: 36,
-  height: 36,
+const controlBtnStyle = {
   background: "rgba(14,14,14,0.90)",
   backdropFilter: "blur(12px)",
   border: "1px solid rgba(255,255,255,0.10)",
   borderRadius: 10,
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  fontSize: 18,
-  fontWeight: 600,
-  color: "rgba(255,255,255,0.7)",
-  cursor: "pointer",
-  lineHeight: 1,
-  padding: 0,
-  transition: "background 0.15s ease, color 0.15s ease",
-};
+} satisfies React.CSSProperties;
 
 function Stat({ value, label }: { value: number; label: string }) {
   return (

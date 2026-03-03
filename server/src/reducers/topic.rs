@@ -4,6 +4,88 @@ use std::collections::{HashMap, HashSet};
 
 const REAPPLY_COOLDOWN_MICROS: u64 = 24 * 60 * 60 * 1_000_000;
 
+// ---------------------------------------------------------------------------
+// Category allowlist — must mirror src/lib/constants.ts CATEGORIES.
+// ---------------------------------------------------------------------------
+const VALID_CATEGORIES: &[&str] = &[
+    // Discourse & Ideas
+    "Ideas & Solutions",
+    "Politics",
+    "News & Media",
+    "Geopolitics & War",
+    "Society & Culture",
+    "LGBTQ+",
+    "Conspiracy & Alternative",
+    "Paranormal & Supernatural",
+    "Philosophy & Ethics",
+    "Religion & Spirituality",
+    "Nonprofits & Activism",
+    // Knowledge
+    "History",
+    "Science",
+    "Space & Astronomy",
+    "Technology",
+    "Artificial Intelligence",
+    "Education",
+    "Literature & Books",
+    "Science Fiction & Fantasy",
+    "Psychology & Behavior",
+    "Language & Linguistics",
+    "Environment",
+    // Life & Wellbeing
+    "Health & Wellness",
+    "Mental Health",
+    "Fitness & Exercise",
+    "Self-Improvement & Motivation",
+    "Parenting & Family",
+    "Relationships & Dating",
+    "Business & Finance",
+    "Cryptocurrency & Web3",
+    "Real Estate & Housing",
+    "Law & Crime",
+    // Entertainment & Media
+    "Entertainment",
+    "Film & Animation",
+    "Anime & Manga",
+    "Music",
+    "Sports",
+    "Martial Arts & Combat Sports",
+    "Gaming",
+    "Tabletop & Board Games",
+    "Celebrity & Pop Culture",
+    "Comedy",
+    // Lifestyle
+    "Food & Cooking",
+    "Travel",
+    "Fashion & Beauty",
+    "Art & Creativity",
+    "Photography & Film Production",
+    "DIY & Hobbies",
+    "Howto & Style",
+    "Architecture & Interior Design",
+    "Outdoors & Adventure",
+    "Survival & Preparedness",
+    "Automotive",
+    "Animals & Nature",
+    "People & Blogs",
+    "Cultures & Traditions",
+    "Other",
+];
+
+fn validate_category(category: &str) -> Result<(), String> {
+    let trimmed = category.trim();
+    if trimmed.is_empty() {
+        return Err("Category cannot be empty".to_string());
+    }
+    if VALID_CATEGORIES.contains(&trimmed) {
+        Ok(())
+    } else {
+        Err(format!(
+            "Invalid category \"{trimmed}\". Must be one of the allowed categories."
+        ))
+    }
+}
+
 fn now_micros(ctx: &ReducerContext) -> u64 {
     ctx.timestamp.to_micros_since_unix_epoch() as u64
 }
@@ -184,6 +266,8 @@ pub fn create_topic(
     if base_slug.is_empty() {
         return Err("Title must contain at least one alphanumeric character".to_string());
     }
+
+    validate_category(&category)?;
 
     // Enforce globally unique titles (case-insensitive). First come, first served.
     let lower_title = trimmed.to_lowercase();
@@ -518,7 +602,12 @@ pub fn update_topic(
     }
 
     ctx.db.topic().id().delete(topic_id);
-    let next_category = if category.is_empty() { topic.category.clone() } else { category };
+    let next_category = if category.is_empty() {
+        topic.category.clone()
+    } else {
+        validate_category(&category)?;
+        category
+    };
     let taxonomy_node_id = if topic.taxonomy_node_id.is_some() {
         topic.taxonomy_node_id
     } else {

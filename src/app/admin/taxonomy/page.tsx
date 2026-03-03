@@ -7,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ClearableInput } from "@/components/ui/clearable-input";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 type TaxonomyReducers = {
   createTopicTaxonomyNode?: (args: { name: string; parentId: bigint | null }) => void;
@@ -155,41 +157,44 @@ export default function AdminTaxonomyPage() {
 
             <div>
               <label className="mb-1.5 block text-sm font-medium text-muted">Parent Node (optional)</label>
-              <Input
+              <ClearableInput
                 value={parentSearch}
                 onChange={(e) => {
                   setParentSearch(e.target.value);
                   setError(null);
                 }}
+                onClear={() => { setParentSearch(""); setError(null); }}
                 placeholder="Search by name/path/id..."
                 className="bg-background"
                 disabled={busy}
               />
-              <div className="mt-2 max-h-36 overflow-auto rounded-lg border border-border bg-background">
-                <button
+              <ScrollArea className="mt-2 max-h-36 rounded-lg border border-border bg-background">
+                <Button
                   type="button"
-                  className={`block w-full px-3 py-2 text-left text-xs ${
-                    selectedParentId === null ? "bg-accent/10 text-accent-light" : "text-muted hover:bg-surface-light"
+                  variant="ghost"
+                  className={`w-full justify-start px-3 py-2 h-auto text-xs rounded-none ${
+                    selectedParentId === null ? "bg-accent/10 text-accent-light" : "text-muted"
                   }`}
                   onClick={() => setSelectedParentId(null)}
                   disabled={busy}
                 >
                   Top-level (no parent)
-                </button>
+                </Button>
                 {filteredParentCandidates.slice(0, 50).map((node) => (
-                  <button
+                  <Button
                     key={node.id}
                     type="button"
-                    className={`block w-full px-3 py-2 text-left text-xs ${
-                      selectedParentId === node.id ? "bg-accent/10 text-accent-light" : "text-muted hover:bg-surface-light"
+                    variant="ghost"
+                    className={`w-full justify-start px-3 py-2 h-auto text-xs rounded-none ${
+                      selectedParentId === node.id ? "bg-accent/10 text-accent-light" : "text-muted"
                     }`}
                     onClick={() => setSelectedParentId(node.id)}
                     disabled={busy}
                   >
                     {node.path} (id:{node.id})
-                  </button>
+                  </Button>
                 ))}
-              </div>
+              </ScrollArea>
               <p className="mt-1 text-xs text-muted">
                 Selected: {selectedParentNode ? `${selectedParentNode.path} (id:${selectedParentNode.id})` : "Top-level"}
               </p>

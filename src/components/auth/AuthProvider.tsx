@@ -113,16 +113,16 @@ function AuthBridge({ children }: { children: ReactNode }) {
       setUser(userData);
     }
 
-    // Fetch Clerk JWT using the "spacetimedb" template so SpacetimeDB can validate it
+    // Try the "spacetimedb" JWT template first; fall back to the plain session
+    // token when the template isn't configured in the Clerk dashboard.
     getToken({ template: "spacetimedb" })
+      .catch(() => getToken())
       .then((t) => {
-        console.log("[Auth] getToken result:", t ? "got token" : "null (JWT template missing or not configured?)");
         setOidcToken(t);
         if (t) setToken(t);
         setLoading(false);
       })
-      .catch((err) => {
-        console.error("[Auth] getToken failed:", err);
+      .catch(() => {
         setLoading(false);
       });
   // Include primaryEmailAddress in deps so the effect re-runs if Clerk hydrates

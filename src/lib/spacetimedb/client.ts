@@ -35,8 +35,34 @@ const USER_TABLES = [
   "SELECT * FROM contest",
   "SELECT * FROM contest_winner",
   "SELECT * FROM comment",
+  "SELECT * FROM comment_like",
   "SELECT * FROM transaction_log",
 ];
+
+/** Handle for the user-specific notification subscription. */
+let notificationSubscription: SubscriptionHandle | null = null;
+
+/**
+ * Subscribe to notifications for the authenticated user.
+ * Called after connect when the identity is known.
+ */
+export function subscribeToNotifications(identity: string): void {
+  if (!connection) return;
+
+  if (notificationSubscription) {
+    notificationSubscription.unsubscribe();
+    notificationSubscription = null;
+  }
+
+  notificationSubscription = connection
+    .subscriptionBuilder()
+    .onApplied(() => {
+      console.log("[SpacetimeDB] notification subscription applied");
+    })
+    .subscribe([
+      `SELECT * FROM notification WHERE recipient_identity = '${identity}'`,
+    ]);
+}
 
 export function connect(
   callbacks?: ConnectionCallbacks,
@@ -74,6 +100,7 @@ export function connect(
         connection = null;
         connectionPromise = null;
         activeBlockSubscription = null;
+        notificationSubscription = null;
         callbacks?.onDisconnect?.();
       })
       .onConnectError((_ctx: unknown, error: Error) => {
@@ -139,6 +166,8 @@ export function reconnect(
 export function disconnect(): void {
   activeBlockSubscription?.unsubscribe();
   activeBlockSubscription = null;
+  notificationSubscription?.unsubscribe();
+  notificationSubscription = null;
   connection?.disconnect();
   connection = null;
   connectionPromise = null;

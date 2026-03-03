@@ -25,6 +25,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TopicPickerModal } from "@/components/compare/TopicPickerModal";
 
 const VideoCanvas = dynamic(
@@ -118,32 +120,38 @@ function TopicOwnerMenu({ topicId, topicCreatorIdentity }: { topicId: number; to
             {hasOthers && (
               <div className="space-y-1">
                 <p className="text-[11px] text-red-200/80">Optional: choose a new owner now</p>
-                <select
-                  value={preferredSuccessorIdentity}
-                  onChange={(e) => setPreferredSuccessorIdentity(e.target.value)}
-                  className="h-7 w-full max-w-[320px] rounded-md border border-red-400/20 bg-background/70 px-2 text-xs text-foreground outline-none focus:border-red-300/40"
+                <Select
+                  value={preferredSuccessorIdentity || "__auto__"}
+                  onValueChange={(v) => setPreferredSuccessorIdentity(v === "__auto__" ? "" : v)}
                   disabled={busy}
                 >
-                  <option value="">Auto-select best candidate</option>
-                  {activeModeratorIdentities.length > 0 && (
-                    <optgroup label="Active moderators">
-                      {activeModeratorIdentities.map((identity) => (
-                        <option key={`mod-${identity}`} value={identity}>
-                          {resolveUserLabel(identity)}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                  {otherContributorIdentities.length > 0 && (
-                    <optgroup label="Contributors">
-                      {otherContributorIdentities.map((identity) => (
-                        <option key={`contrib-${identity}`} value={identity}>
-                          {resolveUserLabel(identity)}
-                        </option>
-                      ))}
-                    </optgroup>
-                  )}
-                </select>
+                  <SelectTrigger className="h-7 w-full max-w-[320px] text-xs border-red-400/20 bg-background/70">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__auto__">Auto-select best candidate</SelectItem>
+                    {activeModeratorIdentities.length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel className="text-[10px]">Active moderators</SelectLabel>
+                        {activeModeratorIdentities.map((identity) => (
+                          <SelectItem key={`mod-${identity}`} value={identity}>
+                            {resolveUserLabel(identity)}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                    {otherContributorIdentities.length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel className="text-[10px]">Contributors</SelectLabel>
+                        {otherContributorIdentities.map((identity) => (
+                          <SelectItem key={`contrib-${identity}`} value={identity}>
+                            {resolveUserLabel(identity)}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
             )}
           </div>
@@ -305,17 +313,18 @@ function TopicModerationMenu({ topicId, topicCreatorIdentity }: { topicId: numbe
       </Dialog>
 
       {(canReview || activeModerators.length > 0) && (
-        <div className="relative">
-          <Button
-            onClick={() => setShowPanel((s) => !s)}
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs text-muted hover:text-foreground"
-          >
-            Community ({activeModerators.length})
-          </Button>
-          {showPanel && (
-            <div className="absolute right-0 top-8 z-40 w-[360px] rounded-xl border border-border bg-background p-3 shadow-2xl">
+        <Popover open={showPanel} onOpenChange={setShowPanel}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-xs text-muted hover:text-foreground"
+            >
+              Community ({activeModerators.length})
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[360px] p-3" align="end" side="bottom">
+            <div>
               <p className="mb-2 text-xs font-semibold text-foreground">Moderators</p>
               <div className="space-y-2">
                 {activeModerators.map((mod) => (
@@ -383,8 +392,8 @@ function TopicModerationMenu({ topicId, topicCreatorIdentity }: { topicId: numbe
                 </>
               )}
             </div>
-          )}
-        </div>
+          </PopoverContent>
+        </Popover>
       )}
     </div>
   );
@@ -457,29 +466,28 @@ function TopicHeader({ slug }: { slug: string }) {
                 <span>{totalClaimed.toLocaleString()} / ∞ videos</span>
                 <span>{moderatorCount} mod{moderatorCount === 1 ? "" : "s"}</span>
                 {subtopics.length > 0 && (
-                  <div className="relative">
-                    <Button
-                      onClick={() => setShowSubtopics((s) => !s)}
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-xs text-muted hover:text-foreground"
-                    >
-                      Subtopics ({subtopics.length})
-                    </Button>
-                    {showSubtopics && (
-                      <div className="absolute left-0 top-8 z-40 w-[280px] rounded-xl border border-border bg-background p-2 shadow-2xl">
-                        {subtopics.map((subtopic) => (
-                          <Link
-                            key={subtopic.id}
-                            href={`/t/${subtopic.slug}`}
-                            className="block rounded-lg px-2 py-1.5 text-xs text-foreground hover:bg-surface"
-                          >
-                            {subtopic.title}
-                          </Link>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  <Popover open={showSubtopics} onOpenChange={setShowSubtopics}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs text-muted hover:text-foreground"
+                      >
+                        Subtopics ({subtopics.length})
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[280px] p-2" align="start" side="bottom">
+                      {subtopics.map((subtopic) => (
+                        <Link
+                          key={subtopic.id}
+                          href={`/t/${subtopic.slug}`}
+                          className="block rounded-lg px-2 py-1.5 text-xs text-foreground hover:bg-surface"
+                        >
+                          {subtopic.title}
+                        </Link>
+                      ))}
+                    </PopoverContent>
+                  </Popover>
                 )}
                 <Button
                   onClick={() => setComparePickerOpen(true)}

@@ -103,6 +103,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (topicsById.size === 0) {
+      console.warn("[api/v1/compare] No topics matched slugs:", slugs);
       return NextResponse.json({ panels: [] });
     }
 
