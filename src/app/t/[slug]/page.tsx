@@ -82,7 +82,7 @@ function TopicOwnerMenu({ topicId, topicCreatorIdentity }: { topicId: number; to
       if (!conn) throw new Error("Not connected");
       conn.reducers.deleteTopic({
         topicId: BigInt(topicId),
-        preferredNewOwnerIdentity: preferredSuccessorIdentity || null,
+        preferredNewOwnerIdentity: preferredSuccessorIdentity || undefined,
       });
       router.push("/");
     } catch (e: unknown) {
