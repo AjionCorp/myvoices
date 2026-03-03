@@ -32,7 +32,12 @@ export enum Platform {
   YouTube = "youtube",
   YouTubeShort = "youtube_short",
   TikTok = "tiktok",
+  Rumble = "rumble",
+  BiliBili = "bilibili",
 }
+
+export const ENABLE_RUMBLE = process.env.NEXT_PUBLIC_ENABLE_RUMBLE === "true";
+export const ENABLE_BILIBILI = process.env.NEXT_PUBLIC_ENABLE_BILIBILI !== "false";
 
 export enum BlockStatus {
   Empty = "empty",

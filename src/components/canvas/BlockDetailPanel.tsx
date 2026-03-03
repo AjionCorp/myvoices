@@ -6,6 +6,7 @@ import { useBlocksStore } from "@/stores/blocks-store";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Platform } from "@/lib/constants";
 import { getVideoUrl, getThumbnailUrl, getEmbedUrl } from "@/lib/utils/video-url";
+import { getConnection } from "@/lib/spacetimedb/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -43,6 +44,10 @@ export function BlockDetailPanel() {
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState("");
   const [showComments, setShowComments] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isEmbedLoading, setIsEmbedLoading] = useState(false);
+  const [resolvedEmbedUrl, setResolvedEmbedUrl] = useState<string | null>(null);
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -51,6 +56,8 @@ export function BlockDetailPanel() {
     setDisliked(false);
     setShowComments(false);
     setCommentText("");
+    setConfirmDelete(false);
+    setIsDeleting(false);
 
     if (selectedBlockId !== null) {
       setComments([
@@ -67,12 +74,68 @@ export function BlockDetailPanel() {
     }
   }, [comments.length, showComments]);
 
-  if (selectedBlockId === null || !block || block.status === "empty") return null;
+  const embedUrl = block?.videoId && block?.platform ? getEmbedUrl(block.videoId, block.platform) : null;
+  const thumbnailUrl = block?.videoId && block?.platform
+    ? getThumbnailUrl(block.videoId, block.platform, block.thumbnailUrl)
+    : null;
+  const originalUrl = block?.videoId && block?.platform ? getVideoUrl(block.videoId, block.platform) : "#";
+  const isPortrait = block?.platform === Platform.YouTubeShort || block?.platform === Platform.TikTok;
 
-  const embedUrl = block.videoId && block.platform ? getEmbedUrl(block.videoId, block.platform) : null;
-  const thumbnailUrl = block.videoId && block.platform ? getThumbnailUrl(block.videoId, block.platform) : null;
-  const originalUrl = block.videoId && block.platform ? getVideoUrl(block.videoId, block.platform) : "#";
-  const isPortrait = block.platform === Platform.YouTubeShort || block.platform === Platform.TikTok;
+  useEffect(() => {
+    if (!block || !block.videoId || !block.platform) {
+      setResolvedEmbedUrl(null);
+      return;
+    }
+
+    const needsResolution =
+      block.platform === Platform.Rumble ||
+      (block.platform === Platform.TikTok && !embedUrl);
+
+    if (!needsResolution) {
+      setResolvedEmbedUrl(embedUrl || null);
+      return;
+    }
+
+    let cancelled = false;
+    setResolvedEmbedUrl(null);
+    setIsEmbedLoading(true);
+
+    fetch("/api/v1/video-meta", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ input: originalUrl }),
+    })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        const data = await res.json() as { embedUrl?: string | null };
+        return data.embedUrl || null;
+      })
+      .then((url) => {
+        if (!cancelled) setResolvedEmbedUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setResolvedEmbedUrl(null);
+      })
+      .finally(() => {
+        if (!cancelled) setIsEmbedLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [block?.id, block?.platform, block?.videoId, embedUrl, originalUrl]);
+
+  useEffect(() => {
+    if (!resolvedEmbedUrl) {
+      setIsEmbedLoading(false);
+      return;
+    }
+    setIsEmbedLoading(true);
+    const timeout = setTimeout(() => setIsEmbedLoading(false), 8000);
+    return () => clearTimeout(timeout);
+  }, [resolvedEmbedUrl]);
+
+  if (selectedBlockId === null || !block || block.status === "empty") return null;
 
   const handleLike = () => {
     if (!isAuthenticated) { login(); return; }
@@ -129,6 +192,22 @@ export function BlockDetailPanel() {
     }
   };
 
+  const isOwner = isAuthenticated && !!user?.identity && user.identity === block?.ownerIdentity;
+
+  const handleDelete = async () => {
+    if (!block || isDeleting) return;
+    setIsDeleting(true);
+    try {
+      const conn = getConnection();
+      if (!conn) throw new Error("Not connected");
+      conn.reducers.unclaimBlock({ blockId: BigInt(block.id) });
+      selectBlock(null);
+    } catch {
+      setIsDeleting(false);
+      setConfirmDelete(false);
+    }
+  };
+
   const close = () => selectBlock(null);
 
   if (block.status === "ad") {
@@ -162,28 +241,52 @@ export function BlockDetailPanel() {
       >
         {/* --- video area --- */}
         <div className="relative w-full shrink-0 bg-black">
-          {embedUrl ? (
+          {resolvedEmbedUrl ? (
             isPortrait ? (
               /* Portrait (Shorts / TikTok): drive size from height so width stays correct */
               <div className="flex w-full justify-center">
-                <div style={{ height: "min(55vh, 300px)", width: "calc(min(55vh, 300px) * 9 / 16)", maxWidth: "100%" }}>
+                <div className="relative" style={{ height: "min(55vh, 300px)", width: "calc(min(55vh, 300px) * 9 / 16)", maxWidth: "100%" }}>
                   <iframe
-                    src={embedUrl}
+                    src={resolvedEmbedUrl}
                     className="h-full w-full"
                     allowFullScreen
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    onLoad={() => setIsEmbedLoading(false)}
                   />
+                  {isEmbedLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-xs text-white/80">
+                      <div className="flex items-center gap-2">
+                        <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="9" opacity="0.3" />
+                          <path d="M21 12a9 9 0 00-9-9" />
+                        </svg>
+                        Loading video...
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
               /* Landscape: drive size from width as normal */
-              <div className="aspect-video max-h-[50vh] w-full">
+              <div className="relative aspect-video max-h-[50vh] w-full">
                 <iframe
-                  src={embedUrl}
+                  src={resolvedEmbedUrl}
                   className="h-full w-full"
                   allowFullScreen
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  onLoad={() => setIsEmbedLoading(false)}
                 />
+                {isEmbedLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-xs text-white/80">
+                    <div className="flex items-center gap-2">
+                      <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="9" opacity="0.3" />
+                        <path d="M21 12a9 9 0 00-9-9" />
+                      </svg>
+                      Loading video...
+                    </div>
+                  </div>
+                )}
               </div>
             )
           ) : thumbnailUrl ? (
@@ -199,6 +302,12 @@ export function BlockDetailPanel() {
           ) : (
             <div className="flex aspect-video max-h-[50vh] w-full items-center justify-center bg-surface-light text-sm text-muted">
               No preview
+            </div>
+          )}
+          {(block.platform === Platform.Rumble ||
+            block.platform === Platform.TikTok) && !resolvedEmbedUrl && (
+            <div className="absolute inset-x-0 bottom-0 bg-black/70 px-3 py-2 text-center text-xs text-white/85">
+              This video cannot be embedded here. Use <span className="font-semibold">Watch Original</span>.
             </div>
           )}
           <button onClick={close}
@@ -275,7 +384,51 @@ export function BlockDetailPanel() {
               </svg>
               <span className="tabular-nums">{comments.length}</span>
             </Button>
+
+            {/* delete (owner only) */}
+            {isOwner && (
+              <Button
+                onClick={() => setConfirmDelete(true)}
+                variant="ghost"
+                size="icon-sm"
+                className="text-muted hover:text-red-400"
+                title="Remove my post"
+              >
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1 14H6L5 6" />
+                  <path d="M10 11v6M14 11v6" />
+                  <path d="M9 6V4h6v2" />
+                </svg>
+              </Button>
+            )}
           </div>
+
+          {/* delete confirmation */}
+          {confirmDelete && (
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3">
+              <p className="text-xs text-red-300">Remove your post from the canvas?</p>
+              <div className="flex shrink-0 gap-2">
+                <Button
+                  onClick={() => setConfirmDelete(false)}
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-muted hover:text-foreground"
+                  disabled={isDeleting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleDelete}
+                  size="sm"
+                  className="h-7 bg-red-600 text-xs text-white hover:bg-red-700"
+                  disabled={isDeleting}
+                >
+                  {isDeleting ? "Removing…" : "Remove"}
+                </Button>
+              </div>
+            </div>
+          )}
 
           {/* comments section */}
           {showComments && (

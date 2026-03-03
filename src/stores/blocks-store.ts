@@ -14,6 +14,7 @@ export interface Block {
   dislikes: number;
   ytViews: number;
   ytLikes: number;
+  thumbnailUrl: string | null;
   status: BlockStatus;
   adImageUrl: string | null;
   adLinkUrl: string | null;

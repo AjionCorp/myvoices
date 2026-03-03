@@ -36,11 +36,15 @@ import {
 // Import all reducer arg schemas
 import AddCommentReducer from "./add_comment_reducer";
 import AddCreditsReducer from "./add_credits_reducer";
+import ApplyTopicModeratorReducer from "./apply_topic_moderator_reducer";
+import BackfillTopicTaxonomyFromCategoriesReducer from "./backfill_topic_taxonomy_from_categories_reducer";
 import ClaimBlockInTopicReducer from "./claim_block_in_topic_reducer";
 import ClearAllBlocksReducer from "./clear_all_blocks_reducer";
 import CreateContestReducer from "./create_contest_reducer";
 import CreateTopicReducer from "./create_topic_reducer";
+import CreateTopicTaxonomyNodeReducer from "./create_topic_taxonomy_node_reducer";
 import DeleteCommentReducer from "./delete_comment_reducer";
+import DeleteTopicReducer from "./delete_topic_reducer";
 import DevClearAllUsersReducer from "./dev_clear_all_users_reducer";
 import DevSeedTopicReducer from "./dev_seed_topic_reducer";
 import DevSetAdminReducer from "./dev_set_admin_reducer";
@@ -53,11 +57,14 @@ import PlaceAdReducer from "./place_ad_reducer";
 import RebalanceTopicReducer from "./rebalance_topic_reducer";
 import RegisterUserReducer from "./register_user_reducer";
 import RemoveAdReducer from "./remove_ad_reducer";
+import RemoveTopicModeratorReducer from "./remove_topic_moderator_reducer";
+import ReviewTopicModeratorApplicationReducer from "./review_topic_moderator_application_reducer";
 import SeedAdsReducer from "./seed_ads_reducer";
 import SeedDataReducer from "./seed_data_reducer";
 import ServerDeleteUserReducer from "./server_delete_user_reducer";
 import ServerUpdateProfileReducer from "./server_update_profile_reducer";
 import SetAdminReducer from "./set_admin_reducer";
+import SetTopicTaxonomyReducer from "./set_topic_taxonomy_reducer";
 import SpendCreditsReducer from "./spend_credits_reducer";
 import StoreClerkMappingReducer from "./store_clerk_mapping_reducer";
 import UnclaimBlockReducer from "./unclaim_block_reducer";
@@ -80,6 +87,9 @@ import CreditTransactionLogRow from "./credit_transaction_log_table";
 import DislikeRecordRow from "./dislike_record_table";
 import LikeRecordRow from "./like_record_table";
 import TopicRow from "./topic_table";
+import TopicModeratorRow from "./topic_moderator_table";
+import TopicModeratorApplicationRow from "./topic_moderator_application_table";
+import TopicTaxonomyNodeRow from "./topic_taxonomy_node_table";
 import TransactionLogRow from "./transaction_log_table";
 import UserProfileRow from "./user_profile_table";
 
@@ -201,6 +211,43 @@ const tablesSchema = __schema({
       { name: 'topic_slug_key', constraint: 'unique', columns: ['slug'] },
     ],
   }, TopicRow),
+  topic_moderator: __table({
+    name: 'topic_moderator',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'topic_moderator_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, TopicModeratorRow),
+  topic_moderator_application: __table({
+    name: 'topic_moderator_application',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'topic_moderator_application_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, TopicModeratorApplicationRow),
+  topic_taxonomy_node: __table({
+    name: 'topic_taxonomy_node',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+      { name: 'slug', algorithm: 'btree', columns: [
+        'slug',
+      ] },
+    ],
+    constraints: [
+      { name: 'topic_taxonomy_node_id_key', constraint: 'unique', columns: ['id'] },
+      { name: 'topic_taxonomy_node_slug_key', constraint: 'unique', columns: ['slug'] },
+    ],
+  }, TopicTaxonomyNodeRow),
   transaction_log: __table({
     name: 'transaction_log',
     indexes: [
@@ -229,11 +276,15 @@ const tablesSchema = __schema({
 const reducersSchema = __reducers(
   __reducerSchema("add_comment", AddCommentReducer),
   __reducerSchema("add_credits", AddCreditsReducer),
+  __reducerSchema("apply_topic_moderator", ApplyTopicModeratorReducer),
+  __reducerSchema("backfill_topic_taxonomy_from_categories", BackfillTopicTaxonomyFromCategoriesReducer),
   __reducerSchema("claim_block_in_topic", ClaimBlockInTopicReducer),
   __reducerSchema("clear_all_blocks", ClearAllBlocksReducer),
   __reducerSchema("create_contest", CreateContestReducer),
   __reducerSchema("create_topic", CreateTopicReducer),
+  __reducerSchema("create_topic_taxonomy_node", CreateTopicTaxonomyNodeReducer),
   __reducerSchema("delete_comment", DeleteCommentReducer),
+  __reducerSchema("delete_topic", DeleteTopicReducer),
   __reducerSchema("dev_clear_all_users", DevClearAllUsersReducer),
   __reducerSchema("dev_seed_topic", DevSeedTopicReducer),
   __reducerSchema("dev_set_admin", DevSetAdminReducer),
@@ -246,11 +297,14 @@ const reducersSchema = __reducers(
   __reducerSchema("rebalance_topic", RebalanceTopicReducer),
   __reducerSchema("register_user", RegisterUserReducer),
   __reducerSchema("remove_ad", RemoveAdReducer),
+  __reducerSchema("remove_topic_moderator", RemoveTopicModeratorReducer),
+  __reducerSchema("review_topic_moderator_application", ReviewTopicModeratorApplicationReducer),
   __reducerSchema("seed_ads", SeedAdsReducer),
   __reducerSchema("seed_data", SeedDataReducer),
   __reducerSchema("server_delete_user", ServerDeleteUserReducer),
   __reducerSchema("server_update_profile", ServerUpdateProfileReducer),
   __reducerSchema("set_admin", SetAdminReducer),
+  __reducerSchema("set_topic_taxonomy", SetTopicTaxonomyReducer),
   __reducerSchema("spend_credits", SpendCreditsReducer),
   __reducerSchema("store_clerk_mapping", StoreClerkMappingReducer),
   __reducerSchema("unclaim_block", UnclaimBlockReducer),

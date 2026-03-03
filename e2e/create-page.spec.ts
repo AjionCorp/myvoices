@@ -20,10 +20,9 @@ test.describe("Create page UX", () => {
     await page.goto("/t/create");
     await page.waitForLoadState("domcontentloaded");
 
-    const categoryInput = page.locator("#topic-category");
-    await categoryInput.fill("M");
-    await categoryInput.fill("Music");
-    await expect(categoryInput).toHaveValue("Music");
+    await page.locator("#topic-category-search").fill("Music");
+    await page.locator("#topic-category").selectOption({ label: "Music" });
+    await expect(page.locator("#topic-category")).toContainText("Music");
   });
 
   test("desktop shows inline CTA and no mobile sticky bar", async ({ page }) => {

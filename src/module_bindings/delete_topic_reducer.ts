@@ -12,10 +12,4 @@ import {
 
 export default {
   topicId: __t.u64(),
-  videoId: __t.string(),
-  platform: __t.string(),
-  thumbnailUrl: __t.string(),
-  ownerName: __t.string(),
-  ytViews: __t.u64(),
-  ytLikes: __t.u64(),
 };

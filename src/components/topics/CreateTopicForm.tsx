@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getConnection } from "@/lib/spacetimedb/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useTopicStore } from "@/stores/topic-store";
-import { extractYouTubeId, getYouTubeThumbnail } from "@/lib/utils/youtube";
+import { Platform } from "@/lib/constants";
+import { getThumbnailUrl } from "@/lib/utils/video-url";
+import { resolveVideoMeta, type ResolvedVideoMeta } from "@/lib/utils/video-meta";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -41,17 +43,6 @@ const GRADIENTS = [
   "from-cyan-500 to-sky-950",
 ];
 
-interface VideoMeta {
-  videoId: string;
-  viewCount: string;
-  likeCount: string;
-  title: string;
-  ownerChannelName: string;
-  isShortsEligible: boolean;
-}
-
-const VIDEO_ID_RE = /^[a-zA-Z0-9_-]{11}$/;
-
 function pickGradient(seed: string): string {
   let h = 0;
   for (const c of seed) h = Math.imul(31, h) + c.charCodeAt(0);
@@ -68,15 +59,22 @@ function slugFromTitle(title: string): string {
 function PreviewCard({
   title,
   category,
-  youtubeVideoId,
+  starterVideoId,
+  starterPlatform,
+  starterThumbnailUrl,
 }: {
   title: string;
   category: string;
-  youtubeVideoId: string | null;
+  starterVideoId: string | null;
+  starterPlatform: Platform | null;
+  starterThumbnailUrl: string | null;
 }) {
   const gradient = pickGradient(title || "default");
   const displayTitle = title.trim() || "Your topic title";
-  const thumbnailUrl = youtubeVideoId ? getYouTubeThumbnail(youtubeVideoId) : null;
+  const thumbnailUrl =
+    starterVideoId && starterPlatform
+      ? getThumbnailUrl(starterVideoId, starterPlatform, starterThumbnailUrl)
+      : null;
 
   return (
     <div className="w-full max-w-[260px] overflow-hidden rounded-2xl border border-white/10 shadow-2xl shadow-black/50">
@@ -104,6 +102,7 @@ function PreviewCard({
   );
 }
 
+
 function TitleProgress({ length, max }: { length: number; max: number }) {
   const pct = Math.min(100, (length / max) * 100);
   const color = length >= 75 ? "bg-red-500" : length >= 60 ? "bg-amber-400" : "bg-accent";
@@ -130,84 +129,110 @@ export function CreateTopicForm() {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [youtubeUrl, setYoutubeUrl] = useState("");
+  const [starterUrl, setStarterUrl] = useState("");
+  const [starterMeta, setStarterMeta] = useState<ResolvedVideoMeta | null>(null);
+  const [isResolvingStarter, setIsResolvingStarter] = useState(false);
   const [categoryInput, setCategoryInput] = useState("Entertainment");
-  const [starterVideoMeta, setStarterVideoMeta] = useState<VideoMeta | null>(null);
-  const [isVideoMetaLoading, setIsVideoMetaLoading] = useState(false);
-  const [videoMetaError, setVideoMetaError] = useState<string | null>(null);
+  const [subcategoryInput, setSubcategoryInput] = useState("");
+  const [newSubcategoryName, setNewSubcategoryName] = useState("");
+  const [categorySearch, setCategorySearch] = useState("");
+  const [subcategorySearch, setSubcategorySearch] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { topics, taxonomyNodes } = useTopicStore();
 
   const slug = slugFromTitle(title);
-  const normalizedCategory =
-    CATEGORIES.find((value) => value.toLowerCase() === categoryInput.trim().toLowerCase()) ?? null;
-  const categoryMatches = CATEGORIES.filter((value) =>
-    value.toLowerCase().includes(categoryInput.trim().toLowerCase())
+  const activeNodes = useMemo(
+    () =>
+      [...taxonomyNodes.values()]
+        .filter((n) => n.isActive)
+        .sort((a, b) => a.depth - b.depth || a.name.localeCompare(b.name)),
+    [taxonomyNodes]
   );
-  const starterVideoId = starterVideoMeta?.videoId ?? extractYouTubeId(youtubeUrl.trim());
+  const topLevelNodes = useMemo(
+    () => activeNodes.filter((n) => n.depth === 0 && n.parentId === null),
+    [activeNodes]
+  );
+  const topLevelNames = useMemo(
+    () => (topLevelNodes.length > 0 ? topLevelNodes.map((n) => n.name) : [...CATEGORIES]),
+    [topLevelNodes]
+  );
+  const normalizedCategory =
+    topLevelNames.find((value) => value.toLowerCase() === categoryInput.trim().toLowerCase()) ?? null;
+  const categoryMatches = topLevelNames.filter((value) =>
+    value.toLowerCase().includes(categorySearch.trim().toLowerCase())
+  );
+  const selectedTopLevelNode = normalizedCategory
+    ? topLevelNodes.find((node) => node.name.toLowerCase() === normalizedCategory.toLowerCase()) ?? null
+    : null;
+  const childNodes = selectedTopLevelNode
+    ? activeNodes.filter((n) => n.parentId === selectedTopLevelNode.id)
+    : [];
+  const subcategoryMatches = childNodes.filter((node) =>
+    node.name.toLowerCase().includes(subcategorySearch.trim().toLowerCase())
+  );
+  const selectedSubNode =
+    childNodes.find((node) => node.name.toLowerCase() === subcategoryInput.trim().toLowerCase()) ?? null;
+  const selectedTaxonomyNodeId = selectedSubNode?.id ?? selectedTopLevelNode?.id ?? null;
+  const normalizedNewSubcategory = newSubcategoryName.trim();
+  const starterVideoId = starterMeta?.videoId ?? null;
+  const starterPlatform = starterMeta?.platform ?? null;
+  const starterThumbnailUrl = starterMeta?.thumbnailUrl ?? null;
+
+  const titleLower = title.trim().toLowerCase();
+  const titleTaken =
+    titleLower.length > 0 &&
+    [...topics.values()].some((t) => t.title.toLowerCase() === titleLower);
+
   const canSubmit =
     title.trim().length > 0 &&
-    !!starterVideoMeta &&
+    !titleTaken &&
+    !!starterMeta &&
     !!normalizedCategory &&
-    !isVideoMetaLoading &&
+    !isResolvingStarter &&
     !isSubmitting;
   const ctaLabel = isSubmitting ? "Creating..." : isAuthenticated ? "Create Topic" : "Sign in to Create";
 
   useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, []);
+    if (topLevelNames.length === 0) return;
+    const hasCurrent = topLevelNames.some((name) => name.toLowerCase() === categoryInput.trim().toLowerCase());
+    if (!hasCurrent) {
+      setCategoryInput(topLevelNames[0]);
+      setSubcategoryInput("");
+    }
+  }, [topLevelNames, categoryInput]);
 
-  const handleYoutubeUrlChange = (value: string) => {
-    setYoutubeUrl(value);
-    setError(null);
-    setVideoMetaError(null);
-    setStarterVideoMeta(null);
-
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-
-    const trimmed = value.trim();
-    if (!trimmed) {
-      setIsVideoMetaLoading(false);
+  useEffect(() => {
+    const value = starterUrl.trim();
+    if (!value) {
+      setStarterMeta(null);
+      setIsResolvingStarter(false);
       return;
     }
 
-    setIsVideoMetaLoading(true);
-
-    debounceRef.current = setTimeout(async () => {
-      const videoId = VIDEO_ID_RE.test(trimmed) ? trimmed : extractYouTubeId(trimmed);
-
-      if (!videoId) {
-        setVideoMetaError("Enter a valid YouTube URL or video ID.");
-        setIsVideoMetaLoading(false);
-        return;
-      }
-
+    let cancelled = false;
+    setIsResolvingStarter(true);
+    const timer = setTimeout(async () => {
       try {
-        const res = await fetch("/api/v1/video-meta", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ videoId }),
-        });
-
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          setVideoMetaError(data.error || `Failed to load video metadata (${res.status}).`);
-          setStarterVideoMeta(null);
-        } else {
-          const data: VideoMeta = await res.json();
-          setStarterVideoMeta(data);
-          setVideoMetaError(null);
-        }
+        const meta = await resolveVideoMeta(value);
+        if (!cancelled) setStarterMeta(meta);
       } catch {
-        setVideoMetaError("Network error while loading video metadata.");
-        setStarterVideoMeta(null);
+        if (!cancelled) setStarterMeta(null);
       } finally {
-        setIsVideoMetaLoading(false);
+        if (!cancelled) setIsResolvingStarter(false);
       }
-    }, 500);
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [starterUrl]);
+
+  const handleStarterUrlChange = (value: string) => {
+    setStarterUrl(value);
+    setError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -223,8 +248,8 @@ export function CreateTopicForm() {
       return;
     }
 
-    if (!starterVideoMeta || !starterVideoId) {
-      setError("A valid starter YouTube video is required.");
+    if (!starterMeta || !starterVideoId) {
+      setError("A valid starter URL is required (YouTube, TikTok, or BiliBili).");
       return;
     }
 
@@ -243,6 +268,23 @@ export function CreateTopicForm() {
     setError(null);
 
     try {
+      let taxonomyNodeIdToAssign = selectedTaxonomyNodeId;
+      if (!taxonomyNodeIdToAssign && normalizedNewSubcategory && selectedTopLevelNode) {
+        (conn.reducers as unknown as {
+          createTopicTaxonomyNode?: (args: { name: string; parentId: bigint | null }) => void;
+        }).createTopicTaxonomyNode?.({
+          name: normalizedNewSubcategory,
+          parentId: BigInt(selectedTopLevelNode.id),
+        });
+        await new Promise((r) => setTimeout(r, 350));
+        const created = [...useTopicStore.getState().taxonomyNodes.values()].find(
+          (n) =>
+            n.parentId === selectedTopLevelNode.id &&
+            n.name.toLowerCase() === normalizedNewSubcategory.toLowerCase()
+        );
+        if (created) taxonomyNodeIdToAssign = created.id;
+      }
+
       conn.reducers.createTopic({
         title: title.trim(),
         description: description.trim(),
@@ -255,21 +297,30 @@ export function CreateTopicForm() {
       const newTopic =
         topicStore.getTopicBySlug(slug) ||
         [...topicStore.topics.values()].find((t) => t.title === title.trim());
+      const targetTopicId = newTopic?.id ?? null;
+      const targetTopicSlug = newTopic?.slug ?? null;
 
-      if (newTopic) {
-        const ownerName = starterVideoMeta.ownerChannelName || user?.username || user?.displayName || "Anonymous";
-        const platform = starterVideoMeta.isShortsEligible ? "youtube_short" : "youtube";
+      if (targetTopicId !== null) {
+        if (taxonomyNodeIdToAssign) {
+          (conn.reducers as unknown as { setTopicTaxonomy?: (args: { topicId: bigint; taxonomyNodeId: bigint }) => void })
+            .setTopicTaxonomy?.({
+              topicId: BigInt(targetTopicId),
+              taxonomyNodeId: BigInt(taxonomyNodeIdToAssign),
+            });
+        }
+        const ownerName = user?.username || user?.displayName || "Anonymous";
         conn.reducers.claimBlockInTopic({
-          topicId: BigInt(newTopic.id),
+          topicId: BigInt(targetTopicId),
           videoId: starterVideoId,
-          platform,
+          platform: starterMeta.platform,
+          thumbnailUrl: starterMeta.thumbnailUrl || "",
           ownerName,
-          ytViews: BigInt(starterVideoMeta.viewCount || "0"),
-          ytLikes: BigInt(starterVideoMeta.likeCount || "0"),
+          ytViews: BigInt(0),
+          ytLikes: BigInt(0),
         });
       }
 
-      router.push(newTopic ? `/t/${newTopic.slug}` : "/");
+      router.push(targetTopicSlug ? `/t/${targetTopicSlug}` : "/");
     } catch {
       setError("Failed to create topic. Please try again.");
       setIsSubmitting(false);
@@ -312,12 +363,24 @@ export function CreateTopicForm() {
                 />
                 <TitleProgress length={title.length} max={80} />
 
+                {titleTaken && (
+                  <p className="mt-1.5 flex items-center gap-1.5 text-xs text-red-400">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 11a1 1 0 110-2 1 1 0 010 2zm1-4H7V5h2v3z" />
+                    </svg>
+                    This title is already taken. Titles must be unique.
+                  </p>
+                )}
+
                 {slug && (
                   <Badge variant="outline" className="mt-2 inline-flex items-center overflow-hidden rounded-full bg-surface-light px-3 py-1 text-xs">
                     <span className="text-muted">myvoice.app/t/</span>
                     <span className="font-semibold text-accent">{slug}</span>
                   </Badge>
                 )}
+                <p className="mt-2 text-xs text-muted">
+                  Tip: concrete titles perform best (e.g. &quot;Best parkour clips 2026&quot;).
+                </p>
               </div>
 
               <div>
@@ -348,24 +411,23 @@ export function CreateTopicForm() {
                   htmlFor="topic-youtube-url"
                   className="mb-2 block text-xs font-semibold uppercase tracking-wider text-muted"
                 >
-                  Starter video URL <span className="font-normal normal-case tracking-normal text-accent">required</span>
+                  Starter content URL <span className="font-normal normal-case tracking-normal text-accent">required</span>
                 </label>
                 <Input
                   id="topic-youtube-url"
                   type="url"
-                  value={youtubeUrl}
-                  onChange={(e) => handleYoutubeUrlChange(e.target.value)}
-                  placeholder="https://youtube.com/watch?v=... or dQw4w9WgXcQ"
+                  value={starterUrl}
+                  onChange={(e) => handleStarterUrlChange(e.target.value)}
+                  placeholder="https://youtube.com/... or https://tiktok.com/... or https://bilibili.com/..."
                   className="h-11 rounded-xl border-border bg-surface-light px-4 placeholder-muted/50"
                   disabled={isSubmitting}
                 />
-                <p className="mt-1 text-xs text-muted">This video is pre-populated at x=0, y=0 for the new topic.</p>
-                {isVideoMetaLoading && <p className="mt-1 text-xs text-muted">Loading video metadata...</p>}
-                {videoMetaError && <p className="mt-1 text-xs text-red-400">{videoMetaError}</p>}
-                {starterVideoMeta && !isVideoMetaLoading && (
-                  <p className="mt-1 text-xs text-emerald-400">
-                    Ready: {starterVideoMeta.title || starterVideoMeta.videoId}
-                  </p>
+                <p className="mt-1 text-xs text-muted">This post is pre-populated at x=0, y=0 for the new topic.</p>
+                {starterUrl.trim() && isResolvingStarter && (
+                  <p className="mt-1 text-xs text-muted">Resolving media metadata...</p>
+                )}
+                {starterUrl.trim() && !isResolvingStarter && !starterMeta && (
+                  <p className="mt-1 text-xs text-red-400">Unsupported URL. Use YouTube, TikTok, or BiliBili.</p>
                 )}
               </div>
             </div>
@@ -375,29 +437,109 @@ export function CreateTopicForm() {
           <Card className="gap-0 border-border bg-surface py-0">
             <CardContent className="p-4 sm:p-5">
             <label
-              htmlFor="topic-category"
+              htmlFor="topic-category-search"
               className="mb-2 block text-xs font-semibold uppercase tracking-wider text-muted"
             >
               Category
             </label>
             <Input
-              id="topic-category"
-              list="topic-category-options"
-              value={categoryInput}
+              id="topic-category-search"
+              value={categorySearch}
               onChange={(e) => {
-                setCategoryInput(e.target.value);
+                setCategorySearch(e.target.value);
                 setError(null);
               }}
-              placeholder="Type to search category..."
+              placeholder="Search categories..."
               className="h-11 w-full rounded-xl border-border bg-surface-light px-4"
               disabled={isSubmitting}
             />
-            <datalist id="topic-category-options">
+            <select
+              id="topic-category"
+              value={categoryInput}
+              onChange={(e) => {
+                setCategoryInput(e.target.value);
+                setSubcategoryInput("");
+                setSubcategorySearch("");
+                setNewSubcategoryName("");
+                setError(null);
+              }}
+              disabled={isSubmitting}
+              className="mt-2 h-11 w-full rounded-xl border border-border bg-surface-light px-4 text-sm text-foreground"
+            >
               {categoryMatches.map((label) => (
-                <option key={label} value={label} />
+                <option key={label} value={label}>
+                  {label}
+                </option>
               ))}
-            </datalist>
-            <p className="mt-2 text-xs text-muted">Type 1+ characters to filter categories, then pick one.</p>
+            </select>
+            {childNodes.length > 0 && (
+              <>
+                <label
+                  htmlFor="topic-subcategory-search"
+                  className="mt-3 mb-2 block text-xs font-semibold uppercase tracking-wider text-muted"
+                >
+                  Subcategory search <span className="font-normal normal-case tracking-normal">optional</span>
+                </label>
+                <Input
+                  id="topic-subcategory-search"
+                  value={subcategorySearch}
+                  onChange={(e) => {
+                    setSubcategorySearch(e.target.value);
+                    setError(null);
+                  }}
+                  placeholder="Search subcategories..."
+                  className="h-11 w-full rounded-xl border-border bg-surface-light px-4"
+                  disabled={isSubmitting}
+                />
+                <label
+                  htmlFor="topic-subcategory"
+                  className="mt-3 mb-2 block text-xs font-semibold uppercase tracking-wider text-muted"
+                >
+                  Subcategory <span className="font-normal normal-case tracking-normal">optional</span>
+                </label>
+                <select
+                  id="topic-subcategory"
+                  value={subcategoryInput}
+                  onChange={(e) => {
+                    setSubcategoryInput(e.target.value);
+                    setError(null);
+                  }}
+                  disabled={isSubmitting}
+                  className="h-11 w-full rounded-xl border border-border bg-surface-light px-4 text-sm text-foreground"
+                >
+                  <option value="">None</option>
+                  {subcategoryMatches.map((node) => (
+                    <option key={node.id} value={node.name}>
+                      {node.name}
+                    </option>
+                  ))}
+                </select>
+                {subcategorySearch.trim() && subcategoryMatches.length === 0 && (
+                  <p className="mt-1 text-xs text-muted">No matching subcategories. Leave as None or create one below.</p>
+                )}
+              </>
+            )}
+            <label
+              htmlFor="topic-new-subcategory"
+              className="mt-3 mb-2 block text-xs font-semibold uppercase tracking-wider text-muted"
+            >
+              Create subcategory <span className="font-normal normal-case tracking-normal">optional</span>
+            </label>
+            <Input
+              id="topic-new-subcategory"
+              value={newSubcategoryName}
+              onChange={(e) => {
+                setNewSubcategoryName(e.target.value);
+                setError(null);
+              }}
+              placeholder={selectedTopLevelNode ? `e.g. ${selectedTopLevelNode.name} / New Subtopic` : "Pick a category first"}
+              className="h-11 w-full rounded-xl border-border bg-surface-light px-4"
+              disabled={isSubmitting || !selectedTopLevelNode}
+            />
+            <p className="mt-1 text-xs text-muted">
+              Any signed-in user can create subcategories under an existing top-level category.
+            </p>
+            <p className="mt-2 text-xs text-muted">Use search to filter, then pick a category from the dropdown.</p>
             {!normalizedCategory && (
               <p className="mt-1 text-xs text-amber-400">Choose a category from the suggested options.</p>
             )}
@@ -439,18 +581,15 @@ export function CreateTopicForm() {
           </div>
         </div>
 
-        <aside className="order-first space-y-3 lg:order-0 lg:sticky lg:top-20">
-          <p className="text-xs text-muted">Preview</p>
+        <aside className="order-last lg:order-0 lg:sticky lg:top-20">
+          <p className="mb-2 text-xs text-muted">Preview</p>
           <PreviewCard
             title={title}
             category={normalizedCategory ?? (categoryInput || "Entertainment")}
-            youtubeVideoId={starterVideoId}
+            starterVideoId={starterVideoId}
+            starterPlatform={starterPlatform}
+            starterThumbnailUrl={starterThumbnailUrl}
           />
-          <Card className="gap-0 rounded-xl border-border bg-surface py-0 shadow-none">
-            <CardContent className="px-3 py-2 text-xs text-muted">
-            Tip: concrete titles perform best (e.g. &quot;Best parkour clips 2026&quot;).
-            </CardContent>
-          </Card>
         </aside>
       </div>
 

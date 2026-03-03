@@ -1,9 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { connect, disconnect, reconnect, getConnection, type ConnectionCallbacks } from "@/lib/spacetimedb/client";
 import { useBlocksStore, type Block as StoreBlock } from "@/stores/blocks-store";
-import { useTopicStore, type Topic } from "@/stores/topic-store";
+import {
+  useTopicStore,
+  type Topic,
+  type TopicModerator,
+  type TopicModeratorApplication,
+  type TopicTaxonomyNode,
+} from "@/stores/topic-store";
 import { useContestStore } from "@/stores/contest-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useCommentsStore } from "@/stores/comments-store";
@@ -26,6 +32,7 @@ function mapBlock(row: any): StoreBlock {
     dislikes: Number(row.dislikes ?? 0),
     ytViews: Number(row.ytViews ?? 0),
     ytLikes: Number(row.ytLikes ?? 0),
+    thumbnailUrl: row.thumbnailUrl || null,
     status: (row.status as BlockStatus) || BlockStatus.Empty,
     adImageUrl: row.adImageUrl || null,
     adLinkUrl: row.adLinkUrl || null,
@@ -41,6 +48,7 @@ function mapTopic(row: any): Topic {
     title: row.title,
     description: row.description,
     category: row.category,
+    taxonomyNodeId: row.taxonomyNodeId ? Number(row.taxonomyNodeId) : null,
     creatorIdentity: row.creatorIdentity,
     videoCount: Number(row.videoCount ?? 0),
     totalLikes: Number(row.totalLikes ?? 0),
@@ -48,6 +56,48 @@ function mapTopic(row: any): Topic {
     totalViews: Number(row.totalViews ?? 0),
     isActive: row.isActive,
     createdAt: Number(row.createdAt ?? 0),
+    moderatorCount: undefined,
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapTaxonomyNode(row: any): TopicTaxonomyNode {
+  return {
+    id: Number(row.id),
+    slug: row.slug,
+    name: row.name,
+    parentId: row.parentId ? Number(row.parentId) : null,
+    path: row.path,
+    depth: Number(row.depth ?? 0),
+    isActive: row.isActive,
+    createdAt: Number(row.createdAt ?? 0),
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapTopicModerator(row: any): TopicModerator {
+  return {
+    id: Number(row.id),
+    topicId: Number(row.topicId),
+    identity: row.identity,
+    role: row.role,
+    status: row.status,
+    grantedBy: row.grantedBy,
+    createdAt: Number(row.createdAt ?? 0),
+  };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function mapTopicModeratorApplication(row: any): TopicModeratorApplication {
+  return {
+    id: Number(row.id),
+    topicId: Number(row.topicId),
+    applicantIdentity: row.applicantIdentity,
+    message: row.message,
+    status: row.status,
+    reviewedBy: row.reviewedBy,
+    createdAt: Number(row.createdAt ?? 0),
+    reviewedAt: Number(row.reviewedAt ?? 0),
   };
 }
 
@@ -76,27 +126,37 @@ function recomputeStats() {
   setTopBlocks(top);
 }
 
-function bulkLoadBlocks(conn: DbConnection) {
-  const allBlocks: StoreBlock[] = [];
-  for (const row of conn.db.block.iter()) {
-    allBlocks.push(mapBlock(row));
-  }
-
-  console.log(`[SpacetimeDB] Bulk loading ${allBlocks.length} blocks`);
-  useBlocksStore.getState().setBlocks(allBlocks);
-  recomputeStats();
-  useBlocksStore.getState().setLoading(false);
-}
-
 function bulkLoadTopics(conn: DbConnection) {
   const allTopics: Topic[] = [];
   for (const row of conn.db.topic.iter()) {
     allTopics.push(mapTopic(row));
   }
-  if (allTopics.length > 0) {
-    useTopicStore.getState().setTopics(allTopics);
-    console.log(`[SpacetimeDB] Loaded ${allTopics.length} topics`);
+  useTopicStore.getState().setTopics(allTopics);
+  console.log(`[SpacetimeDB] topics loaded over WS: ${allTopics.length}`);
+}
+
+function bulkLoadTopicTaxonomy(conn: DbConnection) {
+  const allNodes: TopicTaxonomyNode[] = [];
+  for (const row of conn.db.topic_taxonomy_node.iter()) {
+    allNodes.push(mapTaxonomyNode(row));
   }
+  useTopicStore.getState().setTaxonomyNodes(allNodes);
+}
+
+function bulkLoadTopicModerators(conn: DbConnection) {
+  const all: TopicModerator[] = [];
+  for (const row of conn.db.topic_moderator.iter()) {
+    all.push(mapTopicModerator(row));
+  }
+  useTopicStore.getState().setModerators(all);
+}
+
+function bulkLoadTopicModeratorApplications(conn: DbConnection) {
+  const all: TopicModeratorApplication[] = [];
+  for (const row of conn.db.topic_moderator_application.iter()) {
+    all.push(mapTopicModeratorApplication(row));
+  }
+  useTopicStore.getState().setModeratorApplications(all);
 }
 
 function bulkLoadComments(conn: DbConnection) {
@@ -152,6 +212,60 @@ function registerTableCallbacks(conn: DbConnection) {
 
   conn.db.topic.onDelete((_ctx, row) => {
     useTopicStore.getState().deleteTopic(Number(row.id));
+  });
+
+  conn.db.topic_taxonomy_node.onInsert((_ctx, row) => {
+    const { taxonomyNodes } = useTopicStore.getState();
+    taxonomyNodes.set(Number(row.id), mapTaxonomyNode(row));
+    useTopicStore.getState().setTaxonomyNodes([...taxonomyNodes.values()]);
+  });
+
+  conn.db.topic_taxonomy_node.onUpdate((_ctx, _old, row) => {
+    const { taxonomyNodes } = useTopicStore.getState();
+    taxonomyNodes.set(Number(row.id), mapTaxonomyNode(row));
+    useTopicStore.getState().setTaxonomyNodes([...taxonomyNodes.values()]);
+  });
+
+  conn.db.topic_taxonomy_node.onDelete((_ctx, row) => {
+    const { taxonomyNodes } = useTopicStore.getState();
+    taxonomyNodes.delete(Number(row.id));
+    useTopicStore.getState().setTaxonomyNodes([...taxonomyNodes.values()]);
+  });
+
+  conn.db.topic_moderator.onInsert((_ctx, row) => {
+    const { moderators } = useTopicStore.getState();
+    moderators.set(Number(row.id), mapTopicModerator(row));
+    useTopicStore.getState().setModerators([...moderators.values()]);
+  });
+
+  conn.db.topic_moderator.onUpdate((_ctx, _old, row) => {
+    const { moderators } = useTopicStore.getState();
+    moderators.set(Number(row.id), mapTopicModerator(row));
+    useTopicStore.getState().setModerators([...moderators.values()]);
+  });
+
+  conn.db.topic_moderator.onDelete((_ctx, row) => {
+    const { moderators } = useTopicStore.getState();
+    moderators.delete(Number(row.id));
+    useTopicStore.getState().setModerators([...moderators.values()]);
+  });
+
+  conn.db.topic_moderator_application.onInsert((_ctx, row) => {
+    const { moderatorApplications } = useTopicStore.getState();
+    moderatorApplications.set(Number(row.id), mapTopicModeratorApplication(row));
+    useTopicStore.getState().setModeratorApplications([...moderatorApplications.values()]);
+  });
+
+  conn.db.topic_moderator_application.onUpdate((_ctx, _old, row) => {
+    const { moderatorApplications } = useTopicStore.getState();
+    moderatorApplications.set(Number(row.id), mapTopicModeratorApplication(row));
+    useTopicStore.getState().setModeratorApplications([...moderatorApplications.values()]);
+  });
+
+  conn.db.topic_moderator_application.onDelete((_ctx, row) => {
+    const { moderatorApplications } = useTopicStore.getState();
+    moderatorApplications.delete(Number(row.id));
+    useTopicStore.getState().setModeratorApplications([...moderatorApplications.values()]);
   });
 
   conn.db.comment.onInsert((_ctx, row) => {
@@ -249,7 +363,6 @@ function registerTableCallbacks(conn: DbConnection) {
 
 export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
   const prevToken = useRef<string | undefined>(undefined);
-  const [conn, setConn] = useState<DbConnection | null>(null);
   const { oidcToken, isLoading: authLoading, isAuthenticated, user: authUser } = useAuth();
 
   // Keep a stable ref to the latest Clerk-sourced user fields so onConnect
@@ -269,14 +382,16 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
         imageUrl: authUser.imageUrl ?? null,
       };
     }
-  }, [authUser?.email, authUser?.username, authUser?.displayName, authUser?.imageUrl]);
+  }, [authUser, authUser?.email, authUser?.username, authUser?.displayName, authUser?.imageUrl]);
 
   const callbacks: ConnectionCallbacks = {
-    onConnect: (connection, identity, token) => {
-      setConn(connection);
+    onConnect: (connection, identity) => {
       console.log("[SpacetimeDB] connected as", identity.toHexString());
       registerTableCallbacks(connection);
       bulkLoadTopics(connection);
+      bulkLoadTopicTaxonomy(connection);
+      bulkLoadTopicModerators(connection);
+      bulkLoadTopicModeratorApplications(connection);
       bulkLoadComments(connection);
 
       const clerkEmail = clerkUserRef.current.email;
@@ -339,7 +454,6 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
       }
     },
     onDisconnect: () => {
-      setConn(null);
       console.log("[SpacetimeDB] disconnected");
     },
     onConnectError: (error) => {
@@ -405,8 +519,8 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
  * unsubscribe when it unmounts (or topicId changes).
  */
 export function useTopicBlocksSubscription(topicId: number | null) {
-  const conn = getConnection();
   useEffect(() => {
+    const conn = getConnection();
     if (!topicId || !conn) return;
 
     // Import lazily to avoid circular dependency
@@ -414,7 +528,6 @@ export function useTopicBlocksSubscription(topicId: number | null) {
       subscribeToTopicBlocks(topicId, () => {
         const c = getConnection();
         if (!c) return;
-        const allBlocks: ReturnType<typeof useBlocksStore.getState>["blocks"] = new Map();
         // Bulk-load after subscription applied
         const { setBlocks, setLoading } = useBlocksStore.getState();
         const blocks: import("@/stores/blocks-store").Block[] = [];
@@ -433,6 +546,5 @@ export function useTopicBlocksSubscription(topicId: number | null) {
         useBlocksStore.getState().setLoading(true);
       });
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topicId]);
 }

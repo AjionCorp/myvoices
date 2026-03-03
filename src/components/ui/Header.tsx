@@ -51,9 +51,10 @@ export function Header() {
         {/* Right: actions */}
         <div className="flex items-center gap-2">
           {isAuthenticated && isHome && (
-            <Button asChild variant="ghost" size="icon" className="text-foreground hover:bg-accent/20">
-              <Link href="/t/create" title="Create Topic">
-                <Plus />
+            <Button asChild variant="ghost" size="sm" className="text-foreground hover:bg-accent/20">
+              <Link href="/t/create" title="Create Topic" className="flex items-center gap-1.5">
+                <Plus className="h-4 w-4" />
+                <span>Create</span>
               </Link>
             </Button>
           )}

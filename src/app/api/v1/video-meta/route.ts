@@ -1,255 +1,200 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Platform } from "@/lib/constants";
+import { extractBiliBiliBvid, getBiliBiliEmbedUrl, getBiliBiliWatchUrl } from "@/lib/utils/bilibili";
+import {
+  extractTikTokHtmlVideoId,
+  extractTikTokId,
+  getTikTokEmbedUrl,
+  isTikTokNumericVideoId,
+} from "@/lib/utils/tiktok";
 import { extractYouTubeId } from "@/lib/utils/youtube";
 
-const metaCache = new Map<string, { data: VideoMeta; expiresAt: number }>();
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 const VIDEO_ID_RE = /^[a-zA-Z0-9_-]{11}$/;
+const CACHE_TTL_MS = 60 * 60 * 1000;
+const ENABLE_BILIBILI = process.env.ENABLE_BILIBILI !== "false" && process.env.NEXT_PUBLIC_ENABLE_BILIBILI !== "false";
 
-interface VideoMeta {
+type ResolvedMeta = {
+  platform: Platform;
   videoId: string;
   title: string;
-  author: string;
-  channelId: string;
-  viewCount: string;
-  lengthSeconds: string;
-  keywords: string[];
-  shortDescription: string;
-  thumbnail: { url: string; width: number; height: number };
-  isLiveContent: boolean;
-  isPrivate: boolean;
-  category: string;
-  publishDate: string;
-  ownerChannelName: string;
-  ownerProfileUrl: string;
-  isFamilySafe: boolean;
-  isShortsEligible: boolean;
-  likeCount: string;
+  thumbnailUrl: string | null;
+  canonicalUrl: string;
+  embedUrl: string | null;
+};
+
+const metaCache = new Map<string, { data: ResolvedMeta; expiresAt: number }>();
+
+function isYouTubeShortUrl(value: string): boolean {
+  return /youtube\.com\/shorts\//i.test(value);
 }
 
-interface YouTubeVideoApiResponse {
-  items?: Array<{
-    id?: string;
-    snippet?: {
-      title?: string;
-      channelTitle?: string;
-      channelId?: string;
-      description?: string;
-      tags?: string[];
-      categoryId?: string;
-      publishedAt?: string;
-      liveBroadcastContent?: "none" | "live" | "upcoming";
-      thumbnails?: {
-        maxres?: { url: string; width: number; height: number };
-        high?: { url: string; width: number; height: number };
-        medium?: { url: string; width: number; height: number };
-        default?: { url: string; width: number; height: number };
-      };
-    };
-    contentDetails?: {
-      duration?: string;
-    };
-    statistics?: {
-      viewCount?: string;
-      likeCount?: string;
-    };
-  }>;
+function isTikTokUrl(value: string): boolean {
+  return /(^|\.)tiktok\.com$/i.test(new URL(value).hostname) || /(^|\.)vm\.tiktok\.com$/i.test(new URL(value).hostname);
 }
 
-const categoryCache = new Map<string, string>();
-
-function parseIsoDurationToSeconds(value: string | undefined): number {
-  if (!value) return 0;
-  const match = value.match(/PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?/);
-  if (!match) return 0;
-  const hours = Number(match[1] || 0);
-  const minutes = Number(match[2] || 0);
-  const seconds = Number(match[3] || 0);
-  return hours * 3600 + minutes * 60 + seconds;
+function isBiliBiliUrl(value: string): boolean {
+  const host = new URL(value).hostname;
+  return /(^|\.)bilibili\.com$/i.test(host) || /(^|\.)b23\.tv$/i.test(host);
 }
 
-async function fetchCategoryName(categoryId: string, apiKey: string): Promise<string> {
-  const cached = categoryCache.get(categoryId);
-  if (cached) return cached;
-
-  const res = await fetch(
-    `https://www.googleapis.com/youtube/v3/videoCategories?part=snippet&id=${categoryId}&hl=en_US&key=${apiKey}`
-  );
-  if (!res.ok) return "";
-  const data = await res.json() as { items?: Array<{ snippet?: { title?: string } }> };
-  const title = data.items?.[0]?.snippet?.title || "";
-  if (title) categoryCache.set(categoryId, title);
-  return title;
-}
-
-async function fetchVideoMetaUsingApiKey(videoId: string, apiKey: string): Promise<VideoMeta | null> {
-  const res = await fetch(
-    `https://www.googleapis.com/youtube/v3/videos?part=snippet,contentDetails,statistics&id=${videoId}&key=${apiKey}`
-  );
-  if (!res.ok) {
-    throw new Error(`YouTube API returned ${res.status}`);
+async function resolveYouTube(input: string): Promise<ResolvedMeta | null> {
+  const videoId = VIDEO_ID_RE.test(input) ? input : extractYouTubeId(input);
+  if (!videoId) return null;
+  const platform = isYouTubeShortUrl(input) ? Platform.YouTubeShort : Platform.YouTube;
+  const canonicalUrl =
+    platform === Platform.YouTubeShort
+      ? `https://youtube.com/shorts/${videoId}`
+      : `https://youtube.com/watch?v=${videoId}`;
+  let title = "";
+  try {
+    const oembed = await fetch(
+      `https://www.youtube.com/oembed?url=${encodeURIComponent(canonicalUrl)}&format=json`
+    );
+    if (oembed.ok) {
+      const data = await oembed.json() as { title?: string };
+      title = data.title || "";
+    }
+  } catch {
+    // Thumbnail + ID are enough for downstream flow.
   }
-
-  const data = await res.json() as YouTubeVideoApiResponse;
-  const item = data.items?.[0];
-  if (!item) return null;
-
-  const snippet = item.snippet || {};
-  const stats = item.statistics || {};
-  const contentDetails = item.contentDetails || {};
-  const durationSeconds = parseIsoDurationToSeconds(contentDetails.duration);
-  const category = snippet.categoryId
-    ? await fetchCategoryName(snippet.categoryId, apiKey)
-    : "";
-
-  const thumbnail =
-    snippet.thumbnails?.maxres ||
-    snippet.thumbnails?.high ||
-    snippet.thumbnails?.medium ||
-    snippet.thumbnails?.default || {
-      url: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
-      width: 480,
-      height: 360,
-    };
-
   return {
+    platform,
     videoId,
-    title: snippet.title || "",
-    author: snippet.channelTitle || "",
-    channelId: snippet.channelId || "",
-    viewCount: stats.viewCount || "0",
-    lengthSeconds: String(durationSeconds),
-    keywords: snippet.tags || [],
-    shortDescription: snippet.description || "",
-    thumbnail,
-    isLiveContent: snippet.liveBroadcastContent === "live",
-    isPrivate: false,
-    category,
-    publishDate: snippet.publishedAt || "",
-    ownerChannelName: snippet.channelTitle || "",
-    ownerProfileUrl: snippet.channelId ? `https://www.youtube.com/channel/${snippet.channelId}` : "",
-    isFamilySafe: true,
-    // Shorts detection is not explicitly exposed by the API; this heuristic keeps downstream behavior.
-    isShortsEligible: durationSeconds > 0 && durationSeconds <= 70,
-    likeCount: stats.likeCount || "0",
+    title,
+    thumbnailUrl: `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+    canonicalUrl,
+    embedUrl: `https://www.youtube.com/embed/${videoId}`,
   };
 }
 
-async function fetchVideoMetaByScraping(videoId: string): Promise<VideoMeta | null> {
-  const res = await fetch(`https://www.youtube.com/watch?v=${videoId}`, {
-    headers: {
-      "User-Agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-      "Accept-Language": "en-US,en;q=0.9",
-    },
+async function resolveTikTok(url: string): Promise<ResolvedMeta | null> {
+  if (!isTikTokUrl(url)) return null;
+  let canonicalUrl = url;
+  const host = new URL(url).hostname.toLowerCase();
+  if (host === "vm.tiktok.com" || host === "tiktok.com" || host === "www.tiktok.com") {
+    try {
+      const redirectProbe = await fetch(url, {
+        method: "GET",
+        redirect: "follow",
+        headers: { "User-Agent": "Mozilla/5.0 myVoice" },
+      });
+      if (redirectProbe.url) canonicalUrl = redirectProbe.url;
+    } catch {
+      // Keep original URL when redirect probing fails.
+    }
+  }
+
+  const oembed = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(canonicalUrl)}`, {
+    headers: { "User-Agent": "myVoice/1.0" },
   });
+  if (!oembed.ok) return null;
+  const data = await oembed.json() as { title?: string; thumbnail_url?: string; html?: string };
+  const htmlVideoId = data.html ? extractTikTokHtmlVideoId(data.html) : null;
+  const videoIdCandidates = [
+    extractTikTokId(canonicalUrl),
+    extractTikTokId(url),
+    htmlVideoId,
+  ].filter((candidate): candidate is string => !!candidate);
 
-  if (!res.ok) {
-    throw new Error(`YouTube scrape returned ${res.status}`);
-  }
+  const videoId = videoIdCandidates.find(isTikTokNumericVideoId) ?? null;
+  if (!videoId) return null;
 
-  const html = await res.text();
-  const match = html.match(
-    new RegExp("var\\s+ytInitialPlayerResponse\\s*=\\s*(\\{.+?\\});", "s")
-  );
-
-  if (!match) return null;
-
-  const parsed = JSON.parse(match[1]) as Record<string, unknown>;
-  const vd = (parsed.videoDetails || {}) as Record<string, unknown>;
-  const mf = ((parsed.microformat as Record<string, unknown>)
-    ?.playerMicroformatRenderer || {}) as Record<string, unknown>;
-
-  if (vd.isPrivate === true) return null;
-
-  const thumbs = (vd.thumbnail as Record<string, unknown[]>)?.thumbnails as
-    | Array<{ url: string; width: number; height: number }>
-    | undefined;
-  const bestThumb = thumbs?.[thumbs.length - 1] || {
-    url: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
-    width: 480,
-    height: 360,
-  };
+  let thumbnailUrl = data.thumbnail_url || null;
+  if (thumbnailUrl?.startsWith("//")) thumbnailUrl = `https:${thumbnailUrl}`;
+  if (thumbnailUrl?.startsWith("http://")) thumbnailUrl = `https://${thumbnailUrl.slice("http://".length)}`;
 
   return {
+    platform: Platform.TikTok,
     videoId,
-    title: String(vd.title || ""),
-    author: String(vd.author || ""),
-    channelId: String(vd.channelId || ""),
-    viewCount: String(vd.viewCount || "0"),
-    lengthSeconds: String(vd.lengthSeconds || "0"),
-    keywords: Array.isArray(vd.keywords) ? (vd.keywords as string[]) : [],
-    shortDescription: String(vd.shortDescription || ""),
-    thumbnail: bestThumb,
-    isLiveContent: vd.isLiveContent === true,
-    isPrivate: false,
-    category: String(mf.category || ""),
-    publishDate: String(mf.publishDate || ""),
-    ownerChannelName: String(mf.ownerChannelName || vd.author || ""),
-    ownerProfileUrl: String(mf.ownerProfileUrl || ""),
-    isFamilySafe: mf.isFamilySafe !== false,
-    isShortsEligible: mf.isShortsEligible === true,
-    likeCount: String((mf as Record<string, unknown>).likeCount || "0"),
+    title: data.title || "",
+    thumbnailUrl,
+    canonicalUrl,
+    embedUrl: getTikTokEmbedUrl(videoId),
+  };
+}
+
+async function resolveBiliBili(rawUrl: string): Promise<ResolvedMeta | null> {
+  if (!ENABLE_BILIBILI) return null;
+  let finalUrl = rawUrl;
+  const host = new URL(rawUrl).hostname;
+  if (/(^|\.)b23\.tv$/i.test(host)) {
+    const resp = await fetch(rawUrl, { method: "GET", redirect: "follow" });
+    finalUrl = resp.url || rawUrl;
+  }
+  if (!isBiliBiliUrl(finalUrl)) return null;
+
+  const bvid = extractBiliBiliBvid(finalUrl);
+  if (!bvid) return null;
+
+  const res = await fetch(
+    `https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(bvid)}`,
+    {
+      headers: {
+        Referer: "https://www.bilibili.com/",
+        "User-Agent": "Mozilla/5.0 myVoice",
+      },
+    }
+  );
+  if (!res.ok) return null;
+  const data = await res.json() as { data?: { title?: string; pic?: string } };
+  let thumbnailUrl = data.data?.pic || null;
+  if (thumbnailUrl?.startsWith("//")) thumbnailUrl = `https:${thumbnailUrl}`;
+  if (thumbnailUrl?.startsWith("http://")) thumbnailUrl = `https://${thumbnailUrl.slice("http://".length)}`;
+  return {
+    platform: Platform.BiliBili,
+    videoId: bvid,
+    title: data.data?.title || "",
+    thumbnailUrl,
+    canonicalUrl: getBiliBiliWatchUrl(bvid),
+    embedUrl: getBiliBiliEmbedUrl(bvid),
   };
 }
 
 export async function POST(request: NextRequest) {
-  let body: { videoId?: string; url?: string };
+  let body: { input?: string; url?: string; videoId?: string };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  let videoId = body.videoId?.trim() || null;
-  if (!videoId && body.url) {
-    videoId = extractYouTubeId(body.url.trim());
+  const input = (body.input || body.url || body.videoId || "").trim();
+  if (!input) {
+    return NextResponse.json({ error: "Provide a video URL or ID" }, { status: 400 });
   }
 
-  if (!videoId || !VIDEO_ID_RE.test(videoId)) {
-    return NextResponse.json(
-      { error: "Provide a valid YouTube video ID or URL" },
-      { status: 400 }
-    );
-  }
-
-  // Check cache
-  const cached = metaCache.get(videoId);
+  const cached = metaCache.get(input);
   if (cached && cached.expiresAt > Date.now()) {
     return NextResponse.json(cached.data);
   }
 
   try {
-    const apiKey = process.env.YOUTUBE_API_KEY;
-    let data: VideoMeta | null = null;
+    let resolved: ResolvedMeta | null = null;
 
-    // Prefer API key when available, but never hard-fail if missing/broken.
-    if (apiKey) {
+    resolved = await resolveYouTube(input);
+    if (!resolved) {
       try {
-        data = await fetchVideoMetaUsingApiKey(videoId, apiKey);
-      } catch (err) {
-        console.warn("video-meta api failed, falling back to scraping:", err);
+        const parsed = new URL(input);
+        const normalized = parsed.toString();
+        resolved =
+          (await resolveTikTok(normalized)) ||
+          (await resolveBiliBili(normalized));
+      } catch {
+        // Non-URL and non-YouTube-ID input.
       }
     }
 
-    // Internal fallback: scrape YouTube page directly.
-    if (!data) {
-      data = await fetchVideoMetaByScraping(videoId);
-    }
-
-    if (!data) {
+    if (!resolved) {
       return NextResponse.json(
-        { error: "Video not found or unavailable" },
-        { status: 404 }
+        { error: "Unsupported URL. Supported: YouTube, TikTok, BiliBili." },
+        { status: 400 }
       );
     }
 
-    metaCache.set(videoId, { data, expiresAt: Date.now() + CACHE_TTL_MS });
-    return NextResponse.json(data);
+    metaCache.set(input, { data: resolved, expiresAt: Date.now() + CACHE_TTL_MS });
+    return NextResponse.json(resolved);
   } catch (err) {
     console.error("video-meta error:", err);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

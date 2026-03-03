@@ -1,5 +1,8 @@
 use spacetimedb::{reducer, ReducerContext, Table};
 use crate::tables::*;
+use std::collections::HashMap;
+
+const REAPPLY_COOLDOWN_MICROS: u64 = 24 * 60 * 60 * 1_000_000;
 
 fn now_micros(ctx: &ReducerContext) -> u64 {
     ctx.timestamp.to_micros_since_unix_epoch() as u64
@@ -16,6 +19,111 @@ fn slug_from_title(title: &str) -> String {
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>()
         .join("-")
+}
+
+fn slug_from_name(name: &str) -> String {
+    let raw: String = name
+        .to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() { c } else { '-' })
+        .collect();
+    raw.split('-')
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
+fn is_admin(ctx: &ReducerContext, caller: &str) -> bool {
+    ctx.db
+        .user_profile()
+        .identity()
+        .find(caller.to_string())
+        .map(|u| u.is_admin)
+        .unwrap_or(false)
+}
+
+fn can_moderate_topic(ctx: &ReducerContext, caller: &str, topic_id: u64) -> bool {
+    if is_admin(ctx, caller) {
+        return true;
+    }
+
+    if let Some(topic) = ctx.db.topic().id().find(topic_id) {
+        if topic.creator_identity == caller {
+            return true;
+        }
+    }
+
+    ctx.db
+        .topic_moderator()
+        .iter()
+        .any(|m| m.topic_id == topic_id && m.identity == caller && m.status == "active")
+}
+
+fn ensure_owner_moderator_row(
+    ctx: &ReducerContext,
+    topic_id: u64,
+    owner_identity: &str,
+    granted_by: &str,
+) -> Result<(), String> {
+    if let Some(existing) = ctx
+        .db
+        .topic_moderator()
+        .iter()
+        .find(|m| m.topic_id == topic_id && m.identity == owner_identity)
+    {
+        ctx.db.topic_moderator().id().delete(existing.id);
+    }
+
+    ctx.db
+        .topic_moderator()
+        .try_insert(TopicModerator {
+            id: 0,
+            topic_id,
+            identity: owner_identity.to_string(),
+            role: "owner".to_string(),
+            status: "active".to_string(),
+            granted_by: granted_by.to_string(),
+            created_at: now_micros(ctx),
+        })
+        .map_err(|e| format!("Owner moderator insert failed: {e}"))?;
+
+    Ok(())
+}
+
+fn get_or_create_top_level_taxonomy_node(
+    ctx: &ReducerContext,
+    category: &str,
+) -> Result<Option<u64>, String> {
+    let trimmed = category.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+
+    let slug = slug_from_name(trimmed);
+    if slug.is_empty() {
+        return Ok(None);
+    }
+
+    if let Some(existing) = ctx.db.topic_taxonomy_node().slug().find(slug.clone()) {
+        return Ok(Some(existing.id));
+    }
+
+    let inserted = ctx
+        .db
+        .topic_taxonomy_node()
+        .try_insert(TopicTaxonomyNode {
+            id: 0,
+            slug: slug.clone(),
+            name: trimmed.to_string(),
+            parent_id: None,
+            path: slug,
+            depth: 0,
+            is_active: true,
+            created_at: now_micros(ctx),
+        })
+        .map_err(|e| format!("Taxonomy insert failed: {e}"))?;
+
+    Ok(Some(inserted.id))
 }
 
 /// Compute the (x, y) grid coordinates for the n-th block in a topic's spiral.
@@ -75,20 +183,24 @@ pub fn create_topic(
         return Err("Title must contain at least one alphanumeric character".to_string());
     }
 
-    // Make slug unique by appending a count suffix when the base already exists.
-    let slug = if ctx.db.topic().slug().find(base_slug.clone()).is_none() {
-        base_slug
-    } else {
-        let count = ctx.db.topic().iter().count();
-        format!("{}-{}", base_slug, count)
-    };
+    // Enforce globally unique titles (case-insensitive). First come, first served.
+    let lower_title = trimmed.to_lowercase();
+    if ctx.db.topic().iter().any(|t| t.title.to_lowercase() == lower_title) {
+        return Err("A topic with this title already exists. Please choose a different title.".to_string());
+    }
 
-    ctx.db.topic().try_insert(Topic {
+    // Slug is derived 1-to-1 from the unique title, so no suffix needed.
+    let slug = base_slug;
+
+    let taxonomy_node_id = get_or_create_top_level_taxonomy_node(ctx, &category)?;
+
+    let topic = ctx.db.topic().try_insert(Topic {
         id: 0,
         slug,
         title: trimmed,
         description,
         category,
+        taxonomy_node_id,
         creator_identity: caller,
         video_count: 0,
         total_likes: 0,
@@ -97,6 +209,8 @@ pub fn create_topic(
         is_active: true,
         created_at: now_micros(ctx),
     }).map_err(|e| format!("Insert failed: {e}"))?;
+
+    ensure_owner_moderator_row(ctx, topic.id, &topic.creator_identity, &topic.creator_identity)?;
 
     Ok(())
 }
@@ -119,6 +233,7 @@ pub fn claim_block_in_topic(
     topic_id: u64,
     video_id: String,
     platform: String,
+    thumbnail_url: String,
     owner_name: String,
     yt_views: u64,
     yt_likes: u64,
@@ -160,6 +275,7 @@ pub fn claim_block_in_topic(
         dislikes: 0,
         yt_views,
         yt_likes,
+        thumbnail_url,
         status: "claimed".to_string(),
         ad_image_url: String::new(),
         ad_link_url: String::new(),
@@ -235,25 +351,427 @@ pub fn update_topic(
         .find(topic_id)
         .ok_or("Topic not found")?;
 
-    let is_admin = ctx
-        .db
-        .user_profile()
-        .identity()
-        .find(caller.clone())
-        .map(|u| u.is_admin)
-        .unwrap_or(false);
-
-    if topic.creator_identity != caller && !is_admin {
-        return Err("Only the topic creator or an admin can update this topic".to_string());
+    if !can_moderate_topic(ctx, &caller, topic_id) {
+        return Err("Only a topic moderator or an admin can update this topic".to_string());
     }
 
     ctx.db.topic().id().delete(topic_id);
+    let next_category = if category.is_empty() { topic.category.clone() } else { category };
+    let taxonomy_node_id = if topic.taxonomy_node_id.is_some() {
+        topic.taxonomy_node_id
+    } else {
+        get_or_create_top_level_taxonomy_node(ctx, &next_category)?
+    };
+
     ctx.db.topic().try_insert(Topic {
         title: if title.is_empty() { topic.title.clone() } else { title },
         description: if description.is_empty() { topic.description.clone() } else { description },
-        category: if category.is_empty() { topic.category.clone() } else { category },
+        category: next_category,
+        taxonomy_node_id,
         ..topic
     }).map_err(|e| format!("Update failed: {e}"))?;
+
+    Ok(())
+}
+
+/// Delete a topic.
+///
+/// - If the caller owns all claimed blocks (or there are none) → delete all blocks and the topic.
+/// - If other users have blocks → transfer ownership to the most-active contributor
+///   (most blocks; earliest claimed_at as tiebreaker), remove only the caller's blocks, rebalance.
+#[reducer]
+pub fn delete_topic(ctx: &ReducerContext, topic_id: u64) -> Result<(), String> {
+    let caller = ctx.sender().to_hex().to_string();
+
+    let topic = ctx
+        .db
+        .topic()
+        .id()
+        .find(topic_id)
+        .ok_or("Topic not found")?;
+
+    let is_admin = is_admin(ctx, &caller);
+
+    if topic.creator_identity != caller && !is_admin {
+        return Err("Only the topic creator or an admin can delete this topic".to_string());
+    }
+
+    let all_claimed: Vec<Block> = ctx
+        .db
+        .block()
+        .iter()
+        .filter(|b| b.topic_id == topic_id && b.status == "claimed")
+        .collect();
+
+    let has_others = all_claimed.iter().any(|b| b.owner_identity != caller);
+
+    if !has_others {
+        // Sole owner (or empty topic) — delete all blocks and the topic itself.
+        for b in &all_claimed {
+            ctx.db.block().id().delete(b.id);
+        }
+        let mod_rows: Vec<u64> = ctx
+            .db
+            .topic_moderator()
+            .iter()
+            .filter(|m| m.topic_id == topic_id)
+            .map(|m| m.id)
+            .collect();
+        for id in mod_rows {
+            ctx.db.topic_moderator().id().delete(id);
+        }
+        let application_rows: Vec<u64> = ctx
+            .db
+            .topic_moderator_application()
+            .iter()
+            .filter(|a| a.topic_id == topic_id)
+            .map(|a| a.id)
+            .collect();
+        for id in application_rows {
+            ctx.db.topic_moderator_application().id().delete(id);
+        }
+        ctx.db.topic().id().delete(topic_id);
+    } else {
+        // Other users have posts — transfer ownership, remove caller's blocks, rebalance.
+        let mut counts: HashMap<String, (usize, u64)> = HashMap::new();
+        for b in all_claimed.iter().filter(|b| b.owner_identity != caller) {
+            let entry = counts.entry(b.owner_identity.clone()).or_insert((0, u64::MAX));
+            entry.0 += 1;
+            if b.claimed_at < entry.1 {
+                entry.1 = b.claimed_at;
+            }
+        }
+
+        // Most blocks wins; earliest claimed_at breaks ties.
+        let new_owner = counts
+            .into_iter()
+            .max_by(|(_, (ca, ta)), (_, (cb, tb))| ca.cmp(cb).then(tb.cmp(ta)))
+            .map(|(identity, _)| identity)
+            .unwrap();
+
+        // Transfer ownership.
+        ctx.db.topic().id().delete(topic_id);
+        let updated_topic = ctx.db.topic().try_insert(Topic {
+            creator_identity: new_owner,
+            ..topic
+        }).map_err(|e| format!("Ownership transfer failed: {e}"))?;
+        ensure_owner_moderator_row(ctx, updated_topic.id, &updated_topic.creator_identity, &caller)?;
+
+        // Remove caller's blocks.
+        for b in all_claimed.iter().filter(|b| b.owner_identity == caller) {
+            ctx.db.block().id().delete(b.id);
+        }
+
+        // Rebalance remaining blocks and update video_count.
+        let mut remaining: Vec<Block> = ctx
+            .db
+            .block()
+            .iter()
+            .filter(|b| b.topic_id == topic_id && b.status == "claimed")
+            .collect();
+
+        remaining.sort_by(|a, b| block_score(b).cmp(&block_score(a)));
+
+        for (i, block) in remaining.iter().enumerate() {
+            let (new_x, new_y) = spiral_coords(i as u64);
+            if block.x != new_x || block.y != new_y {
+                ctx.db.block().id().delete(block.id);
+                ctx.db.block().try_insert(Block {
+                    x: new_x,
+                    y: new_y,
+                    ..block.clone()
+                }).map_err(|e| format!("Rebalance failed: {e}"))?;
+            }
+        }
+
+        let new_count = remaining.len() as u64;
+        if let Some(updated_topic) = ctx.db.topic().id().find(topic_id) {
+            ctx.db.topic().id().delete(topic_id);
+            ctx.db.topic().try_insert(Topic {
+                video_count: new_count,
+                ..updated_topic
+            }).map_err(|e| format!("video_count update failed: {e}"))?;
+        }
+    }
+
+    Ok(())
+}
+
+/// Create a taxonomy node.
+///
+/// Rules:
+/// - Top-level nodes (no parent) are admin-only.
+/// - Child nodes (subcategories) can be created by any registered user.
+#[reducer]
+pub fn create_topic_taxonomy_node(
+    ctx: &ReducerContext,
+    name: String,
+    parent_id: Option<u64>,
+) -> Result<(), String> {
+    let caller = ctx.sender().to_hex().to_string();
+    if ctx.db.user_profile().identity().find(caller.clone()).is_none() {
+        return Err("Must be registered to create taxonomy nodes".to_string());
+    }
+    if parent_id.is_none() && !is_admin(ctx, &caller) {
+        return Err("Only admins can create top-level taxonomy nodes".to_string());
+    }
+
+    let trimmed = name.trim().to_string();
+    if trimmed.is_empty() {
+        return Err("Taxonomy name cannot be empty".to_string());
+    }
+
+    let slug = slug_from_name(&trimmed);
+    if slug.is_empty() {
+        return Err("Taxonomy name must contain alphanumeric characters".to_string());
+    }
+
+    let (depth, path) = if let Some(pid) = parent_id {
+        let parent = ctx
+            .db
+            .topic_taxonomy_node()
+            .id()
+            .find(pid)
+            .ok_or("Parent taxonomy node not found")?;
+        (parent.depth + 1, format!("{}/{}", parent.path, slug))
+    } else {
+        (0, slug.clone())
+    };
+
+    if ctx.db.topic_taxonomy_node().iter().any(|n| n.path == path) {
+        return Err("A taxonomy node with this path already exists".to_string());
+    }
+
+    ctx.db
+        .topic_taxonomy_node()
+        .try_insert(TopicTaxonomyNode {
+            id: 0,
+            slug,
+            name: trimmed,
+            parent_id,
+            path,
+            depth,
+            is_active: true,
+            created_at: now_micros(ctx),
+        })
+        .map_err(|e| format!("Taxonomy insert failed: {e}"))?;
+
+    Ok(())
+}
+
+/// Assign a topic to a taxonomy node. Topic moderators and admins can set this.
+#[reducer]
+pub fn set_topic_taxonomy(
+    ctx: &ReducerContext,
+    topic_id: u64,
+    taxonomy_node_id: u64,
+) -> Result<(), String> {
+    let caller = ctx.sender().to_hex().to_string();
+    if !can_moderate_topic(ctx, &caller, topic_id) {
+        return Err("Only topic moderators or admins can set taxonomy".to_string());
+    }
+
+    let topic = ctx.db.topic().id().find(topic_id).ok_or("Topic not found")?;
+    let node = ctx
+        .db
+        .topic_taxonomy_node()
+        .id()
+        .find(taxonomy_node_id)
+        .ok_or("Taxonomy node not found")?;
+
+    ctx.db.topic().id().delete(topic_id);
+    ctx.db
+        .topic()
+        .try_insert(Topic {
+            taxonomy_node_id: Some(node.id),
+            category: node.name,
+            ..topic
+        })
+        .map_err(|e| format!("Topic update failed: {e}"))?;
+
+    Ok(())
+}
+
+/// User applies to moderate a topic.
+#[reducer]
+pub fn apply_topic_moderator(
+    ctx: &ReducerContext,
+    topic_id: u64,
+    message: String,
+) -> Result<(), String> {
+    let caller = ctx.sender().to_hex().to_string();
+    if ctx.db.user_profile().identity().find(caller.clone()).is_none() {
+        return Err("Must be registered to apply as moderator".to_string());
+    }
+
+    let _topic = ctx.db.topic().id().find(topic_id).ok_or("Topic not found")?;
+
+    if can_moderate_topic(ctx, &caller, topic_id) {
+        return Err("You are already a moderator for this topic".to_string());
+    }
+
+    if ctx
+        .db
+        .topic_moderator_application()
+        .iter()
+        .any(|a| a.topic_id == topic_id && a.applicant_identity == caller && a.status == "pending")
+    {
+        return Err("You already have a pending moderator application".to_string());
+    }
+
+    let now = now_micros(ctx);
+    if let Some(last_reject) = ctx
+        .db
+        .topic_moderator_application()
+        .iter()
+        .filter(|a| a.topic_id == topic_id && a.applicant_identity == caller && a.status == "rejected")
+        .max_by_key(|a| a.reviewed_at)
+    {
+        if now < last_reject.reviewed_at.saturating_add(REAPPLY_COOLDOWN_MICROS) {
+            return Err("Please wait before re-applying to moderate this topic".to_string());
+        }
+    }
+
+    ctx.db
+        .topic_moderator_application()
+        .try_insert(TopicModeratorApplication {
+            id: 0,
+            topic_id,
+            applicant_identity: caller,
+            message,
+            status: "pending".to_string(),
+            reviewed_by: String::new(),
+            created_at: now,
+            reviewed_at: 0,
+        })
+        .map_err(|e| format!("Application insert failed: {e}"))?;
+
+    Ok(())
+}
+
+/// Approve or reject a moderator application. Topic moderators/admins can review.
+#[reducer]
+pub fn review_topic_moderator_application(
+    ctx: &ReducerContext,
+    application_id: u64,
+    approve: bool,
+) -> Result<(), String> {
+    let caller = ctx.sender().to_hex().to_string();
+    let application = ctx
+        .db
+        .topic_moderator_application()
+        .id()
+        .find(application_id)
+        .ok_or("Application not found")?;
+
+    if application.status != "pending" {
+        return Err("Application has already been reviewed".to_string());
+    }
+
+    if !can_moderate_topic(ctx, &caller, application.topic_id) {
+        return Err("Only topic moderators or admins can review applications".to_string());
+    }
+
+    let now = now_micros(ctx);
+    ctx.db.topic_moderator_application().id().delete(application_id);
+    ctx.db
+        .topic_moderator_application()
+        .try_insert(TopicModeratorApplication {
+            status: if approve { "approved".to_string() } else { "rejected".to_string() },
+            reviewed_by: caller.clone(),
+            reviewed_at: now,
+            ..application.clone()
+        })
+        .map_err(|e| format!("Application update failed: {e}"))?;
+
+    if approve {
+        if let Some(existing) = ctx
+            .db
+            .topic_moderator()
+            .iter()
+            .find(|m| m.topic_id == application.topic_id && m.identity == application.applicant_identity)
+        {
+            ctx.db.topic_moderator().id().delete(existing.id);
+        }
+
+        ctx.db
+            .topic_moderator()
+            .try_insert(TopicModerator {
+                id: 0,
+                topic_id: application.topic_id,
+                identity: application.applicant_identity,
+                role: "moderator".to_string(),
+                status: "active".to_string(),
+                granted_by: caller,
+                created_at: now,
+            })
+            .map_err(|e| format!("Moderator insert failed: {e}"))?;
+    }
+
+    Ok(())
+}
+
+/// Remove a moderator assignment from a topic.
+#[reducer]
+pub fn remove_topic_moderator(
+    ctx: &ReducerContext,
+    topic_id: u64,
+    identity: String,
+) -> Result<(), String> {
+    let caller = ctx.sender().to_hex().to_string();
+    let topic = ctx.db.topic().id().find(topic_id).ok_or("Topic not found")?;
+    let caller_is_admin = is_admin(ctx, &caller);
+    if !caller_is_admin && topic.creator_identity != caller {
+        return Err("Only topic owner or admin can remove moderators".to_string());
+    }
+
+    let mod_row = ctx
+        .db
+        .topic_moderator()
+        .iter()
+        .find(|m| m.topic_id == topic_id && m.identity == identity)
+        .ok_or("Moderator not found")?;
+
+    if mod_row.role == "owner" {
+        return Err("Owner role cannot be removed".to_string());
+    }
+
+    ctx.db.topic_moderator().id().delete(mod_row.id);
+    ctx.db
+        .topic_moderator()
+        .try_insert(TopicModerator {
+            status: "removed".to_string(),
+            ..mod_row
+        })
+        .map_err(|e| format!("Moderator update failed: {e}"))?;
+
+    Ok(())
+}
+
+/// Backfill taxonomy nodes from existing topic categories.
+#[reducer]
+pub fn backfill_topic_taxonomy_from_categories(ctx: &ReducerContext) -> Result<(), String> {
+    let caller = ctx.sender().to_hex().to_string();
+    if !is_admin(ctx, &caller) {
+        return Err("Only admins can run taxonomy backfill".to_string());
+    }
+
+    let topics: Vec<Topic> = ctx.db.topic().iter().collect();
+    for topic in topics {
+        if topic.taxonomy_node_id.is_some() {
+            continue;
+        }
+        if let Some(node_id) = get_or_create_top_level_taxonomy_node(ctx, &topic.category)? {
+            ctx.db.topic().id().delete(topic.id);
+            ctx.db
+                .topic()
+                .try_insert(Topic {
+                    taxonomy_node_id: Some(node_id),
+                    ..topic
+                })
+                .map_err(|e| format!("Topic backfill update failed: {e}"))?;
+        }
+    }
 
     Ok(())
 }

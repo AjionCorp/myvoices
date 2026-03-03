@@ -198,7 +198,12 @@ export function VideoCanvas() {
         if (col < c0 || col > c1 || row < r0 || row > r1) continue;
         if (step > 1 && (col % step !== 0 || row % step !== 0)) continue;
 
-        const url = (block.videoId && block.platform ? getThumbnailUrl(block.videoId, block.platform as Platform) : null) || block.adImageUrl || null;
+        const url =
+          (block.videoId && block.platform
+            ? getThumbnailUrl(block.videoId, block.platform as Platform, block.thumbnailUrl)
+            : null) ||
+          block.adImageUrl ||
+          null;
 
         if (url) {
           const cached = getCachedImage(url, now);

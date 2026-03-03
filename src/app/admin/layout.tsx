@@ -10,6 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 const navItems = [
   { href: "/admin", label: "Overview" },
+  { href: "/admin/taxonomy", label: "Taxonomy" },
   { href: "/admin/ads", label: "Ads" },
   { href: "/admin/contests", label: "Contests" },
   { href: "/admin/users", label: "Users" },

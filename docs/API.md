@@ -1,5 +1,18 @@
 # API Configuration
 
+## Canvas Block Actions (authenticated, real-time)
+
+Authenticated users interact with blocks directly over the SpacetimeDB WebSocket connection via reducers. No REST endpoints are involved for these actions.
+
+| Reducer | Arguments | Description |
+| ------- | --------- | ----------- |
+| `claimBlockInTopic` | `topicId`, `videoId`, `platform`, `thumbnailUrl`, `ownerName`, `ytViews`, `ytLikes` | Claim an empty canvas block with a video. The server places it at the next available position and stores the resolved thumbnail URL. |
+| `unclaimBlock` | `blockId` | Remove your own post from the canvas. The server enforces ownership — only the block's `ownerIdentity` may unclaim it. The block reverts to empty status. |
+| `likeVideo` | `blockId` | Add a like to a block (once per user). |
+| `unlikeVideo` | `blockId` | Remove your like from a block. |
+| `dislikeVideo` | `blockId` | Add a dislike to a block. |
+| `undislikeVideo` | `blockId` | Remove your dislike from a block. |
+
 ## SpacetimeDB (anonymous read)
 
 When users are not authenticated, the app fetches blocks and comments via `/api/v1/data`, which runs SQL against SpacetimeDB over HTTP.

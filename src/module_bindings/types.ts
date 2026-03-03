@@ -37,6 +37,7 @@ export const Block = __t.object("Block", {
   status: __t.string(),
   ytViews: __t.u64(),
   ytLikes: __t.u64(),
+  thumbnailUrl: __t.string(),
   adImageUrl: __t.string(),
   adLinkUrl: __t.string(),
   claimedAt: __t.u64(),
@@ -123,8 +124,44 @@ export const Topic = __t.object("Topic", {
   totalViews: __t.u64(),
   isActive: __t.bool(),
   createdAt: __t.u64(),
+  taxonomyNodeId: __t.option(__t.u64()),
 });
 export type Topic = __Infer<typeof Topic>;
+
+export const TopicModerator = __t.object("TopicModerator", {
+  id: __t.u64(),
+  topicId: __t.u64(),
+  identity: __t.string(),
+  role: __t.string(),
+  status: __t.string(),
+  grantedBy: __t.string(),
+  createdAt: __t.u64(),
+});
+export type TopicModerator = __Infer<typeof TopicModerator>;
+
+export const TopicModeratorApplication = __t.object("TopicModeratorApplication", {
+  id: __t.u64(),
+  topicId: __t.u64(),
+  applicantIdentity: __t.string(),
+  message: __t.string(),
+  status: __t.string(),
+  reviewedBy: __t.string(),
+  createdAt: __t.u64(),
+  reviewedAt: __t.u64(),
+});
+export type TopicModeratorApplication = __Infer<typeof TopicModeratorApplication>;
+
+export const TopicTaxonomyNode = __t.object("TopicTaxonomyNode", {
+  id: __t.u64(),
+  slug: __t.string(),
+  name: __t.string(),
+  parentId: __t.option(__t.u64()),
+  path: __t.string(),
+  depth: __t.u32(),
+  isActive: __t.bool(),
+  createdAt: __t.u64(),
+});
+export type TopicTaxonomyNode = __Infer<typeof TopicTaxonomyNode>;
 
 export const TransactionLog = __t.object("TransactionLog", {
   id: __t.u64(),

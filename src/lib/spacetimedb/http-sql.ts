@@ -59,8 +59,9 @@ export async function runSql(queries: string): Promise<SqlResult[]> {
 
 /** Block table column order for positional fallback when schema names are missing. */
 export const BLOCK_COLUMNS = [
-  "id", "x", "y", "video_id", "platform", "owner_identity", "owner_name",
-  "likes", "dislikes", "status", "ad_image_url", "ad_link_url", "claimed_at",
+  "id", "topic_id", "x", "y", "video_id", "platform", "owner_identity", "owner_name",
+  "likes", "dislikes", "status", "yt_views", "yt_likes", "thumbnail_url",
+  "ad_image_url", "ad_link_url", "claimed_at",
 ];
 
 /** Comment table column order for positional fallback. */

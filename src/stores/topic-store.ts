@@ -6,6 +6,9 @@ export interface Topic {
   title: string;
   description: string;
   category: string;
+  taxonomyNodeId: number | null;
+  taxonomyPath?: string;
+  taxonomyName?: string;
   creatorIdentity: string;
   videoCount: number;
   totalLikes: number;
@@ -13,21 +16,65 @@ export interface Topic {
   totalViews: number;
   isActive: boolean;
   createdAt: number;
+  moderatorCount?: number;
+}
+
+export interface TopicTaxonomyNode {
+  id: number;
+  slug: string;
+  name: string;
+  parentId: number | null;
+  path: string;
+  depth: number;
+  isActive: boolean;
+  createdAt: number;
+}
+
+export interface TopicModerator {
+  id: number;
+  topicId: number;
+  identity: string;
+  role: string;
+  status: string;
+  grantedBy: string;
+  createdAt: number;
+}
+
+export interface TopicModeratorApplication {
+  id: number;
+  topicId: number;
+  applicantIdentity: string;
+  message: string;
+  status: string;
+  reviewedBy: string;
+  createdAt: number;
+  reviewedAt: number;
 }
 
 interface TopicState {
   topics: Map<number, Topic>;
+  taxonomyNodes: Map<number, TopicTaxonomyNode>;
+  moderators: Map<number, TopicModerator>;
+  moderatorApplications: Map<number, TopicModeratorApplication>;
   activeTopic: Topic | null;
 
   setTopic: (topic: Topic) => void;
   setTopics: (topics: Topic[]) => void;
+  setTaxonomyNodes: (nodes: TopicTaxonomyNode[]) => void;
+  setModerators: (mods: TopicModerator[]) => void;
+  setModeratorApplications: (applications: TopicModeratorApplication[]) => void;
   deleteTopic: (id: number) => void;
   setActiveTopic: (topic: Topic | null) => void;
   getTopicBySlug: (slug: string) => Topic | undefined;
+  isModeratorForTopic: (topicId: number, identity: string | null | undefined) => boolean;
+  getPendingApplicationsForTopic: (topicId: number) => TopicModeratorApplication[];
 }
 
 export const useTopicStore = create<TopicState>((set, get) => ({
   topics: new Map(),
+  taxonomyNodes: new Map(),
+  moderators: new Map(),
+  moderatorApplications: new Map(),
   activeTopic: null,
 
   setTopic: (topic) => {
@@ -40,6 +87,24 @@ export const useTopicStore = create<TopicState>((set, get) => ({
     const map = new Map<number, Topic>();
     for (const t of topics) map.set(t.id, t);
     set({ topics: map });
+  },
+
+  setTaxonomyNodes: (nodes) => {
+    const map = new Map<number, TopicTaxonomyNode>();
+    for (const n of nodes) map.set(n.id, n);
+    set({ taxonomyNodes: map });
+  },
+
+  setModerators: (mods) => {
+    const map = new Map<number, TopicModerator>();
+    for (const m of mods) map.set(m.id, m);
+    set({ moderators: map });
+  },
+
+  setModeratorApplications: (applications) => {
+    const map = new Map<number, TopicModeratorApplication>();
+    for (const a of applications) map.set(a.id, a);
+    set({ moderatorApplications: map });
   },
 
   deleteTopic: (id) => {
@@ -55,5 +120,21 @@ export const useTopicStore = create<TopicState>((set, get) => ({
       if (t.slug === slug) return t;
     }
     return undefined;
+  },
+
+  isModeratorForTopic: (topicId, identity) => {
+    if (!identity) return false;
+    for (const m of get().moderators.values()) {
+      if (m.topicId === topicId && m.identity === identity && m.status === "active") {
+        return true;
+      }
+    }
+    return false;
+  },
+
+  getPendingApplicationsForTopic: (topicId) => {
+    return [...get().moderatorApplications.values()].filter(
+      (a) => a.topicId === topicId && a.status === "pending"
+    );
   },
 }));

@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
+import { useMemo } from "react";
 import type { Topic } from "@/stores/topic-store";
+import { useTopicStore } from "@/stores/topic-store";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 
 interface TopicCardProps {
   topic: Topic;
+  thumbnailUrl?: string;
 }
 
 // Inline styles — not Tailwind class strings, so they always render
@@ -27,10 +30,25 @@ function pickGradient(seed: string): [string, string] {
   return GRADIENTS[Math.abs(h) % GRADIENTS.length];
 }
 
-export function TopicCard({ topic }: TopicCardProps) {
+export function TopicCard({ topic, thumbnailUrl }: TopicCardProps) {
+  const taxonomyNodes = useTopicStore((s) => s.taxonomyNodes);
+  const moderators = useTopicStore((s) => s.moderators);
   const [colorA, colorB] = pickGradient(topic.title);
   const netLikes = topic.totalLikes - topic.totalDislikes;
   const isTrending = topic.totalViews > 10;
+  const taxonomyPath =
+    topic.taxonomyPath ||
+    (topic.taxonomyNodeId ? taxonomyNodes.get(topic.taxonomyNodeId)?.path : undefined) ||
+    "";
+  const displayCategory =
+    topic.taxonomyName ||
+    (topic.taxonomyNodeId ? taxonomyNodes.get(topic.taxonomyNodeId)?.name : undefined) ||
+    topic.category ||
+    "General";
+  const moderatorCount = useMemo(
+    () => [...moderators.values()].filter((m) => m.topicId === topic.id && m.status === "active").length,
+    [moderators, topic.id]
+  );
 
   return (
     <Link
@@ -39,7 +57,7 @@ export function TopicCard({ topic }: TopicCardProps) {
       style={{ minWidth: 0, maxWidth: 320 }}
     >
       <Card className="gap-0 overflow-hidden border-border bg-surface-light py-0 transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-xl hover:shadow-black/60">
-        {/* Thumbnail — inline gradient so it always renders */}
+        {/* Thumbnail area */}
         <div
           className="relative w-full overflow-hidden"
           style={{
@@ -47,18 +65,26 @@ export function TopicCard({ topic }: TopicCardProps) {
             background: `linear-gradient(135deg, ${colorA} 0%, ${colorB} 100%)`,
           }}
         >
-        {/* Big watermark title */}
-        <div className="absolute inset-0 flex items-center justify-center p-4 overflow-hidden">
-          <span
-            className="select-none text-center font-black uppercase leading-none tracking-tight"
-            style={{
-              fontSize: "clamp(18px, 4vw, 28px)",
-              color: "rgba(255,255,255,0.12)",
-            }}
-          >
-            {topic.title}
-          </span>
-        </div>
+        {thumbnailUrl ? (
+          <img
+            src={thumbnailUrl}
+            alt={topic.title}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          /* Watermark title fallback when no video exists yet */
+          <div className="absolute inset-0 flex items-center justify-center p-4 overflow-hidden">
+            <span
+              className="select-none text-center font-black uppercase leading-none tracking-tight"
+              style={{
+                fontSize: "clamp(18px, 4vw, 28px)",
+                color: "rgba(255,255,255,0.12)",
+              }}
+            >
+              {topic.title}
+            </span>
+          </div>
+        )}
 
         {/* Bottom scrim */}
         <div
@@ -92,11 +118,15 @@ export function TopicCard({ topic }: TopicCardProps) {
             className="rounded-full px-2 py-0.5 text-[10px] font-medium"
             style={{ background: "rgba(255,255,255,0.07)", color: "rgba(255,255,255,0.5)" }}
           >
-            {topic.category || "General"}
+            {displayCategory}
           </Badge>
+          {taxonomyPath && (
+            <span className="truncate text-[10px] text-muted max-w-[120px]">{taxonomyPath.replaceAll("/", " / ")}</span>
+          )}
           <span className="ml-auto tabular-nums">
             {topic.totalViews > 0 ? `${topic.totalViews.toLocaleString()} views` : "New"}
           </span>
+          <span>{moderatorCount}m</span>
           {netLikes > 0 && (
             <span className="text-green-400">+{netLikes.toLocaleString()}</span>
           )}

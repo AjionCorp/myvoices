@@ -44,6 +44,62 @@ pub struct Topic {
     pub total_views: u64,
     pub is_active: bool,
     pub created_at: u64,
+    /// Optional taxonomy assignment for hierarchical categories.
+    /// Added at end + default for automatic migration compatibility.
+    #[default(None::<u64>)]
+    pub taxonomy_node_id: Option<u64>,
+}
+
+/// Hierarchical taxonomy node used to group topics, e.g. Science > Physics.
+#[table(accessor = topic_taxonomy_node, public)]
+#[derive(Clone)]
+pub struct TopicTaxonomyNode {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    #[unique]
+    pub slug: String,
+    pub name: String,
+    pub parent_id: Option<u64>,
+    /// Cached normalized path, e.g. "science/physics".
+    pub path: String,
+    pub depth: u32,
+    pub is_active: bool,
+    pub created_at: u64,
+}
+
+/// Users with elevated privileges inside a topic.
+#[table(accessor = topic_moderator, public)]
+#[derive(Clone)]
+pub struct TopicModerator {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub topic_id: u64,
+    pub identity: String,
+    /// owner | moderator
+    pub role: String,
+    /// active | removed
+    pub status: String,
+    pub granted_by: String,
+    pub created_at: u64,
+}
+
+/// Application row for users requesting moderator status.
+#[table(accessor = topic_moderator_application, public)]
+#[derive(Clone)]
+pub struct TopicModeratorApplication {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub topic_id: u64,
+    pub applicant_identity: String,
+    pub message: String,
+    /// pending | approved | rejected
+    pub status: String,
+    pub reviewed_by: String,
+    pub created_at: u64,
+    pub reviewed_at: u64,
 }
 
 /// A claimed block within a topic's grid. Blocks are created on demand (no pre-seeding).
@@ -65,6 +121,7 @@ pub struct Block {
     pub status: String,
     pub yt_views: u64,
     pub yt_likes: u64,
+    pub thumbnail_url: String,
     pub ad_image_url: String,
     pub ad_link_url: String,
     pub claimed_at: u64,

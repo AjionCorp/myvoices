@@ -24,6 +24,7 @@ export default __t.row({
   status: __t.string(),
   ytViews: __t.u64().name("yt_views"),
   ytLikes: __t.u64().name("yt_likes"),
+  thumbnailUrl: __t.string().name("thumbnail_url"),
   adImageUrl: __t.string().name("ad_image_url"),
   adLinkUrl: __t.string().name("ad_link_url"),
   claimedAt: __t.u64().name("claimed_at"),

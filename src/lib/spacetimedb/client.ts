@@ -28,6 +28,9 @@ export type ConnectionCallbacks = {
 const USER_TABLES = [
   "SELECT * FROM user_profile",
   "SELECT * FROM topic",
+  "SELECT * FROM topic_taxonomy_node",
+  "SELECT * FROM topic_moderator",
+  "SELECT * FROM topic_moderator_application",
   "SELECT * FROM ad_placement",
   "SELECT * FROM contest",
   "SELECT * FROM contest_winner",

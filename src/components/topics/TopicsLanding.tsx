@@ -4,6 +4,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useTopicStore } from "@/stores/topic-store";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { getThumbnailUrl } from "@/lib/utils/video-url";
+import { Platform } from "@/lib/constants";
 import { TopicCard } from "./TopicCard";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -31,9 +33,12 @@ const GRID_STYLE: React.CSSProperties = {
 
 export function TopicsLanding() {
   const topics = useTopicStore((s) => s.topics);
+  const taxonomyNodes = useTopicStore((s) => s.taxonomyNodes);
   const { isAuthenticated } = useAuth();
   const [activeCategory, setActiveCategory] = useState(ALL);
+  const [activeSubcategory, setActiveSubcategory] = useState(ALL);
   const [ready, setReady] = useState(false);
+  const [topVideos, setTopVideos] = useState<Record<number, { videoId: string; platform: string; thumbnailUrl: string | null }>>({});
 
   // Mark ready after first non-empty sync via useEffect (safe pattern)
   useEffect(() => {
@@ -41,23 +46,80 @@ export function TopicsLanding() {
     if (topics.size > 0) setReady(true);
   }, [topics.size]);
 
-  const { categories, sorted } = useMemo(() => {
+  // Re-fetch top video per topic whenever the topics list changes (new topic added, video count changes).
+  // This is the only way to get block data on the landing page since blocks aren't in the
+  // global WebSocket subscription — they're only subscribed per-topic.
+  const topicVideoFingerprint = useMemo(
+    () => [...topics.values()].map((t) => `${t.id}:${t.videoCount}`).join(","),
+    [topics],
+  );
+
+  useEffect(() => {
+    if (!topicVideoFingerprint) return;
+    fetch("/api/v1/topics")
+      .then((r) => r.json())
+      .then((d: { topVideos?: Record<number, { videoId: string; platform: string; thumbnailUrl: string | null }> }) => {
+        if (d.topVideos) setTopVideos(d.topVideos);
+      })
+      .catch(() => {/* ignore — thumbnails just won't show */});
+  }, [topicVideoFingerprint]);
+
+  /** topicId → thumbnail URL of the most-liked video */
+  const topicThumbnails = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const [idStr, tv] of Object.entries(topVideos)) {
+      const url = getThumbnailUrl(tv.videoId, tv.platform as Platform, tv.thumbnailUrl);
+      if (url) map.set(Number(idStr), url);
+    }
+    return map;
+  }, [topVideos]);
+
+  const { categories, subcategories, sorted } = useMemo(() => {
     const all = [...topics.values()]
       .filter((t) => t.isActive)
       .sort((a, b) => b.totalViews - a.totalViews || b.createdAt - a.createdAt);
 
+    const getTopLevel = (topic: (typeof all)[number]): string => {
+      const taxonomyPath =
+        topic.taxonomyPath ||
+        (topic.taxonomyNodeId ? taxonomyNodes.get(topic.taxonomyNodeId)?.path : undefined) ||
+        "";
+      if (taxonomyPath) {
+        return taxonomyPath.split("/")[0] || topic.category || "General";
+      }
+      return topic.category || "General";
+    };
+    const getSubLevel = (topic: (typeof all)[number]): string | null => {
+      const taxonomyPath =
+        topic.taxonomyPath ||
+        (topic.taxonomyNodeId ? taxonomyNodes.get(topic.taxonomyNodeId)?.path : undefined) ||
+        "";
+      if (!taxonomyPath) return null;
+      const parts = taxonomyPath.split("/");
+      return parts.length > 1 ? parts[1] : null;
+    };
+
     const cats = [
       ALL,
-      ...Array.from(new Set(all.map((t) => t.category || "General"))),
+      ...Array.from(new Set(all.map((t) => getTopLevel(t) || "General"))),
     ];
 
-    const filtered =
+    const byTop =
       activeCategory === ALL
         ? all
-        : all.filter((t) => (t.category || "General") === activeCategory);
+        : all.filter((t) => getTopLevel(t) === activeCategory);
 
-    return { categories: cats, sorted: filtered };
-  }, [topics, activeCategory]);
+    const subs = [
+      ALL,
+      ...Array.from(
+        new Set(byTop.map((t) => getSubLevel(t)).filter((s): s is string => !!s))
+      ),
+    ];
+    const filtered =
+      activeSubcategory === ALL ? byTop : byTop.filter((t) => getSubLevel(t) === activeSubcategory);
+
+    return { categories: cats, subcategories: subs, sorted: filtered };
+  }, [topics, taxonomyNodes, activeCategory, activeSubcategory]);
 
   // Still connecting — show skeleton
   if (!ready) {
@@ -112,7 +174,10 @@ export function TopicsLanding() {
           {categories.map((cat) => (
             <Button
               key={cat}
-              onClick={() => setActiveCategory(cat)}
+              onClick={() => {
+                setActiveCategory(cat);
+                setActiveSubcategory(ALL);
+              }}
               size="sm"
               variant={activeCategory === cat ? "default" : "ghost"}
               className={
@@ -127,6 +192,26 @@ export function TopicsLanding() {
         </div>
       )}
 
+      {activeCategory !== ALL && subcategories.length > 2 && (
+        <div className="mb-5 flex gap-2 overflow-x-auto pb-1">
+          {subcategories.map((sub) => (
+            <Button
+              key={sub}
+              onClick={() => setActiveSubcategory(sub)}
+              size="sm"
+              variant={activeSubcategory === sub ? "default" : "ghost"}
+              className={
+                activeSubcategory === sub
+                  ? "shrink-0 rounded-full px-3.5 text-xs"
+                  : "shrink-0 rounded-full border border-border/60 px-3.5 text-xs text-muted-foreground hover:text-foreground"
+              }
+            >
+              {sub}
+            </Button>
+          ))}
+        </div>
+      )}
+
       {sorted.length === 0 ? (
         <p className="py-16 text-center text-sm text-muted">
           No topics in this category yet.
@@ -134,7 +219,7 @@ export function TopicsLanding() {
       ) : (
         <div style={GRID_STYLE}>
           {sorted.map((topic) => (
-            <TopicCard key={topic.id} topic={topic} />
+            <TopicCard key={topic.id} topic={topic} thumbnailUrl={topicThumbnails.get(topic.id)} />
           ))}
         </div>
       )}
