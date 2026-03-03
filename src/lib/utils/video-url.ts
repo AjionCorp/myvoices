@@ -1,4 +1,4 @@
-import { Platform } from "@/lib/constants";
+import { Platform, THUMBNAIL_CDN_BASE } from "@/lib/constants";
 import { getBiliBiliEmbedUrl, getBiliBiliWatchUrl } from "@/lib/utils/bilibili";
 import { getRumbleEmbedUrl, getRumbleWatchUrl } from "@/lib/utils/rumble";
 import { getTikTokEmbedUrl, getTikTokWatchUrl, isTikTokNumericVideoId } from "@/lib/utils/tiktok";
@@ -6,6 +6,31 @@ import { getTikTokEmbedUrl, getTikTokWatchUrl, isTikTokNumericVideoId } from "@/
 function proxiedThumbnailUrl(raw: string): string {
   if (raw.startsWith("/api/v1/thumbnail/proxy?url=")) return raw;
   return `/api/v1/thumbnail/proxy?url=${encodeURIComponent(raw)}`;
+}
+
+/**
+ * Reduce a full thumbnail URL to the minimal string that should be persisted in the DB.
+ *
+ * - YouTube / TikTok / Rumble: nothing stored — URLs are always re-derived at display time.
+ * - BiliBili: strip the CDN host and any @quality suffix, store only the path
+ *   (e.g. "bfs/archive/abc123.jpg"). The host is configurable via THUMBNAIL_CDN_BASE.
+ */
+export function normalizeThumbnailForStorage(
+  url: string | null | undefined,
+  platform: Platform
+): string {
+  if (!url) return "";
+  switch (platform) {
+    case Platform.YouTube:
+    case Platform.YouTubeShort:
+    case Platform.TikTok:
+    case Platform.Rumble:
+      return "";
+    case Platform.BiliBili: {
+      const match = url.match(/hdslb\.com\/(.+?)(?:@[^?]*)?(?:\?.*)?$/i);
+      return match ? match[1] : "";
+    }
+  }
 }
 
 export function getVideoUrl(videoId: string, platform: Platform): string {
@@ -33,15 +58,27 @@ export function getThumbnailUrl(
   platform: Platform,
   storedThumbnailUrl?: string | null
 ): string | null {
-  if (storedThumbnailUrl) return proxiedThumbnailUrl(storedThumbnailUrl);
-
   switch (platform) {
     case Platform.YouTube:
     case Platform.YouTubeShort:
+      // Always derive from videoId — no storage required.
       return proxiedThumbnailUrl(`https://img.youtube.com/vi/${videoId}/mqdefault.jpg`);
+
     case Platform.TikTok:
+      // Served fresh by the tiktok thumbnail endpoint (handles CDN expiry + caching).
+      return `/api/v1/thumbnail/tiktok?videoId=${encodeURIComponent(videoId)}`;
+
+    case Platform.BiliBili: {
+      if (!storedThumbnailUrl) return null;
+      // Legacy rows / preview: full URL already present — proxy directly.
+      if (storedThumbnailUrl.includes("://")) return proxiedThumbnailUrl(storedThumbnailUrl);
+      // New format: path-only — reconstruct using the configurable CDN base.
+      const base = THUMBNAIL_CDN_BASE[Platform.BiliBili] ?? "https://i0.hdslb.com";
+      const path = storedThumbnailUrl.startsWith("/") ? storedThumbnailUrl : `/${storedThumbnailUrl}`;
+      return proxiedThumbnailUrl(`${base}${path}`);
+    }
+
     case Platform.Rumble:
-    case Platform.BiliBili:
       return null;
   }
 }

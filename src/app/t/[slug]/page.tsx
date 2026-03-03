@@ -38,9 +38,11 @@ function TopicOwnerMenu({ topicId, topicCreatorIdentity }: { topicId: number; to
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const blocks = useBlocksStore((s) => s.blocks);
+  const moderators = useTopicStore((s) => s.moderators);
   const [confirm, setConfirm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [preferredSuccessorIdentity, setPreferredSuccessorIdentity] = useState("");
 
   const isCreator = !!user?.identity && user.identity === topicCreatorIdentity;
   if (!isCreator) return null;
@@ -49,9 +51,27 @@ function TopicOwnerMenu({ topicId, topicCreatorIdentity }: { topicId: number; to
     (b) => b.topicId === topicId && b.status === "claimed"
   );
   const hasOthers = claimedBlocks.some((b) => b.ownerIdentity !== user?.identity);
+  const activeModeratorIdentities = [...moderators.values()]
+    .filter((m) => m.topicId === topicId && m.status === "active" && m.identity !== user?.identity)
+    .map((m) => m.identity);
+  const activeModeratorSet = new Set(activeModeratorIdentities);
+  const otherContributorIdentities = [...new Set(
+    claimedBlocks
+      .filter((b) => b.ownerIdentity && b.ownerIdentity !== user?.identity)
+      .map((b) => b.ownerIdentity as string)
+  )].filter((identity) => !activeModeratorSet.has(identity));
+
+  const resolveUserLabel = (identity: string): string => {
+    const conn = getConnection();
+    const profile = conn?.db.user_profile.identity.find(identity);
+    if (profile?.username) return profile.username;
+    if (profile?.displayName) return profile.displayName;
+    return identity.length > 20 ? `${identity.slice(0, 20)}…` : identity;
+  };
+
   const label = hasOthers ? "Leave Topic" : "Delete Topic";
   const confirmMsg = hasOthers
-    ? "You have other contributors. Your videos will be removed and ownership will transfer to the most active contributor."
+    ? "You have other contributors. Your videos will be removed and ownership will transfer to an active moderator first, then to the last active contributor if no moderator is eligible."
     : "This will permanently delete the topic and all its videos.";
 
   const handleConfirm = async () => {
@@ -60,7 +80,10 @@ function TopicOwnerMenu({ topicId, topicCreatorIdentity }: { topicId: number; to
     try {
       const conn = getConnection();
       if (!conn) throw new Error("Not connected");
-      conn.reducers.deleteTopic({ topicId: BigInt(topicId) });
+      conn.reducers.deleteTopic({
+        topicId: BigInt(topicId),
+        preferredNewOwnerIdentity: preferredSuccessorIdentity || null,
+      });
       router.push("/");
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : "Something went wrong");
@@ -73,7 +96,7 @@ function TopicOwnerMenu({ topicId, topicCreatorIdentity }: { topicId: number; to
     <div className="relative">
       {!confirm ? (
         <Button
-          onClick={() => setConfirm(true)}
+          onClick={() => { setConfirm(true); setErr(null); setPreferredSuccessorIdentity(""); }}
           variant="ghost"
           size="sm"
           className="h-7 px-2 text-xs text-muted hover:text-red-400"
@@ -89,10 +112,43 @@ function TopicOwnerMenu({ topicId, topicCreatorIdentity }: { topicId: number; to
         </Button>
       ) : (
         <div className="flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-1.5">
-          <p className="max-w-[280px] text-xs text-red-300">{confirmMsg}</p>
-          <div className="flex shrink-0 gap-1.5">
+          <div className="space-y-2">
+            <p className="max-w-[320px] text-xs text-red-300">{confirmMsg}</p>
+            {hasOthers && (
+              <div className="space-y-1">
+                <p className="text-[11px] text-red-200/80">Optional: choose a new owner now</p>
+                <select
+                  value={preferredSuccessorIdentity}
+                  onChange={(e) => setPreferredSuccessorIdentity(e.target.value)}
+                  className="h-7 w-full max-w-[320px] rounded-md border border-red-400/20 bg-background/70 px-2 text-xs text-foreground outline-none focus:border-red-300/40"
+                  disabled={busy}
+                >
+                  <option value="">Auto-select best candidate</option>
+                  {activeModeratorIdentities.length > 0 && (
+                    <optgroup label="Active moderators">
+                      {activeModeratorIdentities.map((identity) => (
+                        <option key={`mod-${identity}`} value={identity}>
+                          {resolveUserLabel(identity)}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {otherContributorIdentities.length > 0 && (
+                    <optgroup label="Contributors">
+                      {otherContributorIdentities.map((identity) => (
+                        <option key={`contrib-${identity}`} value={identity}>
+                          {resolveUserLabel(identity)}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+              </div>
+            )}
+          </div>
+          <div className="flex shrink-0 gap-1.5 self-start">
             <Button
-              onClick={() => { setConfirm(false); setErr(null); }}
+              onClick={() => { setConfirm(false); setErr(null); setPreferredSuccessorIdentity(""); }}
               variant="ghost"
               size="sm"
               className="h-6 px-2 text-xs text-muted"

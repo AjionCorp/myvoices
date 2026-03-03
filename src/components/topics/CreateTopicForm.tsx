@@ -6,7 +6,7 @@ import { getConnection } from "@/lib/spacetimedb/client";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useTopicStore } from "@/stores/topic-store";
 import { Platform } from "@/lib/constants";
-import { getThumbnailUrl } from "@/lib/utils/video-url";
+import { getThumbnailUrl, normalizeThumbnailForStorage } from "@/lib/utils/video-url";
 import { resolveVideoMeta, type ResolvedVideoMeta } from "@/lib/utils/video-meta";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -313,7 +313,7 @@ export function CreateTopicForm() {
           topicId: BigInt(targetTopicId),
           videoId: starterVideoId,
           platform: starterMeta.platform,
-          thumbnailUrl: starterMeta.thumbnailUrl || "",
+          thumbnailUrl: normalizeThumbnailForStorage(starterMeta.thumbnailUrl, starterMeta.platform),
           ownerName,
           ytViews: BigInt(0),
           ytLikes: BigInt(0),

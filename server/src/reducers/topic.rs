@@ -1,6 +1,6 @@
 use spacetimedb::{reducer, ReducerContext, Table};
 use crate::tables::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 const REAPPLY_COOLDOWN_MICROS: u64 = 24 * 60 * 60 * 1_000_000;
 
@@ -65,13 +65,15 @@ fn ensure_owner_moderator_row(
     owner_identity: &str,
     granted_by: &str,
 ) -> Result<(), String> {
-    if let Some(existing) = ctx
+    let prior_owner_rows: Vec<u64> = ctx
         .db
         .topic_moderator()
         .iter()
-        .find(|m| m.topic_id == topic_id && m.identity == owner_identity)
-    {
-        ctx.db.topic_moderator().id().delete(existing.id);
+        .filter(|m| m.topic_id == topic_id && (m.identity == owner_identity || m.role == "owner"))
+        .map(|m| m.id)
+        .collect();
+    for id in prior_owner_rows {
+        ctx.db.topic_moderator().id().delete(id);
     }
 
     ctx.db
@@ -221,6 +223,166 @@ pub fn block_score(b: &Block) -> i64 {
     let yt = std::cmp::max(b.yt_views, b.yt_likes) as i64;
     let platform = (b.likes as i64) - (b.dislikes as i64);
     yt + platform
+}
+
+#[derive(Clone, Copy, Default)]
+struct ActivitySignal {
+    claim_count: u64,
+    comment_count: u64,
+    moderation_action_count: u64,
+    last_activity_at: u64,
+}
+
+fn add_activity_signal(
+    scores: &mut HashMap<String, ActivitySignal>,
+    identity: &str,
+    claim_count: u64,
+    comment_count: u64,
+    moderation_action_count: u64,
+    activity_at: u64,
+) {
+    let entry = scores
+        .entry(identity.to_string())
+        .or_insert(ActivitySignal::default());
+    entry.claim_count = entry.claim_count.saturating_add(claim_count);
+    entry.comment_count = entry.comment_count.saturating_add(comment_count);
+    entry.moderation_action_count = entry
+        .moderation_action_count
+        .saturating_add(moderation_action_count);
+    if activity_at > entry.last_activity_at {
+        entry.last_activity_at = activity_at;
+    }
+}
+
+fn collect_topic_activity(ctx: &ReducerContext, topic_id: u64) -> HashMap<String, ActivitySignal> {
+    let mut scores: HashMap<String, ActivitySignal> = HashMap::new();
+    let topic_block_ids: HashSet<u64> = ctx
+        .db
+        .block()
+        .iter()
+        .filter(|b| b.topic_id == topic_id)
+        .map(|b| b.id)
+        .collect();
+
+    for block in ctx
+        .db
+        .block()
+        .iter()
+        .filter(|b| b.topic_id == topic_id && b.status == "claimed")
+    {
+        add_activity_signal(&mut scores, &block.owner_identity, 1, 0, 0, block.claimed_at);
+    }
+
+    for comment in ctx
+        .db
+        .comment()
+        .iter()
+        .filter(|c| topic_block_ids.contains(&c.block_id))
+    {
+        add_activity_signal(&mut scores, &comment.user_identity, 0, 1, 0, comment.created_at);
+    }
+
+    for moderation in ctx
+        .db
+        .topic_moderator()
+        .iter()
+        .filter(|m| m.topic_id == topic_id)
+    {
+        add_activity_signal(&mut scores, &moderation.identity, 0, 0, 1, moderation.created_at);
+    }
+
+    for application in ctx
+        .db
+        .topic_moderator_application()
+        .iter()
+        .filter(|a| a.topic_id == topic_id && !a.reviewed_by.is_empty() && a.reviewed_at > 0)
+    {
+        add_activity_signal(
+            &mut scores,
+            &application.reviewed_by,
+            0,
+            0,
+            1,
+            application.reviewed_at,
+        );
+    }
+
+    scores
+}
+
+fn sort_identities_by_moderator_activity(
+    identities: &mut [String],
+    activity_scores: &HashMap<String, ActivitySignal>,
+) {
+    identities.sort_by(|a, b| {
+        let a_score = activity_scores.get(a).copied().unwrap_or_default();
+        let b_score = activity_scores.get(b).copied().unwrap_or_default();
+        b_score
+            .moderation_action_count
+            .cmp(&a_score.moderation_action_count)
+            .then(b_score.comment_count.cmp(&a_score.comment_count))
+            .then(b_score.claim_count.cmp(&a_score.claim_count))
+            .then(b_score.last_activity_at.cmp(&a_score.last_activity_at))
+            .then_with(|| a.cmp(b))
+    });
+}
+
+fn sort_identities_by_recent_activity(
+    identities: &mut [String],
+    activity_scores: &HashMap<String, ActivitySignal>,
+) {
+    identities.sort_by(|a, b| {
+        let a_score = activity_scores.get(a).copied().unwrap_or_default();
+        let b_score = activity_scores.get(b).copied().unwrap_or_default();
+        b_score
+            .last_activity_at
+            .cmp(&a_score.last_activity_at)
+            .then(b_score.comment_count.cmp(&a_score.comment_count))
+            .then(b_score.claim_count.cmp(&a_score.claim_count))
+            .then(b_score.moderation_action_count.cmp(&a_score.moderation_action_count))
+            .then_with(|| a.cmp(b))
+    });
+}
+
+fn select_successor(
+    caller: &str,
+    preferred_new_owner_identity: Option<String>,
+    moderator_candidates: &[String],
+    contributor_candidates: &[String],
+    activity_scores: &HashMap<String, ActivitySignal>,
+) -> Result<String, String> {
+    let mut ranked_moderators = moderator_candidates.to_vec();
+    let mut ranked_contributors = contributor_candidates.to_vec();
+
+    let preferred = preferred_new_owner_identity
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    if let Some(explicit_owner) = preferred {
+        if explicit_owner == caller {
+            return Err("Preferred new owner cannot be the deleting user".to_string());
+        }
+        let is_active_moderator = ranked_moderators.iter().any(|id| id == &explicit_owner);
+        let is_contributor = ranked_contributors.iter().any(|id| id == &explicit_owner);
+        if !is_active_moderator && !is_contributor {
+            return Err(
+                "Preferred new owner must be an active moderator or existing contributor"
+                    .to_string(),
+            );
+        }
+        return Ok(explicit_owner);
+    }
+
+    sort_identities_by_moderator_activity(&mut ranked_moderators, activity_scores);
+    if let Some(best_moderator) = ranked_moderators.first() {
+        return Ok(best_moderator.clone());
+    }
+
+    sort_identities_by_recent_activity(&mut ranked_contributors, activity_scores);
+    ranked_contributors
+        .first()
+        .cloned()
+        .ok_or_else(|| "No eligible successor found".to_string())
 }
 
 /// Claim a block in a topic's spiral grid with YouTube metadata.
@@ -377,10 +539,17 @@ pub fn update_topic(
 /// Delete a topic.
 ///
 /// - If the caller owns all claimed blocks (or there are none) → delete all blocks and the topic.
-/// - If other users have blocks → transfer ownership to the most-active contributor
-///   (most blocks; earliest claimed_at as tiebreaker), remove only the caller's blocks, rebalance.
+/// - If other users have blocks:
+///   1) optional explicit successor (if eligible),
+///   2) otherwise the best active moderator by activity,
+///   3) otherwise the last-active non-caller contributor.
+///   Then remove caller blocks and rebalance.
 #[reducer]
-pub fn delete_topic(ctx: &ReducerContext, topic_id: u64) -> Result<(), String> {
+pub fn delete_topic(
+    ctx: &ReducerContext,
+    topic_id: u64,
+    preferred_new_owner_identity: Option<String>,
+) -> Result<(), String> {
     let caller = ctx.sender().to_hex().to_string();
 
     let topic = ctx
@@ -433,21 +602,32 @@ pub fn delete_topic(ctx: &ReducerContext, topic_id: u64) -> Result<(), String> {
         ctx.db.topic().id().delete(topic_id);
     } else {
         // Other users have posts — transfer ownership, remove caller's blocks, rebalance.
-        let mut counts: HashMap<String, (usize, u64)> = HashMap::new();
-        for b in all_claimed.iter().filter(|b| b.owner_identity != caller) {
-            let entry = counts.entry(b.owner_identity.clone()).or_insert((0, u64::MAX));
-            entry.0 += 1;
-            if b.claimed_at < entry.1 {
-                entry.1 = b.claimed_at;
-            }
-        }
-
-        // Most blocks wins; earliest claimed_at breaks ties.
-        let new_owner = counts
+        let mut contributor_candidates: Vec<String> = all_claimed
+            .iter()
+            .filter(|b| b.owner_identity != caller)
+            .map(|b| b.owner_identity.clone())
+            .collect::<HashSet<_>>()
             .into_iter()
-            .max_by(|(_, (ca, ta)), (_, (cb, tb))| ca.cmp(cb).then(tb.cmp(ta)))
-            .map(|(identity, _)| identity)
-            .unwrap();
+            .collect();
+
+        let mut moderator_candidates: Vec<String> = ctx
+            .db
+            .topic_moderator()
+            .iter()
+            .filter(|m| m.topic_id == topic_id && m.status == "active" && m.identity != caller)
+            .map(|m| m.identity)
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .collect();
+
+        let activity_scores = collect_topic_activity(ctx, topic_id);
+        let new_owner = select_successor(
+            &caller,
+            preferred_new_owner_identity,
+            &moderator_candidates,
+            &contributor_candidates,
+            &activity_scores,
+        )?;
 
         // Transfer ownership.
         ctx.db.topic().id().delete(topic_id);
@@ -774,4 +954,89 @@ pub fn backfill_topic_taxonomy_from_categories(ctx: &ReducerContext) -> Result<(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn id(value: &str) -> String {
+        value.to_string()
+    }
+
+    #[test]
+    fn select_successor_prefers_explicit_candidate_when_valid() {
+        let mut activity = HashMap::new();
+        add_activity_signal(&mut activity, "mod_a", 0, 0, 2, 100);
+        add_activity_signal(&mut activity, "user_b", 3, 1, 0, 200);
+
+        let selected = select_successor(
+            "owner",
+            Some("user_b".to_string()),
+            &[id("mod_a")],
+            &[id("user_b")],
+            &activity,
+        )
+        .expect("explicit candidate should be accepted");
+
+        assert_eq!(selected, "user_b");
+    }
+
+    #[test]
+    fn select_successor_rejects_invalid_explicit_candidate() {
+        let activity = HashMap::new();
+        let result = select_successor(
+            "owner",
+            Some("outsider".to_string()),
+            &[id("mod_a")],
+            &[id("user_b")],
+            &activity,
+        );
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn select_successor_auto_picks_top_moderator_first() {
+        let mut activity = HashMap::new();
+        add_activity_signal(&mut activity, "mod_low", 1, 1, 1, 300);
+        add_activity_signal(&mut activity, "mod_top", 2, 3, 5, 200);
+        add_activity_signal(&mut activity, "user_z", 10, 10, 0, 500);
+
+        let selected = select_successor(
+            "owner",
+            None,
+            &[id("mod_low"), id("mod_top")],
+            &[id("user_z")],
+            &activity,
+        )
+        .expect("moderator should be selected");
+
+        assert_eq!(selected, "mod_top");
+    }
+
+    #[test]
+    fn select_successor_falls_back_to_last_active_contributor() {
+        let mut activity = HashMap::new();
+        add_activity_signal(&mut activity, "user_old", 2, 0, 0, 100);
+        add_activity_signal(&mut activity, "user_new", 1, 0, 0, 250);
+
+        let selected = select_successor(
+            "owner",
+            None,
+            &[],
+            &[id("user_old"), id("user_new")],
+            &activity,
+        )
+        .expect("fallback contributor should be selected");
+
+        assert_eq!(selected, "user_new");
+    }
+
+    #[test]
+    fn select_successor_errors_when_no_candidates_exist() {
+        let activity = HashMap::new();
+        let result = select_successor("owner", None, &[], &[], &activity);
+        assert!(result.is_err());
+    }
 }

@@ -39,6 +39,11 @@ export enum Platform {
 export const ENABLE_RUMBLE = process.env.NEXT_PUBLIC_ENABLE_RUMBLE === "true";
 export const ENABLE_BILIBILI = process.env.NEXT_PUBLIC_ENABLE_BILIBILI !== "false";
 
+/** CDN base URLs used to reconstruct thumbnail paths stored without a host. */
+export const THUMBNAIL_CDN_BASE: Partial<Record<Platform, string>> = {
+  [Platform.BiliBili]: "https://i0.hdslb.com",
+};
+
 export enum BlockStatus {
   Empty = "empty",
   Claimed = "claimed",

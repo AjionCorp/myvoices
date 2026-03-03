@@ -12,4 +12,5 @@ import {
 
 export default {
   topicId: __t.u64(),
+  preferredNewOwnerIdentity: __t.option(__t.string()),
 };

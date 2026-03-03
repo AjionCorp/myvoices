@@ -5,7 +5,7 @@ import { useCanvasStore } from "@/stores/canvas-store";
 import { useTopicStore } from "@/stores/topic-store";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { getConnection } from "@/lib/spacetimedb/client";
-import { getThumbnailUrl } from "@/lib/utils/video-url";
+import { getThumbnailUrl, normalizeThumbnailForStorage } from "@/lib/utils/video-url";
 import { resolveVideoMeta, type ResolvedVideoMeta } from "@/lib/utils/video-meta";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -135,7 +135,7 @@ export function SubmissionModal() {
         topicId: BigInt(targetTopicId ?? activeTopic.id),
         videoId: resolvedMeta.videoId,
         platform: resolvedMeta.platform,
-        thumbnailUrl: resolvedMeta.thumbnailUrl || "",
+        thumbnailUrl: normalizeThumbnailForStorage(resolvedMeta.thumbnailUrl, resolvedMeta.platform),
         ownerName,
         ytViews: BigInt(0),
         ytLikes: BigInt(0),

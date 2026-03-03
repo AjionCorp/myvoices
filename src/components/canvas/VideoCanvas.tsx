@@ -60,6 +60,11 @@ export function VideoCanvas() {
   const scaleMap = useRef(new Map<number, { current: number; target: number }>());
   const pendingLoads = useRef(new Set<string>());
 
+  // Guards against navigation-click leaks: a pointerup from clicking a link to
+  // navigate here must not immediately open a modal on the freshly mounted canvas.
+  const mountedAt = useRef(Date.now());
+  const pointerDownOnCanvas = useRef(false);
+
   const { panBy, zoomBy, setScreenSize, setDragging, selectBlock, openSubmissionModal } = useCanvasStore();
 
   useEffect(() => {
@@ -312,6 +317,7 @@ export function VideoCanvas() {
       mouseScreen.current.y = e.clientY;
     };
     const onDown = (e: PointerEvent) => {
+      pointerDownOnCanvas.current = true;
       isDragging.current = false;
       dragDist.current = 0;
       lastPointer.current = { x: e.clientX, y: e.clientY };
@@ -344,8 +350,11 @@ export function VideoCanvas() {
     const onUp = (e: PointerEvent) => {
       el.releasePointerCapture(e.pointerId);
       const wasDrag = isDragging.current;
+      const hadDown = pointerDownOnCanvas.current;
+      pointerDownOnCanvas.current = false;
       pressedBlockId.current = -1;
-      if (!wasDrag && dragDist.current <= 5) {
+      const tooSoonAfterMount = Date.now() - mountedAt.current < 300;
+      if (!wasDrag && dragDist.current <= 5 && hadDown && !tooSoonAfterMount) {
         const hBlockId = hoveredBlockId.current;
         if (hBlockId >= 0) {
           // Tap on an existing claimed block → show detail

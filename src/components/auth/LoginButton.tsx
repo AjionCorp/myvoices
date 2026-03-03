@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronDown, LogOut, UserRound } from "lucide-react";
+import { ChevronDown, Coins, LogOut, UserRound } from "lucide-react";
 import { useAuth } from "./AuthProvider";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +23,7 @@ export function LoginButton() {
 
   if (isAuthenticated && user) {
     const initials = (user.username || user.displayName).charAt(0).toUpperCase();
+    const formattedCredits = new Intl.NumberFormat().format(user.credits ?? 0);
 
     return (
       <DropdownMenu>
@@ -51,6 +52,13 @@ export function LoginButton() {
         <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuLabel className="truncate">
             {user.username || user.displayName}
+          </DropdownMenuLabel>
+          <DropdownMenuLabel className="flex items-center justify-between gap-2 text-xs font-medium text-muted">
+            <span className="flex items-center gap-1.5">
+              <Coins className="size-3.5 text-accent" />
+              Credits
+            </span>
+            <span className="text-foreground">{formattedCredits}</span>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
