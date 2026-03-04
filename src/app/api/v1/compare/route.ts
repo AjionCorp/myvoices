@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runSql, rowToObject } from "@/lib/spacetimedb/http-sql";
+import { runSql, rowToObject, IS_MOCK } from "@/lib/spacetimedb/http-sql";
+import { readFileSync } from "fs";
+import { join } from "path";
 
 const TOPIC_COLS = [
   "id", "slug", "title", "description", "category",
@@ -13,6 +15,97 @@ const BLOCK_COLS = [
 
 /** Only allow valid slug characters to prevent SQL injection. */
 const SLUG_RE = /^[a-z0-9-]{1,80}$/;
+
+// ── Mock data helpers ────────────────────────────────────────────────────────
+
+interface MockTopicEntry {
+  id: number;
+  slug: string;
+  title: string;
+  description: string;
+  category: string;
+  videoCount: number;
+  totalLikes: number;
+  totalDislikes: number;
+  totalViews: number;
+  taxonomyPath: string;
+  taxonomyName: string;
+  thumbnailVideoId?: string;
+}
+
+let _mockBySlug: Map<string, MockTopicEntry> | null = null;
+
+function getMockTopicBySlug(): Map<string, MockTopicEntry> {
+  if (_mockBySlug) return _mockBySlug;
+  try {
+    const filePath = join(process.cwd(), "src", "lib", "mock-topics.json");
+    const raw = readFileSync(filePath, "utf-8");
+    const parsed = JSON.parse(raw) as { topics: MockTopicEntry[] };
+    _mockBySlug = new Map(parsed.topics.map((t) => [t.slug, t]));
+  } catch {
+    _mockBySlug = new Map();
+  }
+  return _mockBySlug;
+}
+
+const MOCK_VIDEO_IDS = [
+  "dQw4w9WgXcQ", "9bZkp7q19f0", "kJQP7kiw5Fk", "RgKAFK5djSk",
+  "JGwWNGJdvx8", "fJ9rUzIMcZQ", "hT_nvWreIhg", "OPf0YbXqDm0",
+  "CevxZvSJLk8", "09R8_2nJtjg", "YQHsXMglC9A", "lp-EO5I60KA",
+  "bo_efYhYU2A", "7wtfhZwyrcc", "e-ORhEE9VVg", "kXYiU_JCYtU",
+  "2Vv-BfVoq4g", "60ItHLz5WEA", "hLQl3WQQoQ0", "pRpeEdMmmQ0",
+];
+
+function buildMockResponse(slugs: string[]): NextResponse {
+  const lookup = getMockTopicBySlug();
+  const panels: ComparePanel[] = [];
+
+  for (const slug of slugs) {
+    const t = lookup.get(slug);
+    if (!t) continue;
+
+    const topic: CompareTopic = {
+      id: t.id,
+      slug: t.slug,
+      title: t.title,
+      description: t.description,
+      category: t.category,
+      videoCount: t.videoCount ?? 0,
+      totalLikes: t.totalLikes ?? 0,
+      totalDislikes: t.totalDislikes ?? 0,
+      totalViews: t.totalViews ?? 0,
+      taxonomyPath: t.taxonomyPath ?? "",
+      taxonomyName: t.taxonomyName ?? "",
+    };
+
+    // Seed deterministic blocks from the topic id
+    const seed = t.id;
+    const blocks: CompareBlock[] = [];
+    for (let i = 0; i < 12; i++) {
+      const idx = (seed * 7 + i * 31) % MOCK_VIDEO_IDS.length;
+      const videoId = MOCK_VIDEO_IDS[Math.abs(idx)];
+      const likes = ((seed + i * 17) % 50000) + 1000;
+      const dislikes = ((seed + i * 5) % 5000);
+      const ytViews = ((seed + i * 97) % 1000000) + 10000;
+      blocks.push({
+        id: seed * 100 + i,
+        videoId,
+        platform: "youtube",
+        thumbnailUrl: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+        likes,
+        dislikes,
+        ytViews,
+        ytLikes: Math.floor(ytViews * 0.04),
+        ownerName: `@seed_user_${(seed + i) % 200}`,
+        score: ytViews + (likes - dislikes),
+      });
+    }
+    blocks.sort((a, b) => b.score - a.score);
+    panels.push({ topic, blocks });
+  }
+
+  return NextResponse.json({ panels } satisfies CompareResponse);
+}
 
 export interface CompareBlock {
   id: number;
@@ -65,6 +158,11 @@ export async function GET(request: NextRequest) {
     if (!SLUG_RE.test(s)) {
       return NextResponse.json({ error: `Invalid slug: "${s}"` }, { status: 400 });
     }
+  }
+
+  // ── Mock mode: serve data from local mock-topics.json ──────────────────────
+  if (IS_MOCK) {
+    return buildMockResponse(slugs);
   }
 
   // SpacetimeDB does not support IN (...) — build OR chains instead

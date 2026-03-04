@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { Menu } from "lucide-react";
 import { Header } from "@/components/ui/Header";
 import { LoginButton } from "@/components/auth/LoginButton";
 import { BlockDetailPanel } from "@/components/canvas/BlockDetailPanel";
@@ -18,7 +19,7 @@ import { useBlocksStore } from "@/stores/blocks-store";
 import { useTopicStore } from "@/stores/topic-store";
 import { useTopicBlocksSubscription } from "@/components/spacetimedb/SpacetimeDBProvider";
 import { getConnection } from "@/lib/spacetimedb/client";
-import { startViewerSimulation } from "@/stores/viewers-store";
+import { startViewerSimulation, useViewersStore } from "@/stores/viewers-store";
 import { AnonymousViewportFetcher } from "@/lib/spacetimedb/AnonymousViewportFetcher";
 import { useAuthStore } from "@/stores/auth-store";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TopicPickerModal } from "@/components/compare/TopicPickerModal";
+import { cn } from "@/lib/utils";
 
 const VideoCanvas = dynamic(
   () =>
@@ -399,7 +401,159 @@ function TopicModerationMenu({ topicId, topicCreatorIdentity }: { topicId: numbe
   );
 }
 
-function TopicHeader({ slug }: { slug: string }) {
+function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
+  const topics = useTopicStore((s) => s.topics);
+  const taxonomyNodes = useTopicStore((s) => s.taxonomyNodes);
+  const activeTopic = useTopicStore((s) => s.activeTopic);
+  const topic = activeTopic || [...topics.values()].find((t) => t.slug === slug);
+  const viewers = useViewersStore((s) => s.viewers);
+  const { totalClaimed } = useBlocksStore();
+
+  const taxonomyPath =
+    topic?.taxonomyPath ||
+    (topic?.taxonomyNodeId ? taxonomyNodes.get(topic.taxonomyNodeId)?.path : undefined) ||
+    "";
+  const taxonomyParts = taxonomyPath ? taxonomyPath.split("/").filter(Boolean) : [];
+
+  const subtopics = useMemo(() => {
+    if (!topic || !taxonomyPath) return [];
+    const childPrefix = `${taxonomyPath}/`;
+    const currentDepth = taxonomyParts.length;
+    return [...topics.values()]
+      .filter((candidate) => {
+        if (candidate.id === topic.id) return false;
+        const candidatePath =
+          candidate.taxonomyPath ||
+          (candidate.taxonomyNodeId ? taxonomyNodes.get(candidate.taxonomyNodeId)?.path : "") ||
+          "";
+        if (!candidatePath.startsWith(childPrefix)) return false;
+        const depth = candidatePath.split("/").filter(Boolean).length;
+        return depth === currentDepth + 1;
+      })
+      .sort((a, b) => a.title.localeCompare(b.title));
+  }, [taxonomyNodes, taxonomyParts.length, taxonomyPath, topic, topics]);
+
+  return (
+    <div
+      className={cn(
+        "pointer-events-auto absolute top-0 left-0 bottom-0 z-20 w-72 overflow-y-auto border-r border-border/50 bg-background/95 backdrop-blur-md transition-transform duration-300 ease-in-out",
+        open ? "translate-x-0 shadow-xl" : "-translate-x-full"
+      )}
+    >
+      {/* spacer matching header bar height (py-2 + h-7 content = 44px) */}
+      <div className="h-11 shrink-0" />
+
+      {/* Topic info */}
+      {topic && (
+        <div className="border-b border-border/50 p-4">
+          <h2 className="mb-1 text-sm font-semibold text-foreground">{topic.title}</h2>
+          {taxonomyParts.length > 0 && (
+            <p className="mb-2 text-[11px] text-muted">{taxonomyParts.join(" › ")}</p>
+          )}
+          {topic.description && (
+            <p className="mb-3 text-xs leading-relaxed text-muted">{topic.description}</p>
+          )}
+          <div className="flex flex-wrap gap-x-3 gap-y-1.5">
+            <div className="flex items-center gap-1 text-xs text-muted">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              {(topic.totalViews || 0).toLocaleString()} views
+            </div>
+            <div className="flex items-center gap-1 text-xs text-muted">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3H14z" />
+                <path d="M7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
+              </svg>
+              {(topic.totalLikes || 0).toLocaleString()} likes
+            </div>
+            <div className="flex items-center gap-1 text-xs text-muted">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="2" y="3" width="20" height="14" rx="2" />
+                <path d="M8 21h8M12 17v4" />
+              </svg>
+              {totalClaimed.toLocaleString()} videos
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Viewers online */}
+      <div className="border-b border-border/50 p-4">
+        <div className="mb-3 flex items-center gap-2">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-green-400" />
+          <h3 className="text-xs font-semibold text-foreground">{viewers.length} Viewing Now</h3>
+        </div>
+        <div className="max-h-52 space-y-1 overflow-y-auto pr-1">
+          {viewers.map((viewer) => (
+            <div
+              key={viewer.id}
+              className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-surface/60 transition-colors"
+            >
+              <div
+                className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white"
+                style={{ backgroundColor: viewer.color }}
+              >
+                {viewer.name[0]}
+              </div>
+              <span className="truncate text-xs text-foreground">{viewer.name}</span>
+              <span className="ml-auto h-1.5 w-1.5 shrink-0 rounded-full bg-green-400 opacity-80" />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Subtopics */}
+      {subtopics.length > 0 && (
+        <div className="p-4">
+          <h3 className="mb-3 text-xs font-semibold text-foreground">
+            Subtopics
+            <span className="ml-1.5 rounded-full bg-surface px-1.5 py-0.5 text-[10px] text-muted">
+              {subtopics.length}
+            </span>
+          </h3>
+          <div className="space-y-2">
+            {subtopics.map((subtopic) => (
+              <Link
+                key={subtopic.id}
+                href={`/t/${subtopic.slug}`}
+                className="group flex flex-col gap-0.5 rounded-lg border border-border bg-surface p-3 transition-colors hover:border-accent/40 hover:bg-surface/80"
+              >
+                <span className="text-xs font-medium text-foreground group-hover:text-accent transition-colors">
+                  {subtopic.title}
+                </span>
+                {subtopic.description && (
+                  <span className="line-clamp-2 text-[11px] leading-relaxed text-muted">
+                    {subtopic.description}
+                  </span>
+                )}
+                <div className="mt-1 flex items-center gap-2">
+                  <span className="text-[10px] text-muted">{subtopic.videoCount || 0} videos</span>
+                  {subtopic.totalViews != null && subtopic.totalViews > 0 && (
+                    <span className="text-[10px] text-muted">· {subtopic.totalViews.toLocaleString()} views</span>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state when no subtopics */}
+      {subtopics.length === 0 && topic && (
+        <div className="p-4">
+          <h3 className="mb-2 text-xs font-semibold text-foreground">Subtopics</h3>
+          <p className="rounded-lg border border-border/50 bg-surface/50 px-3 py-2.5 text-[11px] text-muted">
+            No subtopics yet for this topic.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TopicHeader({ slug, sidebarOpen, onToggleSidebar }: { slug: string; sidebarOpen: boolean; onToggleSidebar: () => void }) {
   const router = useRouter();
   const topics = useTopicStore((s) => s.topics);
   const taxonomyNodes = useTopicStore((s) => s.taxonomyNodes);
@@ -445,8 +599,20 @@ function TopicHeader({ slug }: { slug: string }) {
   return (
     <div className="pointer-events-auto absolute top-0 left-0 right-0 z-30">
       <div className="flex items-center bg-background/80 px-4 py-2 backdrop-blur-sm border-b border-border/50">
-        {/* left: breadcrumb + title + meta + action */}
+        {/* left: hamburger + breadcrumb + title + meta + action */}
         <div className="flex flex-1 min-w-0 items-center gap-2">
+          <Button
+            onClick={onToggleSidebar}
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "h-7 w-7 shrink-0 p-0 transition-colors",
+              sidebarOpen && "bg-surface text-foreground"
+            )}
+            aria-label="Toggle sidebar"
+          >
+            <Menu className="h-4 w-4" />
+          </Button>
           <Link href="/" className="text-muted hover:text-foreground transition-colors text-sm shrink-0">
             ← Topics
           </Link>
@@ -533,6 +699,8 @@ function TopicHeader({ slug }: { slug: string }) {
         excludeSlugs={topic ? [topic.slug] : []}
         onSelect={(picked) => router.push(`/compare/${slug}/${picked}`)}
         title="Compare with another topic"
+        currentTopicCategory={topic?.category}
+        currentTopicTaxonomyPath={taxonomyPath || undefined}
       />
     </div>
   );
@@ -541,6 +709,7 @@ function TopicHeader({ slug }: { slug: string }) {
 export default function TopicPage() {
   const params = useParams();
   const slug = typeof params?.slug === "string" ? params.slug : "";
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const { centerOn, screenWidth } = useCanvasStore();
   const loading = useBlocksStore((s) => s.loading);
@@ -621,8 +790,10 @@ export default function TopicPage() {
         <AnonymousViewportFetcher topicId={topicId} />
       )}
 
+      <TopicSidebarPanel slug={slug} open={sidebarOpen} />
+
       <div className="pointer-events-none absolute inset-0 z-30">
-        <TopicHeader slug={slug} />
+        <TopicHeader slug={slug} sidebarOpen={sidebarOpen} onToggleSidebar={() => setSidebarOpen((o) => !o)} />
         <BlockDetailPanel />
         <SubmissionModal />
         <AddVideoModal />

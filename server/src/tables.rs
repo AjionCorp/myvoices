@@ -279,6 +279,19 @@ pub struct ClerkIdentityMap {
     pub spacetimedb_identity: String,
 }
 
+#[table(accessor = direct_message, public)]
+#[derive(Clone)]
+pub struct DirectMessage {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub sender_identity: String,
+    pub recipient_identity: String,
+    pub text: String,
+    pub is_read: bool,
+    pub created_at: u64,
+}
+
 #[table(accessor = contest_winner, public)]
 pub struct ContestWinner {
     #[primary_key]

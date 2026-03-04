@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { LoginButton } from "@/components/auth/LoginButton";
-import { ComparePanel } from "./ComparePanel";
+import { ComparePanelHeader, ComparePanelBody } from "./ComparePanel";
 import { TopicPickerModal } from "./TopicPickerModal";
 import { getEmbedUrl, getVideoUrl } from "@/lib/utils/video-url";
 import { useTopicStore } from "@/stores/topic-store";
@@ -85,6 +85,32 @@ export function CompareView({ slugs, panels, loading, error }: CompareViewProps)
     setActiveBlock({ block, topicSlug });
   }, []);
 
+  // Context for the topic picker: use first panel when loaded, fall back to store.
+  const pickerContext = useMemo(() => {
+    const firstSlug = slugs[0];
+    if (!firstSlug) return { category: undefined, taxonomyPath: undefined };
+
+    // Prefer API panel data (fully enriched with taxonomyPath).
+    const panel = panels.find((p) => p.topic.slug === firstSlug);
+    if (panel?.topic.category) {
+      return {
+        category: panel.topic.category,
+        taxonomyPath: panel.topic.taxonomyPath || undefined,
+      };
+    }
+
+    // Fall back to the Zustand store (may lack taxonomyPath in WS mode).
+    for (const t of storeTopics.values()) {
+      if (t.slug === firstSlug) {
+        return {
+          category: t.category || undefined,
+          taxonomyPath: t.taxonomyPath || undefined,
+        };
+      }
+    }
+    return { category: undefined, taxonomyPath: undefined };
+  }, [slugs, panels, storeTopics]);
+
   const count = panels.length || slugs.length;
   const gridClass = GRID_CLASSES[count] ?? "grid-cols-2";
   const fullSpan = COL_SPAN[count] ?? "col-span-2";
@@ -146,19 +172,24 @@ export function CompareView({ slugs, panels, loading, error }: CompareViewProps)
         </div>
       </div>
 
-      {/* ─── Main grid ──────────────────────────────────────────────── */}
-      <div className={`flex-1 grid overflow-hidden divide-x divide-border/50 ${gridClass}`}>
-        {/* Loading skeletons — one per slug */}
-        {loading && slugs.map((slug) => (
-          <div key={slug} className="flex flex-col items-center justify-center gap-3 text-muted-foreground">
-            <div className="w-6 h-6 border-2 border-border border-t-primary rounded-full animate-spin" />
-            <span className="text-xs opacity-60">{getTitle(slug)}</span>
+      {/* ─── Main content ────────────────────────────────────────────── */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+
+        {/* Loading skeletons */}
+        {loading && (
+          <div className={`flex-1 grid overflow-hidden divide-x divide-border/50 ${gridClass}`}>
+            {slugs.map((slug) => (
+              <div key={slug} className="flex flex-col items-center justify-center gap-3 text-muted-foreground">
+                <div className="w-6 h-6 border-2 border-border border-t-primary rounded-full animate-spin" />
+                <span className="text-xs opacity-60">{getTitle(slug)}</span>
+              </div>
+            ))}
           </div>
-        ))}
+        )}
 
         {/* Error state */}
         {error && !loading && (
-          <div className={`${fullSpan} flex flex-col items-center justify-center gap-3 px-6 text-center`}>
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 text-center">
             <svg className="h-8 w-8 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
             </svg>
@@ -170,9 +201,9 @@ export function CompareView({ slugs, panels, loading, error }: CompareViewProps)
           </div>
         )}
 
-        {/* Empty state — topics not found or no data returned */}
+        {/* Empty state */}
         {isEmpty && (
-          <div className={`${fullSpan} flex flex-col items-center justify-center gap-3 px-6 text-center`}>
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 px-6 text-center">
             <svg className="h-8 w-8 text-muted-foreground/40" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9 5.25h.008v.008H12v-.008z" />
             </svg>
@@ -181,9 +212,7 @@ export function CompareView({ slugs, panels, loading, error }: CompareViewProps)
               These topics could not be loaded from the database. They may not exist or the server may be temporarily unavailable.
             </p>
             <div className="flex gap-2 mt-1">
-              <Button variant="outline" size="sm" onClick={() => router.refresh()}>
-                Retry
-              </Button>
+              <Button variant="outline" size="sm" onClick={() => router.refresh()}>Retry</Button>
               <Button variant="ghost" size="sm" asChild>
                 <Link href="/">← Back to Topics</Link>
               </Button>
@@ -191,17 +220,50 @@ export function CompareView({ slugs, panels, loading, error }: CompareViewProps)
           </div>
         )}
 
-        {/* Populated panels */}
-        {!loading && !error && panels.map((panel, i) => (
-          <ComparePanel
-            key={panel.topic.slug}
-            panel={panel}
-            canRemove={slugs.length > 2}
-            onRemove={() => handleRemoveTopic(panel.topic.slug)}
-            onSelectBlock={(block) => handleSelectBlock(block, panel.topic.slug)}
-            className={count === 4 && i >= 2 ? "border-t border-border/50" : ""}
-          />
-        ))}
+        {/* Populated panels — headers share one row, bodies share another */}
+        {!loading && !error && panels.length > 0 && (
+          <>
+            {/* HEADER ROW — all panel headers rendered together so they share the same height */}
+            <div className={`shrink-0 grid divide-x divide-border/50 ${gridClass}`}>
+              {panels.map((panel) => (
+                <ComparePanelHeader
+                  key={panel.topic.slug}
+                  panel={panel}
+                  onRemove={() => handleRemoveTopic(panel.topic.slug)}
+                />
+              ))}
+            </div>
+
+            {/* BODY ROW — scrollable video lists */}
+            <div className={`flex-1 grid overflow-hidden divide-x divide-border/50 ${gridClass}`}>
+              {panels.map((panel, i) => (
+                <ComparePanelBody
+                  key={panel.topic.slug}
+                  panel={panel}
+                  onSelectBlock={(block) => handleSelectBlock(block, panel.topic.slug)}
+                  className={count === 4 && i >= 2 ? "border-t border-border/50" : ""}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Add topic prompt — shown below panels when fewer than 4 */}
+        {!loading && !error && panels.length > 0 && panels.length < 4 && (
+          <div className="shrink-0 flex items-center justify-center gap-2 py-2 border-t border-border/40 bg-background/40">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setPickerOpen(true)}
+              className="h-7 px-4 text-xs gap-1.5 text-muted-foreground hover:text-foreground border border-dashed border-border/60 hover:border-border rounded-lg transition-colors"
+            >
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Add {panels.length + 1 === 3 ? "a 3rd" : "a 4th"} topic to compare
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* ─── Topic picker modal ──────────────────────────────────────── */}
@@ -210,7 +272,9 @@ export function CompareView({ slugs, panels, loading, error }: CompareViewProps)
         onClose={() => setPickerOpen(false)}
         onSelect={handleAddTopic}
         excludeSlugs={slugs}
-        title={`Add a ${slugs.length + 1}${slugs.length === 1 ? "nd" : slugs.length === 2 ? "rd" : "th"} Topic`}
+        title={`Add a ${slugs.length + 1}${slugs.length === 1 ? "nd" : slugs.length === 2 ? "rd" : "th"} topic to compare`}
+        currentTopicCategory={pickerContext.category}
+        currentTopicTaxonomyPath={pickerContext.taxonomyPath}
       />
 
       {/* ─── Video embed modal ───────────────────────────────────────── */}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { connect, disconnect, reconnect, getConnection, subscribeToNotifications, type ConnectionCallbacks } from "@/lib/spacetimedb/client";
+import { connect, disconnect, reconnect, getConnection, subscribeToNotifications, subscribeToMessages, type ConnectionCallbacks } from "@/lib/spacetimedb/client";
 import { useBlocksStore, type Block as StoreBlock } from "@/stores/blocks-store";
 import {
   useTopicStore,
@@ -14,6 +14,7 @@ import { useContestStore } from "@/stores/contest-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useCommentsStore } from "@/stores/comments-store";
 import { useNotificationsStore } from "@/stores/notifications-store";
+import { useMessagesStore } from "@/stores/messages-store";
 import { BlockStatus, Platform } from "@/lib/constants";
 import { batchSpiralCoordinates } from "@/lib/canvas/spiral-layout";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -219,6 +220,24 @@ function bulkLoadNotifications(conn: DbConnection) {
   }
 }
 
+function bulkLoadMessages(conn: DbConnection, identity: string) {
+  const all = [];
+  for (const row of conn.db.direct_message.iter()) {
+    all.push({
+      id: Number(row.id),
+      senderIdentity: row.senderIdentity,
+      recipientIdentity: row.recipientIdentity,
+      text: row.text,
+      isRead: row.isRead,
+      createdAt: Number(row.createdAt),
+    });
+  }
+  useMessagesStore.getState().setMyIdentity(identity);
+  if (all.length > 0) {
+    useMessagesStore.getState().setMessages(all);
+  }
+}
+
 function registerTableCallbacks(conn: DbConnection) {
   const { setActiveContest, setWinners } = useContestStore.getState();
 
@@ -390,6 +409,28 @@ function registerTableCallbacks(conn: DbConnection) {
     });
   });
 
+  conn.db.direct_message.onInsert((_ctx, row) => {
+    useMessagesStore.getState().addMessage({
+      id: Number(row.id),
+      senderIdentity: row.senderIdentity,
+      recipientIdentity: row.recipientIdentity,
+      text: row.text,
+      isRead: row.isRead,
+      createdAt: Number(row.createdAt),
+    });
+  });
+
+  conn.db.direct_message.onUpdate((_ctx, _old, row) => {
+    useMessagesStore.getState().updateMessage({
+      id: Number(row.id),
+      senderIdentity: row.senderIdentity,
+      recipientIdentity: row.recipientIdentity,
+      text: row.text,
+      isRead: row.isRead,
+      createdAt: Number(row.createdAt),
+    });
+  });
+
   conn.db.contest.onInsert((_ctx, row) => {
     if (row.status === "active") {
       setActiveContest({
@@ -505,6 +546,8 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
       bulkLoadCommentLikes(connection);
       bulkLoadNotifications(connection);
       subscribeToNotifications(identity.toHexString());
+      bulkLoadMessages(connection, identity.toHexString());
+      subscribeToMessages(identity.toHexString());
 
       const clerkEmail = clerkUserRef.current.email;
       const clerkUsername = clerkUserRef.current.username;

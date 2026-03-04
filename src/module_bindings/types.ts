@@ -108,6 +108,16 @@ export const CreditTransactionLog = __t.object("CreditTransactionLog", {
 });
 export type CreditTransactionLog = __Infer<typeof CreditTransactionLog>;
 
+export const DirectMessage = __t.object("DirectMessage", {
+  id: __t.u64(),
+  senderIdentity: __t.string(),
+  recipientIdentity: __t.string(),
+  text: __t.string(),
+  isRead: __t.bool(),
+  createdAt: __t.u64(),
+});
+export type DirectMessage = __Infer<typeof DirectMessage>;
+
 export const DislikeRecord = __t.object("DislikeRecord", {
   id: __t.u64(),
   blockId: __t.u64(),

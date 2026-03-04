@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { Plus, Menu } from "lucide-react";
 import { LoginButton } from "@/components/auth/LoginButton";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { InboxButton } from "@/components/messaging/InboxButton";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useContestStore } from "@/stores/contest-store";
 import { useCanvasStore } from "@/stores/canvas-store";
@@ -90,6 +91,7 @@ export function Header() {
             </Button>
           )}
           {isAuthenticated && <NotificationBell />}
+          {isAuthenticated && <InboxButton />}
           <LoginButton />
         </div>
       </div>

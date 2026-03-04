@@ -1,6 +1,11 @@
 import { create } from "zustand";
 
-export type NotificationType = "comment_reply" | "comment_like" | "comment_repost";
+export type NotificationType =
+  | "comment_reply"
+  | "comment_like"
+  | "comment_repost"
+  | "video_like"
+  | "new_message";
 
 export interface Notification {
   id: number;

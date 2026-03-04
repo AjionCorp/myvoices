@@ -23,13 +23,9 @@ function formatCount(n: number): string {
   return String(n);
 }
 
-function VideoCard({
-  block,
-  onClick,
-}: {
-  block: CompareBlock;
-  onClick: () => void;
-}) {
+// ── Video card ───────────────────────────────────────────────────────────────
+
+function VideoCard({ block, onClick }: { block: CompareBlock; onClick: () => void }) {
   const platform = block.platform as Platform;
   const thumbUrl = getThumbnailUrl(block.videoId, platform, block.thumbnailUrl ?? undefined);
   const displayScore = block.ytViews > 0 ? block.ytViews : Math.max(0, block.likes - block.dislikes);
@@ -65,31 +61,37 @@ function VideoCard({
             <path d="M8 5v14l11-7z" />
           </svg>
         </div>
-      </div>
-
-      {/* Meta */}
-      <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
-        <div className="flex items-start gap-1.5">
-          <Badge
-            variant="outline"
-            className="text-[9px] px-1 py-0 h-4 shrink-0 uppercase tracking-wide"
-          >
+        {/* Platform badge pinned to thumbnail corner */}
+        <div className="absolute bottom-1 left-1">
+          <Badge variant="outline" className="text-[8px] px-1 py-0 h-3.5 uppercase tracking-wide bg-black/70 border-white/20 text-white/90 backdrop-blur-sm">
             {platformLabel}
           </Badge>
         </div>
-        <div className="flex items-center gap-2 mt-auto">
-          <span className="text-xs text-muted-foreground">
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 min-w-0 flex flex-col gap-1 py-0.5">
+        {/* Channel / owner name as primary identifier */}
+        {block.ownerName && (
+          <p className="text-xs font-medium text-foreground/90 truncate leading-tight group-hover:text-accent transition-colors">
+            {block.ownerName}
+          </p>
+        )}
+
+        {/* Stats row */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[11px] text-muted-foreground tabular-nums">
             {formatCount(displayScore)}{" "}
             <span className="opacity-60">{block.ytViews > 0 ? "views" : "score"}</span>
           </span>
           {block.likes > 0 && (
-            <span className="text-xs text-emerald-500/80">
+            <span className="text-[11px] text-emerald-500/80 tabular-nums">
               +{block.likes}
             </span>
           )}
-          {block.ownerName && (
-            <span className="text-xs text-muted-foreground/60 truncate ml-auto">
-              {block.ownerName}
+          {block.dislikes > 0 && (
+            <span className="text-[11px] text-rose-500/70 tabular-nums">
+              −{block.dislikes}
             </span>
           )}
         </div>
@@ -98,93 +100,101 @@ function VideoCard({
   );
 }
 
-interface ComparePanelProps {
+// ── Panel header (row 1 of the aligned grid) ─────────────────────────────────
+
+interface PanelHeaderProps {
   panel: ComparePanelData;
-  /** Show the × remove button — hidden when only 2 panels remain (min). */
-  canRemove: boolean;
   onRemove: () => void;
-  /** Called when a video card is clicked — passes the block to play. */
-  onSelectBlock: (block: CompareBlock) => void;
-  /** Extra CSS class forwarded to the root element (e.g. border dividers). */
-  className?: string;
 }
 
-export function ComparePanel({
-  panel,
-  canRemove,
-  onRemove,
-  onSelectBlock,
-  className = "",
-}: ComparePanelProps) {
-  const { topic, blocks } = panel;
-  const crumb = topic.taxonomyPath
-    ? topic.taxonomyPath.split("/").filter(Boolean).join(" › ")
-    : topic.category;
+export function ComparePanelHeader({ panel, onRemove }: PanelHeaderProps) {
+  const { topic } = panel;
+
+  // Build breadcrumb path from taxonomy or category
+  const crumbParts = topic.taxonomyPath
+    ? topic.taxonomyPath.split("/").filter(Boolean)
+    : topic.category
+    ? [topic.category]
+    : [];
 
   return (
-    <div className={`flex flex-col min-h-0 overflow-hidden ${className}`}>
-      {/* Panel header */}
-      <div className="shrink-0 flex items-start gap-2 px-4 py-3 border-b border-border/60 bg-background/60 backdrop-blur-sm">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <h2 className="text-sm font-semibold text-foreground leading-tight truncate">
-              {topic.title}
-            </h2>
-            {crumb && (
-              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 shrink-0">
-                {crumb}
-              </Badge>
-            )}
-          </div>
-          <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-            <span>{topic.videoCount.toLocaleString()} videos</span>
-            <span>{formatCount(topic.totalViews)} views</span>
-            {topic.totalLikes > 0 && (
-              <span className="text-emerald-500/70">+{formatCount(topic.totalLikes)}</span>
-            )}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-1 shrink-0">
+    <div className="flex flex-col gap-1 px-4 py-3 border-b border-border/60 bg-background/60 backdrop-blur-sm">
+      {/* Row 1 — title + actions */}
+      <div className="flex items-start gap-2">
+        <h2 className="flex-1 text-sm font-semibold text-foreground leading-snug line-clamp-2 min-w-0">
+          {topic.title}
+        </h2>
+        <div className="flex items-center gap-0.5 shrink-0 -mt-0.5">
           <Link
             href={`/t/${topic.slug}`}
-            className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-surface"
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-surface whitespace-nowrap"
           >
             Open ↗
           </Link>
-          {canRemove && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onRemove}
-              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-              title="Remove from comparison"
-            >
-              ×
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onRemove}
+            className="h-7 w-7 text-muted-foreground/50 hover:text-foreground hover:bg-surface"
+            title="Remove from comparison"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </Button>
         </div>
       </div>
 
-      {/* Video list */}
+      {/* Row 2 — taxonomy breadcrumbs */}
+      <div className="flex items-center gap-1 flex-wrap min-h-[18px]">
+        {crumbParts.map((part, i) => (
+          <span key={i} className="flex items-center gap-1">
+            {i > 0 && <span className="text-border text-[10px]">›</span>}
+            <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-[18px] shrink-0 lowercase tracking-wide">
+              {part}
+            </Badge>
+          </span>
+        ))}
+      </div>
+
+      {/* Row 3 — stats */}
+      <div className="flex items-center gap-3 text-xs text-muted-foreground">
+        <span>{topic.videoCount.toLocaleString()} videos</span>
+        <span>{formatCount(topic.totalViews)} views</span>
+        {topic.totalLikes > 0 && (
+          <span className="text-emerald-500/70">+{formatCount(topic.totalLikes)}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Panel body (row 2 of the aligned grid) ───────────────────────────────────
+
+interface PanelBodyProps {
+  panel: ComparePanelData;
+  onSelectBlock: (block: CompareBlock) => void;
+  className?: string;
+}
+
+export function ComparePanelBody({ panel, onSelectBlock, className = "" }: PanelBodyProps) {
+  const { topic, blocks } = panel;
+
+  return (
+    <div className={`flex flex-col min-h-0 overflow-hidden ${className}`}>
       <ScrollArea className="flex-1 px-2 py-2">
         <div className="space-y-0.5">
-        {blocks.length === 0 && (
-          <div className="py-12 text-center text-sm text-muted-foreground">
-            No videos yet in this topic
-          </div>
-        )}
-        {blocks.map((block) => (
-          <VideoCard
-            key={block.id}
-            block={block}
-            onClick={() => onSelectBlock(block)}
-          />
-        ))}
+          {blocks.length === 0 && (
+            <div className="py-12 text-center text-sm text-muted-foreground">
+              No videos yet in this topic
+            </div>
+          )}
+          {blocks.map((block) => (
+            <VideoCard key={block.id} block={block} onClick={() => onSelectBlock(block)} />
+          ))}
         </div>
       </ScrollArea>
 
-      {/* Footer — description teaser */}
       {topic.description && (
         <div className="shrink-0 px-4 py-2.5 border-t border-border/40 bg-background/40">
           <p className="text-[11px] text-muted-foreground/70 line-clamp-2 leading-relaxed">
@@ -192,6 +202,24 @@ export function ComparePanel({
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+// ── Combined panel (kept for backward compat if needed) ──────────────────────
+
+interface ComparePanelProps {
+  panel: ComparePanelData;
+  onRemove: () => void;
+  onSelectBlock: (block: CompareBlock) => void;
+  className?: string;
+}
+
+export function ComparePanel({ panel, onRemove, onSelectBlock, className = "" }: ComparePanelProps) {
+  return (
+    <div className={`flex flex-col min-h-0 overflow-hidden ${className}`}>
+      <ComparePanelHeader panel={panel} onRemove={onRemove} />
+      <ComparePanelBody panel={panel} onSelectBlock={onSelectBlock} />
     </div>
   );
 }

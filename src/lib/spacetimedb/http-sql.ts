@@ -13,6 +13,15 @@ const HTTP_BASE =
     .replace(/^ws:/, "http:");
 const MODULE = process.env.NEXT_PUBLIC_SPACETIMEDB_MODULE || "myvoice";
 
+/**
+ * True when the app is running against a local/mock SpacetimeDB (not a real instance).
+ * Server-side API routes should short-circuit and return empty/mock data in this case.
+ */
+export const IS_MOCK =
+  process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true" ||
+  HTTP_BASE.includes("localhost") ||
+  HTTP_BASE.includes("127.0.0.1");
+
 let cachedToken: string | null = null;
 
 async function getToken(): Promise<string> {
@@ -38,6 +47,7 @@ export interface SqlResult {
 
 /** Run SQL against the database. Returns array of statement results. */
 export async function runSql(queries: string): Promise<SqlResult[]> {
+  if (IS_MOCK) return [];
   const token = await getToken();
   const res = await fetch(`${HTTP_BASE}/v1/database/${MODULE}/sql`, {
     method: "POST",

@@ -54,7 +54,9 @@ import IncrementTopicViewsReducer from "./increment_topic_views_reducer";
 import LikeCommentReducer from "./like_comment_reducer";
 import LikeVideoReducer from "./like_video_reducer";
 import MarkAdPaidReducer from "./mark_ad_paid_reducer";
+import MarkAllMessagesReadReducer from "./mark_all_messages_read_reducer";
 import MarkAllNotificationsReadReducer from "./mark_all_notifications_read_reducer";
+import MarkMessageReadReducer from "./mark_message_read_reducer";
 import MarkNotificationReadReducer from "./mark_notification_read_reducer";
 import PlaceAdReducer from "./place_ad_reducer";
 import RebalanceTopicReducer from "./rebalance_topic_reducer";
@@ -65,6 +67,7 @@ import RepostCommentReducer from "./repost_comment_reducer";
 import ReviewTopicModeratorApplicationReducer from "./review_topic_moderator_application_reducer";
 import SeedAdsReducer from "./seed_ads_reducer";
 import SeedDataReducer from "./seed_data_reducer";
+import SendMessageReducer from "./send_message_reducer";
 import ServerDeleteUserReducer from "./server_delete_user_reducer";
 import ServerUpdateProfileReducer from "./server_update_profile_reducer";
 import SetAdminReducer from "./set_admin_reducer";
@@ -90,6 +93,7 @@ import CommentLikeRow from "./comment_like_table";
 import ContestRow from "./contest_table";
 import ContestWinnerRow from "./contest_winner_table";
 import CreditTransactionLogRow from "./credit_transaction_log_table";
+import DirectMessageRow from "./direct_message_table";
 import DislikeRecordRow from "./dislike_record_table";
 import LikeRecordRow from "./like_record_table";
 import NotificationRow from "./notification_table";
@@ -192,6 +196,17 @@ const tablesSchema = __schema({
       { name: 'credit_transaction_log_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, CreditTransactionLogRow),
+  direct_message: __table({
+    name: 'direct_message',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'direct_message_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, DirectMessageRow),
   dislike_record: __table({
     name: 'dislike_record',
     indexes: [
@@ -323,7 +338,9 @@ const reducersSchema = __reducers(
   __reducerSchema("like_comment", LikeCommentReducer),
   __reducerSchema("like_video", LikeVideoReducer),
   __reducerSchema("mark_ad_paid", MarkAdPaidReducer),
+  __reducerSchema("mark_all_messages_read", MarkAllMessagesReadReducer),
   __reducerSchema("mark_all_notifications_read", MarkAllNotificationsReadReducer),
+  __reducerSchema("mark_message_read", MarkMessageReadReducer),
   __reducerSchema("mark_notification_read", MarkNotificationReadReducer),
   __reducerSchema("place_ad", PlaceAdReducer),
   __reducerSchema("rebalance_topic", RebalanceTopicReducer),
@@ -334,6 +351,7 @@ const reducersSchema = __reducers(
   __reducerSchema("review_topic_moderator_application", ReviewTopicModeratorApplicationReducer),
   __reducerSchema("seed_ads", SeedAdsReducer),
   __reducerSchema("seed_data", SeedDataReducer),
+  __reducerSchema("send_message", SendMessageReducer),
   __reducerSchema("server_delete_user", ServerDeleteUserReducer),
   __reducerSchema("server_update_profile", ServerUpdateProfileReducer),
   __reducerSchema("set_admin", SetAdminReducer),

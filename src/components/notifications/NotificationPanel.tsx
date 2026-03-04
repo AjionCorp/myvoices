@@ -1,6 +1,6 @@
 "use client";
 
-import { Heart, MessageCircle, Repeat2, CheckCheck } from "lucide-react";
+import { Heart, MessageCircle, Repeat2, CheckCheck, ThumbsUp, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -20,6 +20,10 @@ function NotificationIcon({ type }: { type: NotificationType }) {
     return <Heart className="h-3.5 w-3.5 text-rose-500" />;
   if (type === "comment_repost")
     return <Repeat2 className="h-3.5 w-3.5 text-emerald-500" />;
+  if (type === "video_like")
+    return <ThumbsUp className="h-3.5 w-3.5 text-amber-500" />;
+  if (type === "new_message")
+    return <Mail className="h-3.5 w-3.5 text-blue-500" />;
   return <MessageCircle className="h-3.5 w-3.5 text-sky-500" />;
 }
 
@@ -31,6 +35,10 @@ function notificationLabel(type: NotificationType, actorName: string): string {
       return `${actorName} replied to your comment`;
     case "comment_repost":
       return `${actorName} reposted your comment`;
+    case "video_like":
+      return `${actorName} liked your video`;
+    case "new_message":
+      return `${actorName} sent you a message`;
   }
 }
 

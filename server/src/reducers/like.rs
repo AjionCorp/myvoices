@@ -5,6 +5,38 @@ fn now_micros(ctx: &ReducerContext) -> u64 {
     ctx.timestamp.to_micros_since_unix_epoch() as u64
 }
 
+fn caller_name(ctx: &ReducerContext) -> String {
+    let identity = ctx.sender().to_hex().to_string();
+    ctx.db
+        .user_profile()
+        .identity()
+        .find(identity)
+        .map(|u| u.display_name)
+        .unwrap_or_else(|| "Anonymous".to_string())
+}
+
+fn insert_video_like_notification(
+    ctx: &ReducerContext,
+    recipient_identity: String,
+    actor_identity: String,
+    block_id: u64,
+) {
+    if recipient_identity == actor_identity {
+        return;
+    }
+    let _ = ctx.db.notification().try_insert(Notification {
+        id: 0,
+        recipient_identity,
+        actor_identity: actor_identity.clone(),
+        actor_name: caller_name(ctx),
+        notification_type: "video_like".to_string(),
+        block_id,
+        comment_id: 0,
+        is_read: false,
+        created_at: now_micros(ctx),
+    });
+}
+
 fn update_topic_likes(ctx: &ReducerContext, topic_id: u64, delta: i64) {
     if let Some(topic) = ctx.db.topic().id().find(topic_id) {
         ctx.db.topic().id().delete(topic_id);
@@ -71,7 +103,7 @@ pub fn like_video(ctx: &ReducerContext, block_id: u64) -> Result<(), String> {
     ctx.db.like_record().try_insert(LikeRecord {
         id: 0,
         block_id,
-        user_identity: caller,
+        user_identity: caller.clone(),
         created_at: now_micros(ctx),
     }).map_err(|e| format!("Insert failed: {e}"))?;
 
@@ -86,6 +118,8 @@ pub fn like_video(ctx: &ReducerContext, block_id: u64) -> Result<(), String> {
     if dislikes_delta > 0 {
         update_topic_dislikes(ctx, block.topic_id, -1);
     }
+
+    insert_video_like_notification(ctx, block.owner_identity, caller, block_id);
 
     Ok(())
 }

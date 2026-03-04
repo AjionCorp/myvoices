@@ -7,3 +7,4 @@ pub mod comment;
 pub mod seed;
 pub mod dev;
 pub mod topic;
+pub mod messages;

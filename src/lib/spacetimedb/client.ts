@@ -42,6 +42,9 @@ const USER_TABLES = [
 /** Handle for the user-specific notification subscription. */
 let notificationSubscription: SubscriptionHandle | null = null;
 
+/** Handle for the user-specific message subscription. */
+let messageSubscription: SubscriptionHandle | null = null;
+
 /**
  * Subscribe to notifications for the authenticated user.
  * Called after connect when the identity is known.
@@ -61,6 +64,28 @@ export function subscribeToNotifications(identity: string): void {
     })
     .subscribe([
       `SELECT * FROM notification WHERE recipient_identity = '${identity}'`,
+    ]);
+}
+
+/**
+ * Subscribe to direct messages for the authenticated user.
+ * Called after connect when the identity is known.
+ */
+export function subscribeToMessages(identity: string): void {
+  if (!connection) return;
+
+  if (messageSubscription) {
+    messageSubscription.unsubscribe();
+    messageSubscription = null;
+  }
+
+  messageSubscription = connection
+    .subscriptionBuilder()
+    .onApplied(() => {
+      console.log("[SpacetimeDB] message subscription applied");
+    })
+    .subscribe([
+      `SELECT * FROM direct_message WHERE sender_identity = '${identity}' OR recipient_identity = '${identity}'`,
     ]);
 }
 
@@ -101,6 +126,7 @@ export function connect(
         connectionPromise = null;
         activeBlockSubscription = null;
         notificationSubscription = null;
+        messageSubscription = null;
         callbacks?.onDisconnect?.();
       })
       .onConnectError((_ctx: unknown, error: Error) => {
@@ -168,6 +194,8 @@ export function disconnect(): void {
   activeBlockSubscription = null;
   notificationSubscription?.unsubscribe();
   notificationSubscription = null;
+  messageSubscription?.unsubscribe();
+  messageSubscription = null;
   connection?.disconnect();
   connection = null;
   connectionPromise = null;
