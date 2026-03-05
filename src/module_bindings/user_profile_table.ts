@@ -21,4 +21,11 @@ export default __t.row({
   credits: __t.u64(),
   isAdmin: __t.bool().name("is_admin"),
   createdAt: __t.u64().name("created_at"),
+  bio: __t.option(__t.string()),
+  location: __t.option(__t.string()),
+  websiteUrl: __t.option(__t.string()).name("website_url"),
+  socialX: __t.option(__t.string()).name("social_x"),
+  socialYoutube: __t.option(__t.string()).name("social_youtube"),
+  socialTiktok: __t.option(__t.string()).name("social_tiktok"),
+  socialInstagram: __t.option(__t.string()).name("social_instagram"),
 });

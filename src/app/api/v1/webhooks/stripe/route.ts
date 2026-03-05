@@ -69,6 +69,33 @@ export async function POST(request: NextRequest) {
       const session = event.data.object as Stripe.Checkout.Session;
       const metadata = session.metadata;
 
+      // ── API key credits ──────────────────────────────────────────────
+      if (metadata?.type === "api_credits") {
+        const keyId = parseInt(metadata.keyId ?? "0", 10);
+        const credits = parseInt(metadata.credits ?? "0", 10);
+
+        if (!keyId || credits <= 0) {
+          console.error("[credits webhook] Invalid api_credits metadata:", metadata);
+          return NextResponse.json({ received: true });
+        }
+
+        console.log("[credits webhook] API credits purchase:", { keyId, credits, amountCents: session.amount_total });
+
+        try {
+          await callReducer("server_add_api_credits", [
+            keyId,
+            credits,
+            `Purchased ${credits} API credits`,
+          ]);
+          console.log("[credits webhook] server_add_api_credits succeeded:", keyId, "+", credits);
+        } catch (err) {
+          console.error("[credits webhook] server_add_api_credits failed:", err);
+          return NextResponse.json({ error: "Failed to add API credits" }, { status: 500 });
+        }
+        break;
+      }
+
+      // ── User credits ──────────────────────────────────────────────────
       if (metadata?.type !== "credits") {
         // Not a credits checkout — ignore silently
         return NextResponse.json({ received: true });

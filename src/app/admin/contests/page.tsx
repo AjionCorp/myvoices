@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { getConnection } from "@/lib/spacetimedb/client";
 
 export default function ContestsManagement() {
   const { activeContest, winners, leaderboard } = useContestStore();
@@ -16,11 +17,20 @@ export default function ContestsManagement() {
   const [prizePool, setPrizePool] = useState(1000);
   const [isCreating, setIsCreating] = useState(false);
 
+  const [error, setError] = useState<string | null>(null);
+
   const handleCreate = async () => {
     setIsCreating(true);
+    setError(null);
     try {
-      // SpacetimeDB reducer: create_contest(durationDays, prizePool * 100)
-      console.log("Creating contest:", { durationDays, prizePool });
+      const conn = getConnection();
+      if (!conn) { setError("Not connected"); return; }
+      conn.reducers.createContest({
+        durationDays: BigInt(durationDays),
+        prizePool: BigInt(prizePool * 100),
+      });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to create contest");
     } finally {
       setIsCreating(false);
     }
@@ -28,8 +38,14 @@ export default function ContestsManagement() {
 
   const handleFinalize = async () => {
     if (!activeContest) return;
-    // SpacetimeDB reducer: finalize_contest(activeContest.id)
-    console.log("Finalizing contest:", activeContest.id);
+    setError(null);
+    try {
+      const conn = getConnection();
+      if (!conn) { setError("Not connected"); return; }
+      conn.reducers.finalizeContest({ contestId: BigInt(activeContest.id) });
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to finalize contest");
+    }
   };
 
   const handlePayout = async (winnerIdentity: string, amount: number, stripeAccountId: string) => {
@@ -57,6 +73,12 @@ export default function ContestsManagement() {
       <h1 className="mb-6 text-2xl font-bold text-foreground">
         Contest Management
       </h1>
+
+      {error && (
+        <div className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-300">
+          {error}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card className="gap-0 rounded-xl border-border bg-surface py-0">

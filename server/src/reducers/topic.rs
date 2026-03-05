@@ -505,6 +505,23 @@ pub fn claim_block_in_topic(
         return Err("Topic is not active".to_string());
     }
 
+    // Reject banned users.
+    let is_banned = ctx.db.topic_ban().iter().any(|b| b.topic_id == topic_id && b.banned_identity == caller);
+    if is_banned {
+        return Err("You are banned from posting in this topic".to_string());
+    }
+
+    // Reject duplicate video in same topic.
+    let vid_trimmed = video_id.trim();
+    for existing in ctx.db.block().iter() {
+        if existing.topic_id == topic_id
+            && existing.video_id == vid_trimmed
+            && existing.status == "claimed"
+        {
+            return Err("This video is already in this topic".to_string());
+        }
+    }
+
     // Temporary position; will be corrected by the rebalance below.
     let (temp_x, temp_y) = spiral_coords(topic.video_count);
 

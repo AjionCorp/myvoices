@@ -213,11 +213,35 @@ function TopicModerationMenu({ topicId, topicCreatorIdentity }: { topicId: numbe
   );
   const canApply = !!userIdentity && !isModerator && !isOwner && !isAdmin;
 
+  const [banTarget, setBanTarget] = useState("");
+  const [banReason, setBanReason] = useState("");
+  const [showBanForm, setShowBanForm] = useState(false);
+
   const reducers = (getConnection()?.reducers as unknown as {
     applyTopicModerator?: (args: { topicId: bigint; message: string }) => void;
     reviewTopicModeratorApplication?: (args: { applicationId: bigint; approve: boolean }) => void;
     removeTopicModerator?: (args: { topicId: bigint; identity: string }) => void;
+    banUserFromTopic?: (args: { topicId: bigint; targetIdentity: string; reason: string }) => void;
+    unbanUserFromTopic?: (args: { topicId: bigint; targetIdentity: string }) => void;
   }) || {};
+
+  // Get banned users for this topic
+  const bannedUsers = (() => {
+    const conn = getConnection();
+    if (!conn) return [];
+    const bans: { id: number; bannedIdentity: string; reason: string; bannedBy: string }[] = [];
+    for (const b of conn.db.topic_ban.iter()) {
+      if (Number(b.topicId) === topicId) {
+        bans.push({
+          id: Number(b.id),
+          bannedIdentity: b.bannedIdentity,
+          reason: b.reason,
+          bannedBy: b.bannedBy,
+        });
+      }
+    }
+    return bans;
+  })();
 
   const handleApply = () => {
     setApplyMessage("I can help keep this topic high quality.");
@@ -393,6 +417,94 @@ function TopicModerationMenu({ topicId, topicCreatorIdentity }: { topicId: numbe
                   </div>
                 </>
               )}
+
+              {/* Banned users section */}
+              {canReview && (
+                <>
+                  <p className="mb-2 mt-3 text-xs font-semibold text-foreground">
+                    Banned users ({bannedUsers.length})
+                  </p>
+                  <div className="space-y-2">
+                    {bannedUsers.map((ban) => (
+                      <div key={ban.id} className="flex items-center justify-between gap-2 rounded-lg border border-border bg-surface p-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-xs text-foreground">{resolveUserLabel(ban.bannedIdentity)}</p>
+                          {ban.reason && <p className="truncate text-[10px] text-muted">{ban.reason}</p>}
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 shrink-0 px-1.5 text-[10px] text-green-400 hover:text-green-300"
+                          onClick={() => reducers.unbanUserFromTopic?.({ topicId: BigInt(topicId), targetIdentity: ban.bannedIdentity })}
+                        >
+                          Unban
+                        </Button>
+                      </div>
+                    ))}
+                    {!showBanForm ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-6 w-full text-xs text-muted hover:text-foreground"
+                        onClick={() => setShowBanForm(true)}
+                      >
+                        + Ban a user
+                      </Button>
+                    ) : (
+                      <div className="space-y-1.5 rounded-lg border border-border bg-surface p-2">
+                        <input
+                          type="text"
+                          placeholder="Username or identity"
+                          value={banTarget}
+                          onChange={(e) => setBanTarget(e.target.value)}
+                          className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground placeholder:text-muted focus:outline-none"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Reason (optional)"
+                          value={banReason}
+                          onChange={(e) => setBanReason(e.target.value)}
+                          className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground placeholder:text-muted focus:outline-none"
+                        />
+                        <div className="flex gap-1.5">
+                          <Button
+                            size="sm"
+                            className="h-6 px-2 text-xs bg-red-600 text-white hover:bg-red-700"
+                            disabled={!banTarget.trim()}
+                            onClick={() => {
+                              // Resolve username to identity if needed
+                              const conn = getConnection();
+                              let identity = banTarget.trim();
+                              if (conn) {
+                                for (const p of conn.db.user_profile.iter()) {
+                                  if (p.username === identity || p.displayName === identity) {
+                                    identity = p.identity;
+                                    break;
+                                  }
+                                }
+                              }
+                              reducers.banUserFromTopic?.({ topicId: BigInt(topicId), targetIdentity: identity, reason: banReason.trim() });
+                              setBanTarget("");
+                              setBanReason("");
+                              setShowBanForm(false);
+                            }}
+                          >
+                            Ban
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 px-2 text-xs text-muted"
+                            onClick={() => { setShowBanForm(false); setBanTarget(""); setBanReason(""); }}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </PopoverContent>
         </Popover>
@@ -408,6 +520,35 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
   const topic = activeTopic || [...topics.values()].find((t) => t.slug === slug);
   const viewers = useViewersStore((s) => s.viewers);
   const { totalClaimed } = useBlocksStore();
+  const user = useAuthStore((s) => s.user);
+
+  const [isFollowing, setIsFollowing] = useState(false);
+
+  useEffect(() => {
+    if (!user || !topic) { setIsFollowing(false); return; }
+    const conn = getConnection();
+    if (!conn) return;
+    const check = () => {
+      const following = [...conn.db.topic_follow.iter()].some(
+        (f) => f.followerIdentity === user.identity && Number(f.topicId) === topic.id
+      );
+      setIsFollowing(following);
+    };
+    check();
+    conn.db.topic_follow.onInsert(() => check());
+    conn.db.topic_follow.onDelete(() => check());
+  }, [user, topic]);
+
+  const handleToggleFollow = () => {
+    if (!topic) return;
+    const conn = getConnection();
+    if (!conn) return;
+    if (isFollowing) {
+      conn.reducers.unfollowTopic({ topicId: BigInt(topic.id) });
+    } else {
+      conn.reducers.followTopic({ topicId: BigInt(topic.id) });
+    }
+  };
 
   const taxonomyPath =
     topic?.taxonomyPath ||
@@ -476,6 +617,16 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
               {totalClaimed.toLocaleString()} videos
             </div>
           </div>
+          {user && (
+            <Button
+              onClick={handleToggleFollow}
+              variant={isFollowing ? "outline" : "default"}
+              size="sm"
+              className="mt-3 w-full text-xs"
+            >
+              {isFollowing ? "Following" : "Follow Topic"}
+            </Button>
+          )}
         </div>
       )}
 

@@ -47,3 +47,6 @@ server/target/
 
 # clerk configuration (can include secrets)
 /.clerk/
+
+# MCP server configuration (contains API keys — use mcp.json.example as template)
+mcp.json

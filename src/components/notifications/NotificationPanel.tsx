@@ -1,10 +1,14 @@
 "use client";
 
-import { Heart, MessageCircle, Repeat2, CheckCheck, ThumbsUp, Mail } from "lucide-react";
+import { useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { Heart, MessageCircle, Repeat2, CheckCheck, ThumbsUp, Mail, UserPlus, MessageSquare, Trophy, Video, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
-import { useNotificationsStore, type NotificationType } from "@/stores/notifications-store";
+import { useNotificationsStore, type NotificationType, type Notification } from "@/stores/notifications-store";
+import { useModerationStore } from "@/stores/moderation-store";
+import { useAuthStore } from "@/stores/auth-store";
 import { getConnection } from "@/lib/spacetimedb/client";
 
 function timeAgo(ts: number): string {
@@ -16,29 +20,80 @@ function timeAgo(ts: number): string {
 }
 
 function NotificationIcon({ type }: { type: NotificationType }) {
-  if (type === "comment_like")
-    return <Heart className="h-3.5 w-3.5 text-rose-500" />;
-  if (type === "comment_repost")
-    return <Repeat2 className="h-3.5 w-3.5 text-emerald-500" />;
-  if (type === "video_like")
-    return <ThumbsUp className="h-3.5 w-3.5 text-amber-500" />;
-  if (type === "new_message")
-    return <Mail className="h-3.5 w-3.5 text-blue-500" />;
-  return <MessageCircle className="h-3.5 w-3.5 text-sky-500" />;
+  switch (type) {
+    case "comment_like": return <Heart className="h-3.5 w-3.5 text-rose-500" />;
+    case "comment_repost": return <Repeat2 className="h-3.5 w-3.5 text-emerald-500" />;
+    case "video_like": return <ThumbsUp className="h-3.5 w-3.5 text-amber-500" />;
+    case "new_message": return <Mail className="h-3.5 w-3.5 text-blue-500" />;
+    case "message_request": return <MessageSquare className="h-3.5 w-3.5 text-amber-500" />;
+    case "new_follow": return <UserPlus className="h-3.5 w-3.5 text-violet-500" />;
+    case "topic_new_video": return <Video className="h-3.5 w-3.5 text-cyan-500" />;
+    case "contest_result": return <Trophy className="h-3.5 w-3.5 text-yellow-500" />;
+    case "moderator_application_reviewed": return <Shield className="h-3.5 w-3.5 text-green-500" />;
+    default: return <MessageCircle className="h-3.5 w-3.5 text-sky-500" />;
+  }
 }
 
 function notificationLabel(type: NotificationType, actorName: string): string {
   switch (type) {
-    case "comment_like":
-      return `${actorName} liked your comment`;
+    case "comment_like": return `${actorName} liked your comment`;
+    case "comment_reply": return `${actorName} replied to your comment`;
+    case "comment_repost": return `${actorName} reposted your comment`;
+    case "video_like": return `${actorName} liked your video`;
+    case "new_message": return `${actorName} sent you a message`;
+    case "message_request": return `${actorName} wants to send you a message`;
+    case "new_follow": return `${actorName} followed you`;
+    case "topic_new_video": return `New video in a topic you follow`;
+    case "contest_result": return `Contest results are in!`;
+    case "moderator_application_reviewed": return `Your moderator application was reviewed`;
+    default: return `${actorName} interacted with your content`;
+  }
+}
+
+/** Resolve a blockId to the topic slug it belongs to */
+function resolveBlockTopicSlug(blockId: number): string | null {
+  if (!blockId) return null;
+  const conn = getConnection();
+  if (!conn) return null;
+  const block = conn.db.block?.id?.find(BigInt(blockId));
+  if (!block) return null;
+  const topicId = Number(block.topicId);
+  const topic = conn.db.topic?.id?.find(BigInt(topicId));
+  return topic?.slug ?? null;
+}
+
+/** Resolve an actor identity to their username */
+function resolveUsername(identity: string): string | null {
+  const conn = getConnection();
+  if (!conn) return null;
+  const profile = conn.db.user_profile.identity.find(identity);
+  return profile?.username ?? null;
+}
+
+function getNotificationHref(notif: Notification): string | null {
+  switch (notif.notificationType) {
     case "comment_reply":
-      return `${actorName} replied to your comment`;
+    case "comment_like":
     case "comment_repost":
-      return `${actorName} reposted your comment`;
     case "video_like":
-      return `${actorName} liked your video`;
+    case "topic_new_video": {
+      const slug = resolveBlockTopicSlug(notif.blockId);
+      if (slug) return `/t/${slug}?block=${notif.blockId}`;
+      return null;
+    }
     case "new_message":
-      return `${actorName} sent you a message`;
+    case "message_request":
+      return "/messages";
+    case "new_follow": {
+      const username = resolveUsername(notif.actorIdentity);
+      return username ? `/u/${username}` : null;
+    }
+    case "contest_result":
+      return "/earnings";
+    case "moderator_application_reviewed":
+      return null;
+    default:
+      return null;
   }
 }
 
@@ -57,12 +112,29 @@ function Avatar({ name }: { name: string }) {
 }
 
 export function NotificationPanel() {
-  const getAll = useNotificationsStore((s) => s.getAll);
+  const router = useRouter();
+  const notificationsMap = useNotificationsStore((s) => s.notifications);
   const unreadCount = useNotificationsStore((s) => s.unreadCount);
   const markRead = useNotificationsStore((s) => s.markRead);
   const markAllRead = useNotificationsStore((s) => s.markAllRead);
 
-  const notifications = getAll();
+  const myIdentity = useAuthStore((s) => s.user?.identity ?? "");
+  const moderationBlocks = useModerationStore((s) => s.blocks);
+  const moderationMutes = useModerationStore((s) => s.mutes);
+  const getHiddenIdentities = useModerationStore((s) => s.getHiddenIdentities);
+
+  const hiddenIds = useMemo(
+    () => (myIdentity ? getHiddenIdentities(myIdentity) : new Set<string>()),
+    [moderationBlocks, moderationMutes, myIdentity, getHiddenIdentities]
+  );
+
+  const notifications = useMemo(
+    () =>
+      [...notificationsMap.values()]
+        .sort((a, b) => b.createdAt - a.createdAt)
+        .filter((n) => !hiddenIds.has(n.actorIdentity)),
+    [notificationsMap, hiddenIds]
+  );
 
   const handleMarkAllRead = () => {
     markAllRead();
@@ -70,10 +142,16 @@ export function NotificationPanel() {
     conn?.reducers.markAllNotificationsRead({});
   };
 
-  const handleMarkRead = (id: number) => {
-    markRead(id);
-    const conn = getConnection();
-    conn?.reducers.markNotificationRead({ notificationId: BigInt(id) });
+  const handleClick = (notif: Notification) => {
+    if (!notif.isRead) {
+      markRead(notif.id);
+      const conn = getConnection();
+      conn?.reducers.markNotificationRead({ notificationId: BigInt(notif.id) });
+    }
+    const href = getNotificationHref(notif);
+    if (href) {
+      router.push(href);
+    }
   };
 
   return (
@@ -104,10 +182,10 @@ export function NotificationPanel() {
       ) : (
         <ScrollArea className="max-h-[420px]">
           <div className="flex flex-col">
-            {notifications.map((notif, i) => (
+            {notifications.map((notif) => (
               <button
                 key={notif.id}
-                onClick={() => !notif.isRead && handleMarkRead(notif.id)}
+                onClick={() => handleClick(notif)}
                 className={`flex items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-accent/5 ${
                   !notif.isRead ? "bg-accent/6" : ""
                 }`}

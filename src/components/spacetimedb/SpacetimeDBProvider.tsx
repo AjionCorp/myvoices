@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { connect, disconnect, reconnect, getConnection, subscribeToNotifications, subscribeToMessages, type ConnectionCallbacks } from "@/lib/spacetimedb/client";
+import { connect, disconnect, reconnect, getConnection, subscribeToNotifications, subscribeToMessages, subscribeToFollows, subscribeToConversations, subscribeToUserBlocks_mod, subscribeToUserMutes, type ConnectionCallbacks } from "@/lib/spacetimedb/client";
 import { useBlocksStore, type Block as StoreBlock } from "@/stores/blocks-store";
 import {
   useTopicStore,
@@ -15,6 +15,8 @@ import { useAuthStore } from "@/stores/auth-store";
 import { useCommentsStore } from "@/stores/comments-store";
 import { useNotificationsStore } from "@/stores/notifications-store";
 import { useMessagesStore } from "@/stores/messages-store";
+import { useFollowsStore } from "@/stores/follows-store";
+import { useModerationStore } from "@/stores/moderation-store";
 import { BlockStatus, Platform } from "@/lib/constants";
 import { batchSpiralCoordinates } from "@/lib/canvas/spiral-layout";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -177,6 +179,7 @@ function bulkLoadComments(conn: DbConnection) {
       likesCount: Number(row.likesCount ?? 0),
       repliesCount: Number(row.repliesCount ?? 0),
       repostsCount: Number(row.repostsCount ?? 0),
+      editedAt: Number(row.editedAt ?? 0),
     });
   }
   if (all.length > 0) {
@@ -223,19 +226,102 @@ function bulkLoadNotifications(conn: DbConnection) {
 function bulkLoadMessages(conn: DbConnection, identity: string) {
   const all = [];
   for (const row of conn.db.direct_message.iter()) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = row as any;
     all.push({
-      id: Number(row.id),
-      senderIdentity: row.senderIdentity,
-      recipientIdentity: row.recipientIdentity,
-      text: row.text,
-      isRead: row.isRead,
-      createdAt: Number(row.createdAt),
+      id: Number(r.id),
+      conversationId: Number(r.conversationId ?? 0),
+      senderIdentity: r.senderIdentity,
+      recipientIdentity: r.recipientIdentity,
+      text: r.text,
+      isRead: r.isRead,
+      isDeleted: r.isDeleted ?? false,
+      createdAt: Number(r.createdAt),
     });
   }
   useMessagesStore.getState().setMyIdentity(identity);
   if (all.length > 0) {
     useMessagesStore.getState().setMessages(all);
   }
+}
+
+function bulkLoadFollows(conn: DbConnection) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = conn.db as any;
+  if (!db.user_follow) return;
+  const all = [];
+  for (const row of db.user_follow.iter()) {
+    all.push({
+      id: Number(row.id),
+      followerIdentity: row.followerIdentity,
+      followingIdentity: row.followingIdentity,
+      createdAt: Number(row.createdAt),
+    });
+  }
+  if (all.length > 0) {
+    useFollowsStore.getState().setFollows(all);
+  }
+  console.log(`[SpacetimeDB] follows loaded: ${all.length}`);
+}
+
+function bulkLoadConversations(conn: DbConnection) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = conn.db as any;
+  if (!db.conversation) return;
+  const all = [];
+  for (const row of db.conversation.iter()) {
+    all.push({
+      id: Number(row.id),
+      participantA: row.participantA,
+      participantB: row.participantB,
+      status: row.status,
+      requestRecipient: row.requestRecipient,
+      createdAt: Number(row.createdAt),
+      updatedAt: Number(row.updatedAt),
+    });
+  }
+  if (all.length > 0) {
+    useMessagesStore.getState().setConversations(all);
+  }
+  console.log(`[SpacetimeDB] conversations loaded: ${all.length}`);
+}
+
+function bulkLoadUserBlocks(conn: DbConnection) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = conn.db as any;
+  if (!db.user_block) return;
+  const all = [];
+  for (const row of db.user_block.iter()) {
+    all.push({
+      id: Number(row.id),
+      blockerIdentity: row.blockerIdentity,
+      blockedIdentity: row.blockedIdentity,
+      createdAt: Number(row.createdAt),
+    });
+  }
+  if (all.length > 0) {
+    useModerationStore.getState().setBlocks(all);
+  }
+  console.log(`[SpacetimeDB] user blocks loaded: ${all.length}`);
+}
+
+function bulkLoadUserMutes(conn: DbConnection) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = conn.db as any;
+  if (!db.user_mute) return;
+  const all = [];
+  for (const row of db.user_mute.iter()) {
+    all.push({
+      id: Number(row.id),
+      muterIdentity: row.muterIdentity,
+      mutedIdentity: row.mutedIdentity,
+      createdAt: Number(row.createdAt),
+    });
+  }
+  if (all.length > 0) {
+    useModerationStore.getState().setMutes(all);
+  }
+  console.log(`[SpacetimeDB] user mutes loaded: ${all.length}`);
 }
 
 function registerTableCallbacks(conn: DbConnection) {
@@ -343,6 +429,7 @@ function registerTableCallbacks(conn: DbConnection) {
       likesCount: Number(row.likesCount ?? 0),
       repliesCount: Number(row.repliesCount ?? 0),
       repostsCount: Number(row.repostsCount ?? 0),
+      editedAt: Number(row.editedAt ?? 0),
     });
   });
 
@@ -359,6 +446,7 @@ function registerTableCallbacks(conn: DbConnection) {
       likesCount: Number(row.likesCount ?? 0),
       repliesCount: Number(row.repliesCount ?? 0),
       repostsCount: Number(row.repostsCount ?? 0),
+      editedAt: Number(row.editedAt ?? 0),
     });
   });
 
@@ -410,26 +498,117 @@ function registerTableCallbacks(conn: DbConnection) {
   });
 
   conn.db.direct_message.onInsert((_ctx, row) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = row as any;
     useMessagesStore.getState().addMessage({
-      id: Number(row.id),
-      senderIdentity: row.senderIdentity,
-      recipientIdentity: row.recipientIdentity,
-      text: row.text,
-      isRead: row.isRead,
-      createdAt: Number(row.createdAt),
+      id: Number(r.id),
+      conversationId: Number(r.conversationId ?? 0),
+      senderIdentity: r.senderIdentity,
+      recipientIdentity: r.recipientIdentity,
+      text: r.text,
+      isRead: r.isRead,
+      isDeleted: r.isDeleted ?? false,
+      createdAt: Number(r.createdAt),
     });
   });
 
   conn.db.direct_message.onUpdate((_ctx, _old, row) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r = row as any;
     useMessagesStore.getState().updateMessage({
-      id: Number(row.id),
-      senderIdentity: row.senderIdentity,
-      recipientIdentity: row.recipientIdentity,
-      text: row.text,
-      isRead: row.isRead,
-      createdAt: Number(row.createdAt),
+      id: Number(r.id),
+      conversationId: Number(r.conversationId ?? 0),
+      senderIdentity: r.senderIdentity,
+      recipientIdentity: r.recipientIdentity,
+      text: r.text,
+      isRead: r.isRead,
+      isDeleted: r.isDeleted ?? false,
+      createdAt: Number(r.createdAt),
     });
   });
+
+  // Follow callbacks — tables may not exist until module is republished
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = conn.db as any;
+  if (db.user_follow) {
+    db.user_follow.onInsert((_ctx: unknown, row: any) => {
+      useFollowsStore.getState().addFollow({
+        id: Number(row.id),
+        followerIdentity: row.followerIdentity,
+        followingIdentity: row.followingIdentity,
+        createdAt: Number(row.createdAt),
+      });
+    });
+
+    db.user_follow.onDelete((_ctx: unknown, row: any) => {
+      useFollowsStore.getState().removeFollow(Number(row.id));
+    });
+  }
+
+  // Conversation callbacks
+  if (db.conversation) {
+    db.conversation.onInsert((_ctx: unknown, row: any) => {
+      useMessagesStore.getState().addConversation({
+        id: Number(row.id),
+        participantA: row.participantA,
+        participantB: row.participantB,
+        status: row.status,
+        requestRecipient: row.requestRecipient,
+        createdAt: Number(row.createdAt),
+        updatedAt: Number(row.updatedAt),
+      });
+    });
+
+    db.conversation.onUpdate((_ctx: unknown, _old: any, row: any) => {
+      useMessagesStore.getState().updateConversation({
+        id: Number(row.id),
+        participantA: row.participantA,
+        participantB: row.participantB,
+        status: row.status,
+        requestRecipient: row.requestRecipient,
+        createdAt: Number(row.createdAt),
+        updatedAt: Number(row.updatedAt),
+      });
+    });
+
+    db.conversation.onDelete((_ctx: unknown, row: any) => {
+      useMessagesStore.getState().removeConversation(Number(row.id));
+    });
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((db as any).user_block) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (db as any).user_block.onInsert((_ctx: unknown, row: any) => {
+      useModerationStore.getState().addBlock({
+        id: Number(row.id),
+        blockerIdentity: row.blockerIdentity,
+        blockedIdentity: row.blockedIdentity,
+        createdAt: Number(row.createdAt),
+      });
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (db as any).user_block.onDelete((_ctx: unknown, row: any) => {
+      useModerationStore.getState().removeBlock(Number(row.id));
+    });
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((db as any).user_mute) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (db as any).user_mute.onInsert((_ctx: unknown, row: any) => {
+      useModerationStore.getState().addMute({
+        id: Number(row.id),
+        muterIdentity: row.muterIdentity,
+        mutedIdentity: row.mutedIdentity,
+        createdAt: Number(row.createdAt),
+      });
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (db as any).user_mute.onDelete((_ctx: unknown, row: any) => {
+      useModerationStore.getState().removeMute(Number(row.id));
+    });
+  }
 
   conn.db.contest.onInsert((_ctx, row) => {
     if (row.status === "active") {
@@ -486,6 +665,13 @@ function registerTableCallbacks(conn: DbConnection) {
         totalEarnings: Number(row.totalEarnings),
         credits: Number(row.credits ?? 0),
         isAdmin: row.isAdmin,
+        bio: row.bio ?? null,
+        location: row.location ?? null,
+        websiteUrl: row.websiteUrl ?? null,
+        socialX: row.socialX ?? null,
+        socialYoutube: row.socialYoutube ?? null,
+        socialTiktok: row.socialTiktok ?? null,
+        socialInstagram: row.socialInstagram ?? null,
       });
     }
   });
@@ -504,6 +690,13 @@ function registerTableCallbacks(conn: DbConnection) {
         totalEarnings: Number(row.totalEarnings),
         credits: Number(row.credits ?? 0),
         isAdmin: row.isAdmin,
+        bio: row.bio ?? null,
+        location: row.location ?? null,
+        websiteUrl: row.websiteUrl ?? null,
+        socialX: row.socialX ?? null,
+        socialYoutube: row.socialYoutube ?? null,
+        socialTiktok: row.socialTiktok ?? null,
+        socialInstagram: row.socialInstagram ?? null,
       });
     }
   });
@@ -548,6 +741,14 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
       subscribeToNotifications(identity.toHexString());
       bulkLoadMessages(connection, identity.toHexString());
       subscribeToMessages(identity.toHexString());
+      bulkLoadFollows(connection);
+      subscribeToFollows(identity.toHexString());
+      bulkLoadConversations(connection);
+      subscribeToConversations(identity.toHexString());
+      bulkLoadUserBlocks(connection);
+      subscribeToUserBlocks_mod(identity.toHexString());
+      bulkLoadUserMutes(connection);
+      subscribeToUserMutes(identity.toHexString());
 
       const clerkEmail = clerkUserRef.current.email;
       const clerkUsername = clerkUserRef.current.username;
@@ -569,6 +770,13 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
           totalEarnings: Number(profile.totalEarnings),
           credits: Number(profile.credits ?? 0),
           isAdmin: profile.isAdmin,
+          bio: profile.bio ?? null,
+          location: profile.location ?? null,
+          websiteUrl: profile.websiteUrl ?? null,
+          socialX: profile.socialX ?? null,
+          socialYoutube: profile.socialYoutube ?? null,
+          socialTiktok: profile.socialTiktok ?? null,
+          socialInstagram: profile.socialInstagram ?? null,
         };
         useAuthStore.getState().setUser(userData);
         localStorage.setItem("spacetimedb_user", JSON.stringify(userData));
@@ -597,6 +805,13 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
           totalEarnings: 0,
           credits: 0,
           isAdmin: false,
+          bio: null,
+          location: null,
+          websiteUrl: null,
+          socialX: null,
+          socialYoutube: null,
+          socialTiktok: null,
+          socialInstagram: null,
         });
 
         connection.reducers.registerUser({ clerkUserId, username, displayName, email });
@@ -761,4 +976,82 @@ export function useTopicBlocksSubscription(topicId: number | null) {
       });
     };
   }, [topicId]);
+}
+
+/**
+ * Subscribe to all blocks owned by a specific user (across all topics).
+ * Populates the blocks store for the profile page canvas.
+ */
+export function useUserBlocksSubscription(ownerIdentity: string | null) {
+  useEffect(() => {
+    if (!ownerIdentity) return;
+
+    if (USE_MOCK) {
+      // Mock mode: gather blocks from topics where creator matches
+      const { setBlocks, setLoading } = useBlocksStore.getState();
+      setLoading(true);
+      const timer = setTimeout(() => {
+        const { topics } = useTopicStore.getState();
+        const pool = [...topics.values()]
+          .filter((t) => t.creatorIdentity === ownerIdentity && t.thumbnailVideoId)
+          .slice(0, 200);
+
+        const coords = batchSpiralCoordinates(pool.length);
+        const blocks: StoreBlock[] = pool.map((t, i) => ({
+          id: 900_000 + i + 1,
+          topicId: t.id,
+          x: coords[i]?.x ?? i,
+          y: coords[i]?.y ?? 0,
+          videoId: t.thumbnailVideoId ?? null,
+          platform: Platform.YouTube,
+          ownerIdentity: t.creatorIdentity,
+          ownerName: `@${t.creatorIdentity}`,
+          likes: Math.round(t.totalLikes / 10),
+          dislikes: Math.round(t.totalDislikes / 10),
+          ytViews: Math.round(t.totalViews / 10),
+          ytLikes: Math.round(t.totalLikes / 10),
+          thumbnailUrl: t.thumbnailUrl ?? null,
+          status: BlockStatus.Claimed,
+          adImageUrl: null,
+          adLinkUrl: null,
+          claimedAt: t.createdAt,
+        }));
+        setBlocks(blocks);
+        setLoading(false);
+      }, 50);
+
+      return () => {
+        clearTimeout(timer);
+        useBlocksStore.getState().setBlocks([]);
+        useBlocksStore.getState().setLoading(true);
+      };
+    }
+
+    const conn = getConnection();
+    if (!conn) return;
+
+    import("@/lib/spacetimedb/client").then(({ subscribeToUserBlocks }) => {
+      subscribeToUserBlocks(ownerIdentity, () => {
+        const c = getConnection();
+        if (!c) return;
+        const { setBlocks, setLoading } = useBlocksStore.getState();
+        const blocks: StoreBlock[] = [];
+        for (const row of c.db.block.iter()) {
+          if (row.ownerIdentity === ownerIdentity) {
+            blocks.push(mapBlock(row));
+          }
+        }
+        setBlocks(blocks);
+        setLoading(false);
+      });
+    });
+
+    return () => {
+      import("@/lib/spacetimedb/client").then(({ unsubscribeFromUserBlocks }) => {
+        unsubscribeFromUserBlocks();
+        useBlocksStore.getState().setBlocks([]);
+        useBlocksStore.getState().setLoading(true);
+      });
+    };
+  }, [ownerIdentity]);
 }

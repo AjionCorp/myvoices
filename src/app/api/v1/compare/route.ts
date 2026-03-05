@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { runSql, rowToObject, IS_MOCK } from "@/lib/spacetimedb/http-sql";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { withApiKey } from "@/lib/api-middleware";
 
 const TOPIC_COLS = [
   "id", "slug", "title", "description", "category",
@@ -145,7 +146,7 @@ export interface CompareResponse {
   panels: ComparePanel[];
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withApiKey(async (request: NextRequest) => {
   const { searchParams } = new URL(request.url);
   const rawSlugs = searchParams.get("slugs") ?? "";
   const slugs = rawSlugs.split(",").map((s) => s.trim()).filter(Boolean);
@@ -293,4 +294,4 @@ export async function GET(request: NextRequest) {
     console.error("[api/v1/compare]", err);
     return NextResponse.json({ error: "Failed to fetch comparison data" }, { status: 500 });
   }
-}
+});

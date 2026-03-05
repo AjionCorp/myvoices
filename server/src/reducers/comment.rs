@@ -104,6 +104,7 @@ pub fn add_comment(
                 likes_count: 0,
                 replies_count: 0,
                 reposts_count: 0,
+                edited_at: 0,
             })
             .map_err(|e| format!("Insert failed: {e}"))?
             .id;
@@ -141,6 +142,7 @@ pub fn add_comment(
                 likes_count: 0,
                 replies_count: 0,
                 reposts_count: 0,
+                edited_at: 0,
             })
             .map_err(|e| format!("Insert failed: {e}"))?;
     }
@@ -191,6 +193,7 @@ pub fn repost_comment(
             likes_count: 0,
             replies_count: 0,
             reposts_count: 0,
+            edited_at: 0,
         })
         .map_err(|e| format!("Insert failed: {e}"))?
         .id;
@@ -300,6 +303,45 @@ pub fn unlike_comment(ctx: &ReducerContext, comment_id: u64) -> Result<(), Strin
         };
         ctx.db.comment().id().update(updated);
     }
+
+    Ok(())
+}
+
+// ─── edit_comment ────────────────────────────────────────────────────────────
+
+#[reducer]
+pub fn edit_comment(
+    ctx: &ReducerContext,
+    comment_id: u64,
+    new_text: String,
+) -> Result<(), String> {
+    let caller = caller_str(ctx);
+
+    let comment = ctx
+        .db
+        .comment()
+        .id()
+        .find(comment_id)
+        .ok_or("Comment not found")?;
+
+    if comment.user_identity != caller {
+        return Err("Not authorized to edit this comment".to_string());
+    }
+
+    let trimmed = new_text.trim().to_string();
+    if trimmed.is_empty() {
+        return Err("Comment cannot be empty".to_string());
+    }
+    if trimmed.len() > 280 {
+        return Err("Comment too long (max 280 chars)".to_string());
+    }
+
+    let updated = Comment {
+        text: trimmed,
+        edited_at: now_micros(ctx),
+        ..comment
+    };
+    ctx.db.comment().id().update(updated);
 
     Ok(())
 }

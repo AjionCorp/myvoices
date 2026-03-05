@@ -11,6 +11,13 @@ export interface User {
   totalEarnings: number;
   credits: number;
   isAdmin: boolean;
+  bio: string | null;
+  location: string | null;
+  websiteUrl: string | null;
+  socialX: string | null;
+  socialYoutube: string | null;
+  socialTiktok: string | null;
+  socialInstagram: string | null;
 }
 
 interface AuthState {

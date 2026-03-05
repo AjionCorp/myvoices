@@ -1,31 +1,85 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ClearableInput } from "@/components/ui/clearable-input";
+import { getConnection } from "@/lib/spacetimedb/client";
 
 interface UserEntry {
   identity: string;
+  username: string;
   displayName: string;
   email: string;
   isAdmin: boolean;
   totalEarnings: number;
-  blocksClaimed: number;
-  totalLikes: number;
+  credits: number;
+  createdAt: number;
 }
 
 export default function UsersManagement() {
   const [search, setSearch] = useState("");
-  const [users] = useState<UserEntry[]>([]);
+  const [users, setUsers] = useState<UserEntry[]>([]);
+  const [sortBy, setSortBy] = useState<"createdAt" | "totalEarnings" | "displayName">("createdAt");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
-  const filtered = users.filter(
-    (u) =>
-      u.displayName.toLowerCase().includes(search.toLowerCase()) ||
-      u.email.toLowerCase().includes(search.toLowerCase()) ||
-      u.identity.includes(search)
-  );
+  const loadUsers = useCallback(() => {
+    const conn = getConnection();
+    if (!conn) return;
+    const list: UserEntry[] = [];
+    for (const row of conn.db.user_profile.iter()) {
+      list.push({
+        identity: row.identity,
+        username: row.username,
+        displayName: row.displayName,
+        email: row.email,
+        isAdmin: row.isAdmin,
+        totalEarnings: Number(row.totalEarnings),
+        credits: Number(row.credits),
+        createdAt: Number(row.createdAt),
+      });
+    }
+    setUsers(list);
+  }, []);
+
+  useEffect(() => {
+    loadUsers();
+    const conn = getConnection();
+    if (!conn) return;
+    conn.db.user_profile.onInsert(() => loadUsers());
+    conn.db.user_profile.onUpdate(() => loadUsers());
+    conn.db.user_profile.onDelete(() => loadUsers());
+  }, [loadUsers]);
+
+  const handleSort = (col: typeof sortBy) => {
+    if (sortBy === col) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortBy(col);
+      setSortDir("desc");
+    }
+  };
+
+  const filtered = users
+    .filter(
+      (u) =>
+        u.displayName.toLowerCase().includes(search.toLowerCase()) ||
+        u.email.toLowerCase().includes(search.toLowerCase()) ||
+        u.username.toLowerCase().includes(search.toLowerCase()) ||
+        u.identity.includes(search)
+    )
+    .sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      if (sortBy === "displayName") return dir * a.displayName.localeCompare(b.displayName);
+      return dir * (a[sortBy] - b[sortBy]);
+    });
+
+  const handleToggleAdmin = (identity: string, currentlyAdmin: boolean) => {
+    const conn = getConnection();
+    if (!conn) return;
+    conn.reducers.setAdmin({ targetIdentity: identity, isAdmin: !currentlyAdmin });
+  };
 
   return (
     <div>
@@ -33,15 +87,18 @@ export default function UsersManagement() {
         User Management
       </h1>
 
-      <div className="mb-6">
+      <div className="mb-4 flex items-center justify-between">
         <ClearableInput
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onClear={() => setSearch("")}
-          placeholder="Search users by name, email, or identity..."
+          placeholder="Search users by name, email, username, or identity..."
           className="w-full max-w-md bg-surface"
         />
+        <span className="text-sm text-muted">
+          {filtered.length} of {users.length} users
+        </span>
       </div>
 
       <Card className="gap-0 rounded-xl border-border bg-surface py-0">
@@ -50,20 +107,29 @@ export default function UsersManagement() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-border">
-                <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted">
-                  User
+                <th
+                  className="cursor-pointer px-4 py-3 text-left text-xs font-medium uppercase text-muted hover:text-foreground"
+                  onClick={() => handleSort("displayName")}
+                >
+                  User {sortBy === "displayName" ? (sortDir === "asc" ? "↑" : "↓") : ""}
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-medium uppercase text-muted">
                   Email
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-medium uppercase text-muted">
-                  Blocks
+                <th
+                  className="cursor-pointer px-4 py-3 text-right text-xs font-medium uppercase text-muted hover:text-foreground"
+                  onClick={() => handleSort("createdAt")}
+                >
+                  Joined {sortBy === "createdAt" ? (sortDir === "asc" ? "↑" : "↓") : ""}
+                </th>
+                <th
+                  className="cursor-pointer px-4 py-3 text-right text-xs font-medium uppercase text-muted hover:text-foreground"
+                  onClick={() => handleSort("totalEarnings")}
+                >
+                  Earnings {sortBy === "totalEarnings" ? (sortDir === "asc" ? "↑" : "↓") : ""}
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-medium uppercase text-muted">
-                  Likes
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-medium uppercase text-muted">
-                  Earnings
+                  Credits
                 </th>
                 <th className="px-4 py-3 text-center text-xs font-medium uppercase text-muted">
                   Role
@@ -93,22 +159,25 @@ export default function UsersManagement() {
                         <div className="flex h-7 w-7 items-center justify-center rounded-full bg-accent text-xs font-bold text-white">
                           {user.displayName.charAt(0).toUpperCase()}
                         </div>
-                        <span className="text-sm font-medium text-foreground">
-                          {user.displayName}
-                        </span>
+                        <div>
+                          <span className="text-sm font-medium text-foreground">
+                            {user.displayName}
+                          </span>
+                          <p className="text-xs text-muted">@{user.username}</p>
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-muted">
                       {user.email || "-"}
                     </td>
-                    <td className="px-4 py-3 text-right text-sm tabular-nums text-foreground">
-                      {user.blocksClaimed}
-                    </td>
-                    <td className="px-4 py-3 text-right text-sm tabular-nums text-foreground">
-                      {user.totalLikes.toLocaleString()}
+                    <td className="px-4 py-3 text-right text-sm tabular-nums text-muted">
+                      {new Date(user.createdAt / 1000).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3 text-right text-sm tabular-nums text-foreground">
                       ${(user.totalEarnings / 100).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-sm tabular-nums text-foreground">
+                      {user.credits.toLocaleString()}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <Badge
@@ -122,8 +191,13 @@ export default function UsersManagement() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <Button variant="ghost" size="sm" className="text-xs text-muted hover:text-foreground">
-                        Manage
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs text-muted hover:text-foreground"
+                        onClick={() => handleToggleAdmin(user.identity, user.isAdmin)}
+                      >
+                        {user.isAdmin ? "Remove Admin" : "Make Admin"}
                       </Button>
                     </td>
                   </tr>

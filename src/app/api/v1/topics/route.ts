@@ -1,26 +1,46 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import { runSql, rowToObject } from "@/lib/spacetimedb/http-sql";
+import { withApiKey } from "@/lib/api-middleware";
 
 // ---------------------------------------------------------------------------
 // Mock-data fast path — activated by USE_MOCK_DATA=true in .env.local
 // ---------------------------------------------------------------------------
 interface MockTopic {
   id: number;
+  slug?: string;
+  title?: string;
+  description?: string;
+  category?: string;
+  creatorIdentity?: string;
+  videoCount?: number;
+  totalLikes?: number;
+  totalDislikes?: number;
+  totalViews?: number;
+  isActive?: boolean;
+  createdAt?: number;
+  taxonomyNodeId?: number;
+  taxonomyPath?: string;
+  taxonomyName?: string;
   thumbnailVideoId?: string;
   thumbnailUrl?: string;
 }
 
-let _mockCache: { topVideos: Record<number, { videoId: string; platform: string; thumbnailUrl: string | null }> } | null = null;
+interface MockCache {
+  topics: ReturnType<typeof mapTopic>[];
+  topVideos: Record<number, { videoId: string; platform: string; thumbnailUrl: string | null }>;
+}
 
-function getMockTopVideos() {
+let _mockCache: MockCache | null = null;
+
+function getMockData(): MockCache {
   if (_mockCache) return _mockCache;
   try {
     const filePath = resolve(process.cwd(), "src", "lib", "mock-topics.json");
     const raw = JSON.parse(readFileSync(filePath, "utf8")) as { topics: MockTopic[] };
     const topVideos: Record<number, { videoId: string; platform: string; thumbnailUrl: string | null }> = {};
-    for (const t of raw.topics) {
+    const topics = raw.topics.map((t) => {
       if (t.thumbnailVideoId) {
         topVideos[t.id] = {
           videoId: t.thumbnailVideoId,
@@ -28,11 +48,29 @@ function getMockTopVideos() {
           thumbnailUrl: t.thumbnailUrl ?? null,
         };
       }
-    }
-    _mockCache = { topVideos };
+      return {
+        id: t.id,
+        slug: t.slug ?? "",
+        title: t.title ?? "",
+        description: t.description ?? "",
+        category: t.category ?? "",
+        taxonomyNodeId: t.taxonomyNodeId ?? null,
+        taxonomyPath: t.taxonomyPath ?? "",
+        taxonomyName: t.taxonomyName ?? "",
+        creatorIdentity: t.creatorIdentity ?? "",
+        videoCount: t.videoCount ?? 0,
+        totalLikes: t.totalLikes ?? 0,
+        totalDislikes: t.totalDislikes ?? 0,
+        totalViews: t.totalViews ?? 0,
+        isActive: t.isActive ?? true,
+        createdAt: t.createdAt ?? 0,
+        moderatorCount: 0,
+      };
+    });
+    _mockCache = { topics, topVideos };
   } catch (err) {
     console.warn("[api/v1/topics] could not load mock-topics.json", err);
-    _mockCache = { topVideos: {} };
+    _mockCache = { topics: [], topVideos: {} };
   }
   return _mockCache;
 }
@@ -68,10 +106,10 @@ function mapTopic(row: Record<string, unknown>): any {
   };
 }
 
-export async function GET() {
+export const GET = withApiKey(async (_request: NextRequest) => {
   // Fast path: serve pre-generated mock data without hitting SpacetimeDB
   if (process.env.USE_MOCK_DATA === "true") {
-    return NextResponse.json(getMockTopVideos());
+    return NextResponse.json(getMockData());
   }
 
   try {
@@ -168,4 +206,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});

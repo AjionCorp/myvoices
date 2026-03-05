@@ -7,7 +7,8 @@ import { useShallow } from "zustand/react/shallow";
 import { useCommentsStore } from "@/stores/comments-store";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { Platform } from "@/lib/constants";
-import { getVideoUrl, getThumbnailUrl, getEmbedUrl } from "@/lib/utils/video-url";
+import { getVideoUrl, getThumbnailUrl, getEmbedUrl, normalizeThumbnailForStorage } from "@/lib/utils/video-url";
+import { resolveVideoMeta } from "@/lib/utils/video-meta";
 import { getConnection } from "@/lib/spacetimedb/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -98,10 +99,15 @@ export function BlockDetailPanel() {
 
   const [liked, setLiked] = useState(false);
   const [disliked, setDisliked] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [likeAnim, setLikeAnim] = useState(false);
   const [dislikeAnim, setDislikeAnim] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [editUrl, setEditUrl] = useState("");
+  const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
   const [isEmbedLoading, setIsEmbedLoading] = useState(false);
   const [resolvedEmbedUrl, setResolvedEmbedUrl] = useState<string | null>(null);
 
@@ -109,12 +115,54 @@ export function BlockDetailPanel() {
     selectedBlockId != null ? s.getTopLevelComments(selectedBlockId).length : 0
   );
 
+  // Initialize liked/disliked state from SpacetimeDB records
   useEffect(() => {
-    setLiked(false);
-    setDisliked(false);
     setConfirmDelete(false);
     setIsDeleting(false);
-  }, [selectedBlockId]);
+    setEditMode(false);
+    setEditUrl("");
+    setEditError(null);
+
+    if (!selectedBlockId || !user?.identity) {
+      setLiked(false);
+      setDisliked(false);
+      setSaved(false);
+      return;
+    }
+
+    const conn = getConnection();
+    if (!conn) {
+      setLiked(false);
+      setDisliked(false);
+      setSaved(false);
+      return;
+    }
+
+    let foundLike = false;
+    let foundDislike = false;
+    let foundSaved = false;
+    for (const lr of conn.db.like_record.iter()) {
+      if (Number(lr.blockId) === selectedBlockId && lr.userIdentity === user.identity) {
+        foundLike = true;
+        break;
+      }
+    }
+    for (const dr of conn.db.dislike_record.iter()) {
+      if (Number(dr.blockId) === selectedBlockId && dr.userIdentity === user.identity) {
+        foundDislike = true;
+        break;
+      }
+    }
+    for (const sb of conn.db.saved_block.iter()) {
+      if (Number(sb.blockId) === selectedBlockId && sb.userIdentity === user.identity) {
+        foundSaved = true;
+        break;
+      }
+    }
+    setLiked(foundLike);
+    setDisliked(foundDislike);
+    setSaved(foundSaved);
+  }, [selectedBlockId, user?.identity]);
 
   const embedUrl = block?.videoId && block?.platform ? getEmbedUrl(block.videoId, block.platform) : null;
   const thumbnailUrl = block?.videoId && block?.platform
@@ -170,12 +218,16 @@ export function BlockDetailPanel() {
 
   const handleLike = () => {
     if (!isAuthenticated) { login(); return; }
+    const conn = getConnection();
+    if (!conn) return;
     setLikeAnim(true);
     setTimeout(() => setLikeAnim(false), 400);
     if (liked) {
+      conn.reducers.unlikeVideo({ blockId: BigInt(block.id) });
       setLiked(false);
       updateBlockLikes(block.id, Math.max(0, block.likes - 1));
     } else {
+      conn.reducers.likeVideo({ blockId: BigInt(block.id) });
       setLiked(true);
       if (disliked) { setDisliked(false); updateBlockDislikes(block.id, Math.max(0, block.dislikes - 1)); }
       updateBlockLikes(block.id, block.likes + 1);
@@ -184,19 +236,85 @@ export function BlockDetailPanel() {
 
   const handleDislike = () => {
     if (!isAuthenticated) { login(); return; }
+    const conn = getConnection();
+    if (!conn) return;
     setDislikeAnim(true);
     setTimeout(() => setDislikeAnim(false), 400);
     if (disliked) {
+      conn.reducers.undislikeVideo({ blockId: BigInt(block.id) });
       setDisliked(false);
       updateBlockDislikes(block.id, Math.max(0, block.dislikes - 1));
     } else {
+      conn.reducers.dislikeVideo({ blockId: BigInt(block.id) });
       setDisliked(true);
       if (liked) { setLiked(false); updateBlockLikes(block.id, Math.max(0, block.likes - 1)); }
       updateBlockDislikes(block.id, block.dislikes + 1);
     }
   };
 
+  const handleSave = () => {
+    if (!isAuthenticated) { login(); return; }
+    const conn = getConnection();
+    if (!conn) return;
+    if (saved) {
+      conn.reducers.unsaveBlock({ blockId: BigInt(block.id) });
+      setSaved(false);
+    } else {
+      conn.reducers.saveBlock({ blockId: BigInt(block.id) });
+      setSaved(true);
+    }
+  };
+
+  const handleEditSubmit = async () => {
+    if (!editUrl.trim()) return;
+    const conn = getConnection();
+    if (!conn) return;
+    setEditSubmitting(true);
+    setEditError(null);
+    try {
+      const meta = await resolveVideoMeta(editUrl.trim());
+      if (!meta) { setEditError("Could not resolve video URL"); return; }
+      conn.reducers.editBlock({
+        blockId: BigInt(block.id),
+        newVideoId: meta.videoId,
+        newPlatform: meta.platform,
+        newThumbnailUrl: normalizeThumbnailForStorage(meta.thumbnailUrl, meta.platform),
+        newYtViews: BigInt(0),
+        newYtLikes: BigInt(0),
+      });
+      setEditMode(false);
+      setEditUrl("");
+    } catch {
+      setEditError("Failed to resolve video");
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
   const isOwner = isAuthenticated && !!user?.identity && user.identity === block?.ownerIdentity;
+
+  // Check if user is a topic moderator/owner for this block's topic
+  const isMod = (() => {
+    if (!isAuthenticated || !user?.identity || !block) return false;
+    const conn = getConnection();
+    if (!conn) return false;
+    // Check topic owner
+    const topic = conn.db.topic.id.find(BigInt(block.topicId));
+    if (topic && topic.creatorIdentity === user.identity) return true;
+    // Check topic moderator
+    for (const m of conn.db.topic_moderator.iter()) {
+      if (Number(m.topicId) === block.topicId && m.identity === user.identity) return true;
+    }
+    return false;
+  })();
+
+  const handleModRemove = () => {
+    if (!block) return;
+    const conn = getConnection();
+    if (!conn) return;
+    conn.reducers.modRemoveBlock({ blockId: BigInt(block.id) });
+    selectBlock(null);
+  };
 
   const handleDelete = async () => {
     if (!block || isDeleting) return;
@@ -383,6 +501,35 @@ export function BlockDetailPanel() {
                     <span className="tabular-nums">{topLevelCount}</span>
                   </div>
 
+                  {/* Save/bookmark */}
+                  <Button
+                    onClick={handleSave}
+                    variant="ghost"
+                    size="icon-sm"
+                    className={`transition-colors ${saved ? "text-accent" : "text-muted hover:text-foreground"}`}
+                    title={saved ? "Unsave" : "Save"}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill={saved ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2">
+                      <path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
+                    </svg>
+                  </Button>
+
+                  {/* Edit (owner only) */}
+                  {isOwner && (
+                    <Button
+                      onClick={() => setEditMode(!editMode)}
+                      variant="ghost"
+                      size="icon-sm"
+                      className={`transition-colors ${editMode ? "text-accent" : "text-muted hover:text-foreground"}`}
+                      title="Swap video"
+                    >
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </Button>
+                  )}
+
                   {/* Delete (owner only) */}
                   {isOwner && (
                     <Button
@@ -426,6 +573,58 @@ export function BlockDetailPanel() {
                       </Button>
                     </div>
                   </div>
+                )}
+
+                {/* Edit video form */}
+                {editMode && isOwner && (
+                  <div className="flex flex-col gap-2 rounded-xl border border-accent/30 bg-accent/5 px-4 py-3">
+                    <p className="text-xs font-medium text-accent">Swap video URL (likes will reset)</p>
+                    <input
+                      type="text"
+                      value={editUrl}
+                      onChange={(e) => setEditUrl(e.target.value)}
+                      placeholder="Paste new YouTube / TikTok / BiliBili URL..."
+                      className="h-8 w-full rounded-lg border border-border bg-surface px-3 text-xs text-foreground placeholder:text-muted focus:border-accent/50 focus:outline-none"
+                      onKeyDown={(e) => { if (e.key === "Enter") handleEditSubmit(); }}
+                    />
+                    {editError && <p className="text-[11px] text-red-400">{editError}</p>}
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={() => { setEditMode(false); setEditUrl(""); setEditError(null); }}
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 flex-1 text-xs text-muted"
+                        disabled={editSubmitting}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleEditSubmit}
+                        size="sm"
+                        className="h-7 flex-1 text-xs"
+                        disabled={editSubmitting || !editUrl.trim()}
+                      >
+                        {editSubmitting ? "Saving..." : "Save"}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Mod remove (for topic mods/owners who don't own this block) */}
+                {isMod && !isOwner && (
+                  <Button
+                    onClick={handleModRemove}
+                    variant="ghost"
+                    size="sm"
+                    className="w-full justify-start gap-2 text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                      <line x1="9" y1="9" x2="15" y2="15" />
+                      <line x1="15" y1="9" x2="9" y2="15" />
+                    </svg>
+                    Mod: Remove this video
+                  </Button>
                 )}
               </div>
 

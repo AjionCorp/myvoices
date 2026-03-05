@@ -68,7 +68,7 @@ export function LandingCanvas() {
     Record<number, { videoId: string; platform: string; thumbnailUrl: string | null }>
   >({});
   const [search, setSearch] = useState("");
-  const [sortKey, setSortKey] = useState<SortKey>("views");
+  const [sortKey, setSortKey] = useState<SortKey>("hot");
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 

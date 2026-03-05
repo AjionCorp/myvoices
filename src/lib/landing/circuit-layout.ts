@@ -1,4 +1,5 @@
 import type { Topic, TopicTaxonomyNode } from "@/stores/topic-store";
+import { hotScoreTopic } from "@/lib/utils/hot-score";
 
 // Re-export SortKey so CircuitCanvas doesn't import from cluster-layout
 export type { SortKey } from "@/lib/landing/cluster-layout";
@@ -132,6 +133,9 @@ function getSubLevel(topic: Topic, nodes: Map<number, TopicTaxonomyNode>): strin
 function sortTopics(topics: Topic[], sortKey: SortKey): Topic[] {
   return [...topics].sort((a, b) => {
     switch (sortKey) {
+      case "hot":
+        return hotScoreTopic(b.totalLikes, b.totalDislikes, b.totalViews, b.videoCount, b.createdAt)
+             - hotScoreTopic(a.totalLikes, a.totalDislikes, a.totalViews, a.videoCount, a.createdAt);
       case "views":
         return b.totalViews - a.totalViews || b.createdAt - a.createdAt;
       case "videos":
@@ -150,7 +154,7 @@ export function computeCircuitLayout(
   topics: Map<number, Topic>,
   taxonomyNodes: Map<number, TopicTaxonomyNode>,
   thumbnails: Map<number, string>,
-  sortKey: SortKey = "views",
+  sortKey: SortKey = "hot",
 ): CircuitLayoutNode[] {
 
   const activeTopics = [...topics.values()].filter((t) => t.isActive);
@@ -248,7 +252,7 @@ export function computeCircuitLayout(
 
       // ── Subcategory separator ─────────────────────────────────────────
       const firstTopic = rowItems.find((r) => r.kind === "topic");
-      const rowSubcat  = firstTopic?.kind === "topic" ? firstTopic.subcat : prevSubcat;
+      const rowSubcat: string | null = firstTopic?.kind === "topic" ? firstTopic.subcat : prevSubcat;
       if (rowSubcat !== null && rowSubcat !== prevSubcat && prevSubcat !== "__none__") {
         const sepY   = cursorY + SEP_H / 2;
         const isDeep = sepY > deepCutY;

@@ -1,4 +1,5 @@
 import type { Topic, TopicTaxonomyNode } from "@/stores/topic-store";
+import { hotScoreTopic } from "@/lib/utils/hot-score";
 
 export const CATEGORY_TILE_SIZE = 200;
 export const TOPIC_TILE_SIZE = 120;
@@ -17,7 +18,7 @@ const CLUSTER_SPREAD_Y = 880;
 // How many category anchors per row
 const CATS_PER_ROW = 3;
 
-export type SortKey = "views" | "videos" | "newest" | "likes";
+export type SortKey = "hot" | "views" | "videos" | "newest" | "likes";
 
 export interface LayoutNode {
   type: "category" | "topic";
@@ -72,6 +73,9 @@ function getSubLevel(topic: Topic, taxonomyNodes: Map<number, TopicTaxonomyNode>
 function sortTopics(topics: Topic[], sortKey: SortKey): Topic[] {
   return [...topics].sort((a, b) => {
     switch (sortKey) {
+      case "hot":
+        return hotScoreTopic(b.totalLikes, b.totalDislikes, b.totalViews, b.videoCount, b.createdAt)
+             - hotScoreTopic(a.totalLikes, a.totalDislikes, a.totalViews, a.videoCount, a.createdAt);
       case "views":
         return b.totalViews - a.totalViews || b.createdAt - a.createdAt;
       case "videos":
@@ -88,7 +92,7 @@ export function computeLayout(
   topics: Map<number, Topic>,
   taxonomyNodes: Map<number, TopicTaxonomyNode>,
   thumbnails: Map<number, string>,
-  sortKey: SortKey = "views",
+  sortKey: SortKey = "hot",
 ): LayoutNode[] {
   const activeTopics = [...topics.values()].filter((t) => t.isActive);
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { runSql, rowToObject, BLOCK_COLUMNS, COMMENT_COLUMNS, type SqlResult } from "@/lib/spacetimedb/http-sql";
 import { BlockStatus, GRID_COLS, GRID_ROWS, type Platform } from "@/lib/constants";
+import { withApiKey } from "@/lib/api-middleware";
 
 function strOrNull(v: unknown): string | null {
   if (v == null) return null;
@@ -50,7 +51,7 @@ function mapComment(row: Record<string, unknown>): any {
   };
 }
 
-export async function GET(request: NextRequest) {
+export const GET = withApiKey(async (request: NextRequest) => {
   try {
     const { searchParams } = new URL(request.url);
     const minX = searchParams.get("minX");
@@ -109,4 +110,4 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});

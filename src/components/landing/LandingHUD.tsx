@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { Search, Home } from "lucide-react";
+import { Search, Home, X } from "lucide-react";
 import type { SortKey } from "@/lib/landing/cluster-layout";
 import { ClearableInput } from "@/components/ui/clearable-input";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,7 @@ interface LandingHUDProps {
 }
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: "hot", label: "Hot" },
   { key: "views", label: "Most Viewed" },
   { key: "videos", label: "Most Videos" },
   { key: "likes", label: "Most Liked" },

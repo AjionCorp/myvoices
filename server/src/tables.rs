@@ -141,6 +141,20 @@ pub struct UserProfile {
     pub credits: u64,
     pub is_admin: bool,
     pub created_at: u64,
+    #[default(None::<String>)]
+    pub bio: Option<String>,
+    #[default(None::<String>)]
+    pub location: Option<String>,
+    #[default(None::<String>)]
+    pub website_url: Option<String>,
+    #[default(None::<String>)]
+    pub social_x: Option<String>,
+    #[default(None::<String>)]
+    pub social_youtube: Option<String>,
+    #[default(None::<String>)]
+    pub social_tiktok: Option<String>,
+    #[default(None::<String>)]
+    pub social_instagram: Option<String>,
 }
 
 #[table(accessor = like_record, public)]
@@ -242,6 +256,9 @@ pub struct Comment {
     pub replies_count: u64,
     #[default(0u64)]
     pub reposts_count: u64,
+    /// 0 = never edited; > 0 = microsecond timestamp of last edit
+    #[default(0u64)]
+    pub edited_at: u64,
 }
 
 #[table(accessor = comment_like, public)]
@@ -290,6 +307,39 @@ pub struct DirectMessage {
     pub text: String,
     pub is_read: bool,
     pub created_at: u64,
+    #[default(0u64)]
+    pub conversation_id: u64,
+    #[default(false)]
+    pub is_deleted: bool,
+}
+
+#[table(accessor = user_follow, public)]
+#[derive(Clone)]
+pub struct UserFollow {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub follower_identity: String,
+    pub following_identity: String,
+    pub created_at: u64,
+}
+
+#[table(accessor = conversation, public)]
+#[derive(Clone)]
+pub struct Conversation {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    /// Lexicographically lower identity
+    pub participant_a: String,
+    /// Lexicographically higher identity
+    pub participant_b: String,
+    /// "active" | "request_pending" | "request_declined"
+    pub status: String,
+    /// Identity of user who must accept (when request_pending)
+    pub request_recipient: String,
+    pub created_at: u64,
+    pub updated_at: u64,
 }
 
 #[table(accessor = contest_winner, public)]
@@ -306,4 +356,122 @@ pub struct ContestWinner {
     pub likes: u64,
     pub rank: u32,
     pub prize_amount: u64,
+}
+
+#[table(accessor = user_block, public)]
+#[derive(Clone)]
+pub struct UserBlock {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub blocker_identity: String,
+    pub blocked_identity: String,
+    pub created_at: u64,
+}
+
+#[table(accessor = user_mute, public)]
+#[derive(Clone)]
+pub struct UserMute {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub muter_identity: String,
+    pub muted_identity: String,
+    pub created_at: u64,
+}
+
+#[table(accessor = user_report, public)]
+#[derive(Clone)]
+pub struct UserReport {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub reporter_identity: String,
+    pub reported_identity: String,
+    /// "spam" | "harassment" | "hate_speech" | "impersonation" | "other"
+    pub reason: String,
+    pub description: String,
+    /// "pending" | "reviewed" | "dismissed"
+    pub status: String,
+    pub reviewed_by: String,
+    pub created_at: u64,
+    pub reviewed_at: u64,
+}
+
+// ─── API Keys ───────────────────────────────────────────────────────────────
+
+#[table(accessor = api_key, public)]
+#[derive(Clone)]
+pub struct ApiKey {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    /// SHA-256 hex of the raw API key — used for lookup
+    #[unique]
+    pub key_hash: String,
+    /// First 8 chars for display: "mv_a1b2..."
+    pub key_prefix: String,
+    pub name: String,
+    pub email: String,
+    pub credits: u64,
+    pub total_requests: u64,
+    pub is_active: bool,
+    pub created_at: u64,
+    pub last_used_at: u64,
+}
+
+#[table(accessor = api_usage_log, public)]
+#[derive(Clone)]
+pub struct ApiUsageLog {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub api_key_id: u64,
+    pub endpoint: String,
+    pub request_count: u64,
+    /// Day bucket: YYYYMMDD as u32 for rate limit tracking
+    pub day: u32,
+    pub created_at: u64,
+}
+
+/// A user following a topic for updates.
+#[table(accessor = topic_follow, public)]
+#[derive(Clone)]
+pub struct TopicFollow {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub follower_identity: String,
+    pub topic_id: u64,
+    #[default(0u64)]
+    pub created_at: u64,
+}
+
+/// A saved/bookmarked block (video) by a user.
+#[table(accessor = saved_block, public)]
+#[derive(Clone)]
+pub struct SavedBlock {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub user_identity: String,
+    pub block_id: u64,
+    pub topic_id: u64,
+    #[default(0u64)]
+    pub created_at: u64,
+}
+
+/// A user banned from posting in a specific topic.
+#[table(accessor = topic_ban, public)]
+#[derive(Clone)]
+pub struct TopicBan {
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    pub topic_id: u64,
+    pub banned_identity: String,
+    pub banned_by: String,
+    pub reason: String,
+    #[default(0u64)]
+    pub created_at: u64,
 }

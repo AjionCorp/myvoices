@@ -12,6 +12,7 @@ export interface Comment {
   likesCount: number;
   repliesCount: number;
   repostsCount: number;
+  editedAt: number;
 }
 
 export interface CommentLike {

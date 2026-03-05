@@ -108,6 +108,13 @@ function AuthBridge({ children }: { children: ReactNode }) {
         totalEarnings: 0,
         credits: 0,
         isAdmin: false,
+        bio: null,
+        location: null,
+        websiteUrl: null,
+        socialX: null,
+        socialYoutube: null,
+        socialTiktok: null,
+        socialInstagram: null,
       };
       console.log("[Auth] setUser (new):", { email: userData.email ?? "(null)", username: userData.username ?? "(null)", displayName: userData.displayName });
       setUser(userData);

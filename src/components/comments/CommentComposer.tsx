@@ -82,6 +82,7 @@ export function CommentComposer({
           likesCount: 0,
           repliesCount: 0,
           repostsCount: 0,
+          editedAt: 0,
         };
         useCommentsStore.getState().addComment(newComment);
 

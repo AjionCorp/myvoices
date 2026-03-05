@@ -252,3 +252,47 @@ pub fn undislike_video(ctx: &ReducerContext, block_id: u64) -> Result<(), String
 
     Ok(())
 }
+
+#[reducer]
+pub fn save_block(ctx: &ReducerContext, block_id: u64) -> Result<(), String> {
+    let caller = ctx.sender().to_hex().to_string();
+
+    let block = ctx.db.block().id().find(block_id).ok_or("Block not found")?;
+    if block.status != "claimed" {
+        return Err("Block has no video".to_string());
+    }
+
+    for saved in ctx.db.saved_block().iter() {
+        if saved.block_id == block_id && saved.user_identity == caller {
+            return Err("Already saved this video".to_string());
+        }
+    }
+
+    ctx.db.saved_block().try_insert(SavedBlock {
+        id: 0,
+        user_identity: caller,
+        block_id,
+        topic_id: block.topic_id,
+        created_at: now_micros(ctx),
+    }).map_err(|e| format!("Insert failed: {e}"))?;
+
+    Ok(())
+}
+
+#[reducer]
+pub fn unsave_block(ctx: &ReducerContext, block_id: u64) -> Result<(), String> {
+    let caller = ctx.sender().to_hex().to_string();
+
+    let mut found_id: Option<u64> = None;
+    for saved in ctx.db.saved_block().iter() {
+        if saved.block_id == block_id && saved.user_identity == caller {
+            found_id = Some(saved.id);
+            break;
+        }
+    }
+
+    let save_id = found_id.ok_or("You haven't saved this video")?;
+    ctx.db.saved_block().id().delete(save_id);
+
+    Ok(())
+}

@@ -17,4 +17,6 @@ export default __t.row({
   text: __t.string(),
   isRead: __t.bool().name("is_read"),
   createdAt: __t.u64().name("created_at"),
+  conversationId: __t.u64().name("conversation_id"),
+  isDeleted: __t.bool().name("is_deleted"),
 });

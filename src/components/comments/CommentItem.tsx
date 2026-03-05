@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Heart, MessageCircle, Repeat2, Trash2 } from "lucide-react";
+import { Heart, MessageCircle, Pencil, Repeat2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCommentsStore, type Comment } from "@/stores/comments-store";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -41,6 +41,8 @@ export function CommentItem({ comment, depth = 0 }: Props) {
   const [showReplyComposer, setShowReplyComposer] = useState(false);
   const [showRepostComposer, setShowRepostComposer] = useState(false);
   const [showReplies, setShowReplies] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(comment.text);
 
   const getReplies = useCommentsStore((s) => s.getReplies);
   const getComment = useCommentsStore((s) => s.getComment);
@@ -97,9 +99,18 @@ export function CommentItem({ comment, depth = 0 }: Props) {
     if (conn) {
       conn.reducers.deleteComment({ commentId: BigInt(comment.id) });
     } else {
-      // Mock path — remove from local store
       useCommentsStore.getState().removeComment(comment.id);
     }
+  };
+
+  const handleEdit = () => {
+    const trimmed = editText.trim();
+    if (!trimmed || trimmed === comment.text) { setIsEditing(false); return; }
+    const conn = getConnection();
+    if (conn) {
+      conn.reducers.editComment({ commentId: BigInt(comment.id), newText: trimmed });
+    }
+    setIsEditing(false);
   };
 
   return (
@@ -122,11 +133,28 @@ export function CommentItem({ comment, depth = 0 }: Props) {
         )}
 
         {/* Body */}
-          {comment.text && (
-            <p className="mt-1 text-sm leading-relaxed text-foreground/90 wrap-break-word">
+        {isEditing ? (
+          <div className="mt-1 flex flex-col gap-1.5">
+            <textarea
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              maxLength={280}
+              rows={2}
+              autoFocus
+              className="w-full resize-none rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-accent/50 focus:outline-none"
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleEdit(); } if (e.key === "Escape") setIsEditing(false); }}
+            />
+            <div className="flex gap-1.5">
+              <Button size="sm" variant="default" className="h-6 text-xs" onClick={handleEdit}>Save</Button>
+              <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setIsEditing(false); setEditText(comment.text); }}>Cancel</Button>
+            </div>
+          </div>
+        ) : comment.text ? (
+          <p className="mt-1 text-sm leading-relaxed text-foreground/90 wrap-break-word">
             {comment.text}
+            {comment.editedAt > 0 && <span className="ml-1.5 text-xs text-muted-foreground">(edited)</span>}
           </p>
-        )}
+        ) : null}
 
         {/* Action bar */}
         <div className="mt-2 flex items-center gap-1 -ml-1.5">
@@ -178,11 +206,21 @@ export function CommentItem({ comment, depth = 0 }: Props) {
             {comment.repostsCount > 0 && <span>{comment.repostsCount}</span>}
           </button>
 
+          {/* Edit (own comments) */}
+          {isOwn && (
+            <button
+              onClick={() => { setEditText(comment.text); setIsEditing(true); }}
+              className="ml-auto rounded-full p-1 text-muted-foreground/50 transition-colors hover:bg-accent/10 hover:text-accent"
+              title="Edit"
+            >
+              <Pencil className="h-3 w-3" />
+            </button>
+          )}
           {/* Delete (own comments) */}
           {isOwn && (
             <button
               onClick={handleDelete}
-              className="ml-auto rounded-full p-1 text-muted-foreground/50 transition-colors hover:bg-destructive/10 hover:text-destructive"
+              className="rounded-full p-1 text-muted-foreground/50 transition-colors hover:bg-destructive/10 hover:text-destructive"
               title="Delete"
             >
               <Trash2 className="h-3 w-3" />

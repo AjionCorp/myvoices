@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronDown, Coins, LogOut, UserRound } from "lucide-react";
+import { Bookmark, ChevronDown, Coins, Heart, LogOut, Settings, UserRound, Wallet } from "lucide-react";
 import { useAuth } from "./AuthProvider";
 import { Button } from "@/components/ui/button";
 import {
@@ -62,11 +62,36 @@ export function LoginButton() {
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
-            <Link href="/account">
+            <Link href={`/u/${user.username}`}>
               <UserRound />
-              Account
+              Profile
             </Link>
           </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/liked">
+              <Heart />
+              Liked
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/saved">
+              <Bookmark />
+              Saved
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/earnings">
+              <Wallet />
+              Earnings
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/settings">
+              <Settings />
+              Settings
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onClick={logout}>
             <LogOut />
             Sign out

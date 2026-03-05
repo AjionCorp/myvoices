@@ -1,37 +1,81 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { getConnection } from "@/lib/spacetimedb/client";
 
 interface Transaction {
-  id: string;
-  type: "ad_payment" | "prize_payout" | "refund";
+  id: number;
+  txType: string;
   amount: number;
-  from: string;
-  to: string;
+  fromIdentity: string;
+  toIdentity: string;
   stripeId: string;
   description: string;
   createdAt: number;
 }
 
 export default function FinanceDashboard() {
-  const [transactions] = useState<Transaction[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filter, setFilter] = useState<string>("all");
 
+  const loadTransactions = useCallback(() => {
+    const conn = getConnection();
+    if (!conn) return;
+    const list: Transaction[] = [];
+    for (const row of conn.db.transaction_log.iter()) {
+      list.push({
+        id: Number(row.id),
+        txType: row.txType,
+        amount: Number(row.amount),
+        fromIdentity: row.fromIdentity,
+        toIdentity: row.toIdentity,
+        stripeId: row.stripeId,
+        description: row.description,
+        createdAt: Number(row.createdAt),
+      });
+    }
+    list.sort((a, b) => b.createdAt - a.createdAt);
+    setTransactions(list);
+  }, []);
+
+  useEffect(() => {
+    loadTransactions();
+    const conn = getConnection();
+    if (!conn) return;
+    conn.db.transaction_log.onInsert(() => loadTransactions());
+    conn.db.transaction_log.onUpdate(() => loadTransactions());
+    conn.db.transaction_log.onDelete(() => loadTransactions());
+  }, [loadTransactions]);
+
   const totalRevenue = transactions
-    .filter((t) => t.type === "ad_payment")
+    .filter((t) => t.txType === "ad_payment" || t.txType === "api_credits")
     .reduce((sum, t) => sum + t.amount, 0);
 
   const totalPayouts = transactions
-    .filter((t) => t.type === "prize_payout")
+    .filter((t) => t.txType === "prize_payout")
     .reduce((sum, t) => sum + t.amount, 0);
+
+  const txTypes = ["all", ...new Set(transactions.map((t) => t.txType))];
 
   const filtered =
     filter === "all"
       ? transactions
-      : transactions.filter((t) => t.type === filter);
+      : transactions.filter((t) => t.txType === filter);
+
+  const typeColor = (type: string) => {
+    switch (type) {
+      case "ad_payment": return "bg-green-500/20 text-green-400";
+      case "api_credits": return "bg-emerald-500/20 text-emerald-400";
+      case "prize_payout": return "bg-blue-500/20 text-blue-400";
+      case "refund": return "bg-red-500/20 text-red-400";
+      default: return "bg-surface-light text-muted";
+    }
+  };
+
+  const isRevenue = (type: string) => type === "ad_payment" || type === "api_credits";
 
   return (
     <div>
@@ -46,7 +90,7 @@ export default function FinanceDashboard() {
           <p className="text-2xl font-semibold tabular-nums text-green-400">
             ${(totalRevenue / 100).toFixed(2)}
           </p>
-          <p className="mt-1 text-xs text-muted">From ad placements</p>
+          <p className="mt-1 text-xs text-muted">From ads & API credits</p>
           </CardContent>
         </Card>
         <Card className="gap-0 rounded-xl border-border bg-surface py-0">
@@ -72,9 +116,14 @@ export default function FinanceDashboard() {
       <Card className="gap-0 rounded-xl border-border bg-surface py-0">
         <CardHeader className="border-b border-border p-4">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-lg">Transaction History</CardTitle>
+            <CardTitle className="text-lg">
+              Transaction History
+              <span className="ml-2 text-sm font-normal text-muted">
+                ({filtered.length} {filtered.length === 1 ? "transaction" : "transactions"})
+              </span>
+            </CardTitle>
           <div className="flex gap-2">
-            {["all", "ad_payment", "prize_payout", "refund"].map((f) => (
+            {txTypes.map((f) => (
               <Button
                 key={f}
                 onClick={() => setFilter(f)}
@@ -119,7 +168,7 @@ export default function FinanceDashboard() {
               {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-12 text-center text-sm text-muted">
-                    No transactions yet. Revenue from ads and payouts will appear here.
+                    No transactions yet. Revenue from ads, API credits, and payouts will appear here.
                   </td>
                 </tr>
               ) : (
@@ -133,15 +182,9 @@ export default function FinanceDashboard() {
                     </td>
                     <td className="px-4 py-3">
                       <Badge
-                        className={`rounded-md px-2 py-0.5 text-xs font-medium ${
-                          tx.type === "ad_payment"
-                            ? "bg-green-500/20 text-green-400"
-                            : tx.type === "prize_payout"
-                              ? "bg-blue-500/20 text-blue-400"
-                              : "bg-red-500/20 text-red-400"
-                        }`}
+                        className={`rounded-md px-2 py-0.5 text-xs font-medium ${typeColor(tx.txType)}`}
                       >
-                        {tx.type
+                        {tx.txType
                           .split("_")
                           .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
                           .join(" ")}
@@ -152,16 +195,16 @@ export default function FinanceDashboard() {
                     </td>
                     <td
                       className={`px-4 py-3 text-right text-sm font-medium tabular-nums ${
-                        tx.type === "ad_payment"
+                        isRevenue(tx.txType)
                           ? "text-green-400"
                           : "text-red-400"
                       }`}
                     >
-                      {tx.type === "ad_payment" ? "+" : "-"}$
+                      {isRevenue(tx.txType) ? "+" : "-"}$
                       {(tx.amount / 100).toFixed(2)}
                     </td>
                     <td className="px-4 py-3 font-mono text-xs text-muted">
-                      {tx.stripeId}
+                      {tx.stripeId || "-"}
                     </td>
                   </tr>
                 ))

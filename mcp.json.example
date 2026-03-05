@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "myvoice": {
+      "command": "node",
+      "args": ["scripts/mcp-server.mjs"],
+      "env": {
+        "MYVOICE_API_KEY": "mv_your_key_here",
+        "MYVOICE_API_BASE": "https://myvoice.app"
+      }
+    }
+  }
+}

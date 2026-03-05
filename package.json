@@ -2,12 +2,16 @@
   "name": "my-voice",
   "version": "0.1.0",
   "private": true,
+  "bin": {
+    "myvoice-mcp": "./scripts/mcp-server.mjs"
+  },
   "scripts": {
     "dev": "next dev",
     "dev:3001": "next dev -p 3001",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "mcp": "node scripts/mcp-server.mjs",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:ui": "playwright test --ui",
@@ -16,6 +20,7 @@
   "dependencies": {
     "@clerk/nextjs": "^6.39.0",
     "@hookform/resolvers": "^5.2.2",
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "@stripe/react-stripe-js": "^5.6.0",
     "@stripe/stripe-js": "^8.8.0",
     "class-variance-authority": "^0.7.1",

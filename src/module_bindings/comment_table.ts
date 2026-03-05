@@ -22,4 +22,5 @@ export default __t.row({
   likesCount: __t.u64().name("likes_count"),
   repliesCount: __t.u64().name("replies_count"),
   repostsCount: __t.u64().name("reposts_count"),
+  editedAt: __t.u64().name("edited_at"),
 });

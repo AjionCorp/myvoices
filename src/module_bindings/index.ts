@@ -34,22 +34,31 @@ import {
 } from "spacetimedb";
 
 // Import all reducer arg schemas
+import AcceptMessageRequestReducer from "./accept_message_request_reducer";
 import AddCommentReducer from "./add_comment_reducer";
 import AddCreditsReducer from "./add_credits_reducer";
 import ApplyTopicModeratorReducer from "./apply_topic_moderator_reducer";
 import BackfillTopicTaxonomyFromCategoriesReducer from "./backfill_topic_taxonomy_from_categories_reducer";
+import BanUserFromTopicReducer from "./ban_user_from_topic_reducer";
+import BlockUserReducer from "./block_user_reducer";
 import ClaimBlockInTopicReducer from "./claim_block_in_topic_reducer";
 import ClearAllBlocksReducer from "./clear_all_blocks_reducer";
 import CreateContestReducer from "./create_contest_reducer";
 import CreateTopicReducer from "./create_topic_reducer";
 import CreateTopicTaxonomyNodeReducer from "./create_topic_taxonomy_node_reducer";
+import DeclineMessageRequestReducer from "./decline_message_request_reducer";
 import DeleteCommentReducer from "./delete_comment_reducer";
+import DeleteConversationReducer from "./delete_conversation_reducer";
 import DeleteTopicReducer from "./delete_topic_reducer";
 import DevClearAllUsersReducer from "./dev_clear_all_users_reducer";
 import DevSeedTopicReducer from "./dev_seed_topic_reducer";
 import DevSetAdminReducer from "./dev_set_admin_reducer";
 import DislikeVideoReducer from "./dislike_video_reducer";
+import EditBlockReducer from "./edit_block_reducer";
+import EditCommentReducer from "./edit_comment_reducer";
 import FinalizeContestReducer from "./finalize_contest_reducer";
+import FollowTopicReducer from "./follow_topic_reducer";
+import FollowUserReducer from "./follow_user_reducer";
 import IncrementTopicViewsReducer from "./increment_topic_views_reducer";
 import LikeCommentReducer from "./like_comment_reducer";
 import LikeVideoReducer from "./like_video_reducer";
@@ -58,27 +67,43 @@ import MarkAllMessagesReadReducer from "./mark_all_messages_read_reducer";
 import MarkAllNotificationsReadReducer from "./mark_all_notifications_read_reducer";
 import MarkMessageReadReducer from "./mark_message_read_reducer";
 import MarkNotificationReadReducer from "./mark_notification_read_reducer";
+import ModRemoveBlockReducer from "./mod_remove_block_reducer";
+import MuteUserReducer from "./mute_user_reducer";
 import PlaceAdReducer from "./place_ad_reducer";
 import RebalanceTopicReducer from "./rebalance_topic_reducer";
 import RegisterUserReducer from "./register_user_reducer";
 import RemoveAdReducer from "./remove_ad_reducer";
 import RemoveTopicModeratorReducer from "./remove_topic_moderator_reducer";
+import ReportUserReducer from "./report_user_reducer";
 import RepostCommentReducer from "./repost_comment_reducer";
+import ReviewReportReducer from "./review_report_reducer";
 import ReviewTopicModeratorApplicationReducer from "./review_topic_moderator_application_reducer";
+import SaveBlockReducer from "./save_block_reducer";
 import SeedAdsReducer from "./seed_ads_reducer";
 import SeedDataReducer from "./seed_data_reducer";
 import SendMessageReducer from "./send_message_reducer";
+import ServerAddApiCreditsReducer from "./server_add_api_credits_reducer";
 import ServerDeleteUserReducer from "./server_delete_user_reducer";
+import ServerRecordApiUsageReducer from "./server_record_api_usage_reducer";
+import ServerRegisterApiKeyReducer from "./server_register_api_key_reducer";
+import ServerRevokeApiKeyReducer from "./server_revoke_api_key_reducer";
 import ServerUpdateProfileReducer from "./server_update_profile_reducer";
 import SetAdminReducer from "./set_admin_reducer";
 import SetTopicTaxonomyReducer from "./set_topic_taxonomy_reducer";
 import SpendCreditsReducer from "./spend_credits_reducer";
 import StoreClerkMappingReducer from "./store_clerk_mapping_reducer";
+import UnbanUserFromTopicReducer from "./unban_user_from_topic_reducer";
+import UnblockUserReducer from "./unblock_user_reducer";
 import UnclaimBlockReducer from "./unclaim_block_reducer";
 import UndislikeVideoReducer from "./undislike_video_reducer";
+import UnfollowTopicReducer from "./unfollow_topic_reducer";
+import UnfollowUserReducer from "./unfollow_user_reducer";
 import UnlikeCommentReducer from "./unlike_comment_reducer";
 import UnlikeVideoReducer from "./unlike_video_reducer";
+import UnmuteUserReducer from "./unmute_user_reducer";
+import UnsaveBlockReducer from "./unsave_block_reducer";
 import UpdateProfileReducer from "./update_profile_reducer";
+import UpdateProfileDetailsReducer from "./update_profile_details_reducer";
 import UpdateStripeAccountReducer from "./update_stripe_account_reducer";
 import UpdateTopicReducer from "./update_topic_reducer";
 
@@ -86,23 +111,33 @@ import UpdateTopicReducer from "./update_topic_reducer";
 
 // Import all table schema definitions
 import AdPlacementRow from "./ad_placement_table";
+import ApiKeyRow from "./api_key_table";
+import ApiUsageLogRow from "./api_usage_log_table";
 import BlockRow from "./block_table";
 import ClerkIdentityMapRow from "./clerk_identity_map_table";
 import CommentRow from "./comment_table";
 import CommentLikeRow from "./comment_like_table";
 import ContestRow from "./contest_table";
 import ContestWinnerRow from "./contest_winner_table";
+import ConversationRow from "./conversation_table";
 import CreditTransactionLogRow from "./credit_transaction_log_table";
 import DirectMessageRow from "./direct_message_table";
 import DislikeRecordRow from "./dislike_record_table";
 import LikeRecordRow from "./like_record_table";
 import NotificationRow from "./notification_table";
+import SavedBlockRow from "./saved_block_table";
 import TopicRow from "./topic_table";
+import TopicBanRow from "./topic_ban_table";
+import TopicFollowRow from "./topic_follow_table";
 import TopicModeratorRow from "./topic_moderator_table";
 import TopicModeratorApplicationRow from "./topic_moderator_application_table";
 import TopicTaxonomyNodeRow from "./topic_taxonomy_node_table";
 import TransactionLogRow from "./transaction_log_table";
+import UserBlockRow from "./user_block_table";
+import UserFollowRow from "./user_follow_table";
+import UserMuteRow from "./user_mute_table";
 import UserProfileRow from "./user_profile_table";
+import UserReportRow from "./user_report_table";
 
 /** Type-only namespace exports for generated type groups. */
 
@@ -119,6 +154,32 @@ const tablesSchema = __schema({
       { name: 'ad_placement_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, AdPlacementRow),
+  api_key: __table({
+    name: 'api_key',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+      { name: 'key_hash', algorithm: 'btree', columns: [
+        'keyHash',
+      ] },
+    ],
+    constraints: [
+      { name: 'api_key_id_key', constraint: 'unique', columns: ['id'] },
+      { name: 'api_key_key_hash_key', constraint: 'unique', columns: ['keyHash'] },
+    ],
+  }, ApiKeyRow),
+  api_usage_log: __table({
+    name: 'api_usage_log',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'api_usage_log_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, ApiUsageLogRow),
   block: __table({
     name: 'block',
     indexes: [
@@ -185,6 +246,17 @@ const tablesSchema = __schema({
       { name: 'contest_winner_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, ContestWinnerRow),
+  conversation: __table({
+    name: 'conversation',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'conversation_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, ConversationRow),
   credit_transaction_log: __table({
     name: 'credit_transaction_log',
     indexes: [
@@ -240,6 +312,17 @@ const tablesSchema = __schema({
       { name: 'notification_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, NotificationRow),
+  saved_block: __table({
+    name: 'saved_block',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'saved_block_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, SavedBlockRow),
   topic: __table({
     name: 'topic',
     indexes: [
@@ -255,6 +338,28 @@ const tablesSchema = __schema({
       { name: 'topic_slug_key', constraint: 'unique', columns: ['slug'] },
     ],
   }, TopicRow),
+  topic_ban: __table({
+    name: 'topic_ban',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'topic_ban_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, TopicBanRow),
+  topic_follow: __table({
+    name: 'topic_follow',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'topic_follow_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, TopicFollowRow),
   topic_moderator: __table({
     name: 'topic_moderator',
     indexes: [
@@ -303,6 +408,39 @@ const tablesSchema = __schema({
       { name: 'transaction_log_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, TransactionLogRow),
+  user_block: __table({
+    name: 'user_block',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'user_block_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, UserBlockRow),
+  user_follow: __table({
+    name: 'user_follow',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'user_follow_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, UserFollowRow),
+  user_mute: __table({
+    name: 'user_mute',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'user_mute_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, UserMuteRow),
   user_profile: __table({
     name: 'user_profile',
     indexes: [
@@ -314,26 +452,46 @@ const tablesSchema = __schema({
       { name: 'user_profile_identity_key', constraint: 'unique', columns: ['identity'] },
     ],
   }, UserProfileRow),
+  user_report: __table({
+    name: 'user_report',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'user_report_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, UserReportRow),
 });
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
+  __reducerSchema("accept_message_request", AcceptMessageRequestReducer),
   __reducerSchema("add_comment", AddCommentReducer),
   __reducerSchema("add_credits", AddCreditsReducer),
   __reducerSchema("apply_topic_moderator", ApplyTopicModeratorReducer),
   __reducerSchema("backfill_topic_taxonomy_from_categories", BackfillTopicTaxonomyFromCategoriesReducer),
+  __reducerSchema("ban_user_from_topic", BanUserFromTopicReducer),
+  __reducerSchema("block_user", BlockUserReducer),
   __reducerSchema("claim_block_in_topic", ClaimBlockInTopicReducer),
   __reducerSchema("clear_all_blocks", ClearAllBlocksReducer),
   __reducerSchema("create_contest", CreateContestReducer),
   __reducerSchema("create_topic", CreateTopicReducer),
   __reducerSchema("create_topic_taxonomy_node", CreateTopicTaxonomyNodeReducer),
+  __reducerSchema("decline_message_request", DeclineMessageRequestReducer),
   __reducerSchema("delete_comment", DeleteCommentReducer),
+  __reducerSchema("delete_conversation", DeleteConversationReducer),
   __reducerSchema("delete_topic", DeleteTopicReducer),
   __reducerSchema("dev_clear_all_users", DevClearAllUsersReducer),
   __reducerSchema("dev_seed_topic", DevSeedTopicReducer),
   __reducerSchema("dev_set_admin", DevSetAdminReducer),
   __reducerSchema("dislike_video", DislikeVideoReducer),
+  __reducerSchema("edit_block", EditBlockReducer),
+  __reducerSchema("edit_comment", EditCommentReducer),
   __reducerSchema("finalize_contest", FinalizeContestReducer),
+  __reducerSchema("follow_topic", FollowTopicReducer),
+  __reducerSchema("follow_user", FollowUserReducer),
   __reducerSchema("increment_topic_views", IncrementTopicViewsReducer),
   __reducerSchema("like_comment", LikeCommentReducer),
   __reducerSchema("like_video", LikeVideoReducer),
@@ -342,27 +500,43 @@ const reducersSchema = __reducers(
   __reducerSchema("mark_all_notifications_read", MarkAllNotificationsReadReducer),
   __reducerSchema("mark_message_read", MarkMessageReadReducer),
   __reducerSchema("mark_notification_read", MarkNotificationReadReducer),
+  __reducerSchema("mod_remove_block", ModRemoveBlockReducer),
+  __reducerSchema("mute_user", MuteUserReducer),
   __reducerSchema("place_ad", PlaceAdReducer),
   __reducerSchema("rebalance_topic", RebalanceTopicReducer),
   __reducerSchema("register_user", RegisterUserReducer),
   __reducerSchema("remove_ad", RemoveAdReducer),
   __reducerSchema("remove_topic_moderator", RemoveTopicModeratorReducer),
+  __reducerSchema("report_user", ReportUserReducer),
   __reducerSchema("repost_comment", RepostCommentReducer),
+  __reducerSchema("review_report", ReviewReportReducer),
   __reducerSchema("review_topic_moderator_application", ReviewTopicModeratorApplicationReducer),
+  __reducerSchema("save_block", SaveBlockReducer),
   __reducerSchema("seed_ads", SeedAdsReducer),
   __reducerSchema("seed_data", SeedDataReducer),
   __reducerSchema("send_message", SendMessageReducer),
+  __reducerSchema("server_add_api_credits", ServerAddApiCreditsReducer),
   __reducerSchema("server_delete_user", ServerDeleteUserReducer),
+  __reducerSchema("server_record_api_usage", ServerRecordApiUsageReducer),
+  __reducerSchema("server_register_api_key", ServerRegisterApiKeyReducer),
+  __reducerSchema("server_revoke_api_key", ServerRevokeApiKeyReducer),
   __reducerSchema("server_update_profile", ServerUpdateProfileReducer),
   __reducerSchema("set_admin", SetAdminReducer),
   __reducerSchema("set_topic_taxonomy", SetTopicTaxonomyReducer),
   __reducerSchema("spend_credits", SpendCreditsReducer),
   __reducerSchema("store_clerk_mapping", StoreClerkMappingReducer),
+  __reducerSchema("unban_user_from_topic", UnbanUserFromTopicReducer),
+  __reducerSchema("unblock_user", UnblockUserReducer),
   __reducerSchema("unclaim_block", UnclaimBlockReducer),
   __reducerSchema("undislike_video", UndislikeVideoReducer),
+  __reducerSchema("unfollow_topic", UnfollowTopicReducer),
+  __reducerSchema("unfollow_user", UnfollowUserReducer),
   __reducerSchema("unlike_comment", UnlikeCommentReducer),
   __reducerSchema("unlike_video", UnlikeVideoReducer),
+  __reducerSchema("unmute_user", UnmuteUserReducer),
+  __reducerSchema("unsave_block", UnsaveBlockReducer),
   __reducerSchema("update_profile", UpdateProfileReducer),
+  __reducerSchema("update_profile_details", UpdateProfileDetailsReducer),
   __reducerSchema("update_stripe_account", UpdateStripeAccountReducer),
   __reducerSchema("update_topic", UpdateTopicReducer),
 );

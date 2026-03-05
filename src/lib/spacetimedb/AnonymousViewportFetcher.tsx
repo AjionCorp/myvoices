@@ -111,7 +111,17 @@ export function AnonymousViewportFetcher({ topicId }: { topicId?: number | null 
         debouncedRecomputeStats();
       }
       if (comments.length) {
-        useCommentsStore.getState().setComments(comments);
+        useCommentsStore.getState().setComments(
+          comments.map((c) => ({
+            ...c,
+            parentCommentId: null,
+            repostOfId: null,
+            likesCount: 0,
+            repliesCount: 0,
+            repostsCount: 0,
+            editedAt: 0,
+          }))
+        );
       }
       useBlocksStore.getState().setLoading(false);
       useAuthStore.getState().setLoading(false);

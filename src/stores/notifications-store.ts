@@ -5,7 +5,12 @@ export type NotificationType =
   | "comment_like"
   | "comment_repost"
   | "video_like"
-  | "new_message";
+  | "new_message"
+  | "message_request"
+  | "new_follow"
+  | "topic_new_video"
+  | "contest_result"
+  | "moderator_application_reviewed";
 
 export interface Notification {
   id: number;

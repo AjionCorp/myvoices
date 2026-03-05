@@ -135,6 +135,13 @@ pub fn register_user(
         credits: SIGNUP_CREDITS,
         is_admin: false,
         created_at: now,
+        bio: None,
+        location: None,
+        website_url: None,
+        social_x: None,
+        social_youtube: None,
+        social_tiktok: None,
+        social_instagram: None,
     }).map_err(|e| format!("Insert failed: {e}"))?;
 
     ctx.db.credit_transaction_log().try_insert(CreditTransactionLog {
@@ -171,6 +178,59 @@ pub fn update_profile(
         username: if username.is_empty() { user.username.clone() } else { username },
         display_name: if display_name.is_empty() { user.display_name.clone() } else { display_name },
         email: if email.is_empty() { user.email.clone() } else { email },
+        ..user
+    };
+
+    ctx.db.user_profile().identity().delete(caller);
+    ctx.db.user_profile().try_insert(updated)
+        .map_err(|e| format!("Insert failed: {e}"))?;
+
+    Ok(())
+}
+
+#[reducer]
+pub fn update_profile_details(
+    ctx: &ReducerContext,
+    bio: String,
+    location: String,
+    website_url: String,
+    social_x: String,
+    social_youtube: String,
+    social_tiktok: String,
+    social_instagram: String,
+) -> Result<(), String> {
+    let caller = ctx.sender().to_hex().to_string();
+
+    let user = ctx
+        .db
+        .user_profile()
+        .identity()
+        .find(caller.clone())
+        .ok_or("User not found")?;
+
+    // Validate lengths
+    if bio.len() > 160 {
+        return Err("Bio too long (max 160 chars)".to_string());
+    }
+    if location.len() > 100 {
+        return Err("Location too long (max 100 chars)".to_string());
+    }
+    if website_url.len() > 200 {
+        return Err("Website URL too long (max 200 chars)".to_string());
+    }
+
+    fn opt(s: String) -> Option<String> {
+        if s.is_empty() { None } else { Some(s) }
+    }
+
+    let updated = UserProfile {
+        bio: opt(bio),
+        location: opt(location),
+        website_url: opt(website_url),
+        social_x: opt(social_x),
+        social_youtube: opt(social_youtube),
+        social_tiktok: opt(social_tiktok),
+        social_instagram: opt(social_instagram),
         ..user
     };
 
@@ -273,8 +333,10 @@ pub fn server_delete_user(ctx: &ReducerContext, clerk_user_id: String) -> Result
         return Ok(());
     };
 
-    if let Some(user) = ctx.db.user_profile().identity().find(mapping.spacetimedb_identity.clone()) {
-        ctx.db.user_profile().identity().delete(mapping.spacetimedb_identity.clone());
+    let identity = mapping.spacetimedb_identity.clone();
+
+    if let Some(user) = ctx.db.user_profile().identity().find(identity.clone()) {
+        ctx.db.user_profile().identity().delete(identity.clone());
         ctx.db.user_profile().try_insert(UserProfile {
             clerk_user_id: String::new(),
             username: String::new(),
@@ -286,6 +348,95 @@ pub fn server_delete_user(ctx: &ReducerContext, clerk_user_id: String) -> Result
             ..user
         }).map_err(|e| format!("Insert failed: {e}"))?;
     }
+
+    // Cascade: clean up all related records for this identity
+
+    // User follows (both directions)
+    let follow_ids: Vec<u64> = ctx.db.user_follow().iter()
+        .filter(|f| f.follower_identity == identity || f.following_identity == identity)
+        .map(|f| f.id).collect();
+    for id in follow_ids { ctx.db.user_follow().id().delete(id); }
+
+    // Topic follows
+    let topic_follow_ids: Vec<u64> = ctx.db.topic_follow().iter()
+        .filter(|f| f.follower_identity == identity)
+        .map(|f| f.id).collect();
+    for id in topic_follow_ids { ctx.db.topic_follow().id().delete(id); }
+
+    // User blocks (both directions)
+    let block_ids: Vec<u64> = ctx.db.user_block().iter()
+        .filter(|b| b.blocker_identity == identity || b.blocked_identity == identity)
+        .map(|b| b.id).collect();
+    for id in block_ids { ctx.db.user_block().id().delete(id); }
+
+    // User mutes (both directions)
+    let mute_ids: Vec<u64> = ctx.db.user_mute().iter()
+        .filter(|m| m.muter_identity == identity || m.muted_identity == identity)
+        .map(|m| m.id).collect();
+    for id in mute_ids { ctx.db.user_mute().id().delete(id); }
+
+    // Notifications (as recipient)
+    let notif_ids: Vec<u64> = ctx.db.notification().iter()
+        .filter(|n| n.recipient_identity == identity)
+        .map(|n| n.id).collect();
+    for id in notif_ids { ctx.db.notification().id().delete(id); }
+
+    // Topic moderator applications
+    let mod_app_ids: Vec<u64> = ctx.db.topic_moderator_application().iter()
+        .filter(|a| a.applicant_identity == identity)
+        .map(|a| a.id).collect();
+    for id in mod_app_ids { ctx.db.topic_moderator_application().id().delete(id); }
+
+    // Topic moderator records
+    let mod_ids: Vec<u64> = ctx.db.topic_moderator().iter()
+        .filter(|m| m.identity == identity)
+        .map(|m| m.id).collect();
+    for id in mod_ids { ctx.db.topic_moderator().id().delete(id); }
+
+    // Topic bans
+    let ban_ids: Vec<u64> = ctx.db.topic_ban().iter()
+        .filter(|b| b.banned_identity == identity)
+        .map(|b| b.id).collect();
+    for id in ban_ids { ctx.db.topic_ban().id().delete(id); }
+
+    // Direct messages — mark as deleted rather than removing (preserves other user's view)
+    let msg_ids: Vec<u64> = ctx.db.direct_message().iter()
+        .filter(|m| m.sender_identity == identity || m.recipient_identity == identity)
+        .filter(|m| !m.is_deleted)
+        .map(|m| m.id).collect();
+    for id in msg_ids {
+        if let Some(msg) = ctx.db.direct_message().id().find(id) {
+            ctx.db.direct_message().id().delete(id);
+            let _ = ctx.db.direct_message().try_insert(DirectMessage {
+                is_deleted: true,
+                ..msg
+            });
+        }
+    }
+
+    // Like records
+    let like_ids: Vec<u64> = ctx.db.like_record().iter()
+        .filter(|l| l.user_identity == identity)
+        .map(|l| l.id).collect();
+    for id in like_ids { ctx.db.like_record().id().delete(id); }
+
+    // Dislike records
+    let dislike_ids: Vec<u64> = ctx.db.dislike_record().iter()
+        .filter(|d| d.user_identity == identity)
+        .map(|d| d.id).collect();
+    for id in dislike_ids { ctx.db.dislike_record().id().delete(id); }
+
+    // Comment likes
+    let comment_like_ids: Vec<u64> = ctx.db.comment_like().iter()
+        .filter(|l| l.user_identity == identity)
+        .map(|l| l.id).collect();
+    for id in comment_like_ids { ctx.db.comment_like().id().delete(id); }
+
+    // Saved blocks
+    let saved_ids: Vec<u64> = ctx.db.saved_block().iter()
+        .filter(|s| s.user_identity == identity)
+        .map(|s| s.id).collect();
+    for id in saved_ids { ctx.db.saved_block().id().delete(id); }
 
     ctx.db.clerk_identity_map().clerk_user_id().delete(clerk_user_id);
     Ok(())

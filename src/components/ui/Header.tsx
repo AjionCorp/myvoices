@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Plus, Menu } from "lucide-react";
+import { Plus, Menu, Search, Flame, TrendingUp } from "lucide-react";
 import { LoginButton } from "@/components/auth/LoginButton";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
 import { InboxButton } from "@/components/messaging/InboxButton";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useContestStore } from "@/stores/contest-store";
 import { useCanvasStore } from "@/stores/canvas-store";
@@ -13,8 +14,10 @@ import { useTopicStore } from "@/stores/topic-store";
 import { useExploreStore } from "@/stores/explore-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useState } from "react";
 
 export function Header() {
+  const router = useRouter();
   const { user, isAuthenticated } = useAuth();
   const { activeContest, timeRemaining } = useContestStore();
   const openAddVideoModal = useCanvasStore((s) => s.openAddVideoModal);
@@ -22,6 +25,8 @@ export function Header() {
   const toggleSidebar = useExploreStore((s) => s.toggleSidebar);
   const pathname = usePathname();
   const isHome = pathname === "/";
+  const [searchQuery, setSearchQuery] = useState("");
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
 
   const formatTime = (ms: number | null): string => {
     if (!ms || ms <= 0) return "Ended";
@@ -64,8 +69,54 @@ export function Header() {
           )}
         </div>
 
+        {/* Center: search */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (searchQuery.trim().length >= 2) {
+              router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+            }
+          }}
+          className="hidden max-w-sm flex-1 px-4 sm:block"
+        >
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search..."
+              className="h-8 w-full rounded-lg border border-border bg-surface pl-8 pr-3 text-xs text-foreground placeholder:text-muted focus:border-accent/50 focus:outline-none"
+            />
+          </div>
+        </form>
+
         {/* Right: actions */}
         <div className="flex items-center gap-2">
+          {/* Mobile search toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setMobileSearchOpen((prev) => !prev)}
+            className="h-8 w-8 text-foreground hover:bg-accent/20 sm:hidden"
+            aria-label="Toggle search"
+          >
+            <Search className="h-4 w-4" />
+          </Button>
+          <Button asChild variant="ghost" size="sm" className="text-foreground hover:bg-accent/20">
+            <Link href="/popular" title="Popular" className="flex items-center gap-1.5">
+              <TrendingUp className="h-4 w-4" />
+              <span className="hidden sm:inline">Popular</span>
+            </Link>
+          </Button>
+          {isAuthenticated && (
+            <Button asChild variant="ghost" size="sm" className="text-foreground hover:bg-accent/20">
+              <Link href="/feed" title="Your Feed" className="flex items-center gap-1.5">
+                <Flame className="h-4 w-4" />
+                <span className="hidden sm:inline">Feed</span>
+              </Link>
+            </Button>
+          )}
           {isAuthenticated && isHome && (
             <Button asChild variant="ghost" size="sm" className="text-foreground hover:bg-accent/20">
               <Link href="/t/create" title="Create Topic" className="flex items-center gap-1.5">
@@ -95,6 +146,32 @@ export function Header() {
           <LoginButton />
         </div>
       </div>
+
+      {/* Mobile search bar */}
+      {mobileSearchOpen && (
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (searchQuery.trim().length >= 2) {
+              router.push(`/search?q=${encodeURIComponent(searchQuery.trim())}`);
+              setMobileSearchOpen(false);
+            }
+          }}
+          className="border-t border-border/30 px-5 py-2 sm:hidden"
+        >
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search topics, users..."
+              autoFocus
+              className="h-8 w-full rounded-lg border border-border bg-surface pl-8 pr-3 text-xs text-foreground placeholder:text-muted focus:border-accent/50 focus:outline-none"
+            />
+          </div>
+        </form>
+      )}
     </header>
   );
 }

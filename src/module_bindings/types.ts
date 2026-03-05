@@ -23,6 +23,30 @@ export const AdPlacement = __t.object("AdPlacement", {
 });
 export type AdPlacement = __Infer<typeof AdPlacement>;
 
+export const ApiKey = __t.object("ApiKey", {
+  id: __t.u64(),
+  keyHash: __t.string(),
+  keyPrefix: __t.string(),
+  name: __t.string(),
+  email: __t.string(),
+  credits: __t.u64(),
+  totalRequests: __t.u64(),
+  isActive: __t.bool(),
+  createdAt: __t.u64(),
+  lastUsedAt: __t.u64(),
+});
+export type ApiKey = __Infer<typeof ApiKey>;
+
+export const ApiUsageLog = __t.object("ApiUsageLog", {
+  id: __t.u64(),
+  apiKeyId: __t.u64(),
+  endpoint: __t.string(),
+  requestCount: __t.u64(),
+  day: __t.u32(),
+  createdAt: __t.u64(),
+});
+export type ApiUsageLog = __Infer<typeof ApiUsageLog>;
+
 export const Block = __t.object("Block", {
   id: __t.u64(),
   topicId: __t.u64(),
@@ -62,6 +86,7 @@ export const Comment = __t.object("Comment", {
   likesCount: __t.u64(),
   repliesCount: __t.u64(),
   repostsCount: __t.u64(),
+  editedAt: __t.u64(),
 });
 export type Comment = __Infer<typeof Comment>;
 
@@ -96,6 +121,17 @@ export const ContestWinner = __t.object("ContestWinner", {
 });
 export type ContestWinner = __Infer<typeof ContestWinner>;
 
+export const Conversation = __t.object("Conversation", {
+  id: __t.u64(),
+  participantA: __t.string(),
+  participantB: __t.string(),
+  status: __t.string(),
+  requestRecipient: __t.string(),
+  createdAt: __t.u64(),
+  updatedAt: __t.u64(),
+});
+export type Conversation = __Infer<typeof Conversation>;
+
 export const CreditTransactionLog = __t.object("CreditTransactionLog", {
   id: __t.u64(),
   userIdentity: __t.string(),
@@ -115,6 +151,8 @@ export const DirectMessage = __t.object("DirectMessage", {
   text: __t.string(),
   isRead: __t.bool(),
   createdAt: __t.u64(),
+  conversationId: __t.u64(),
+  isDeleted: __t.bool(),
 });
 export type DirectMessage = __Infer<typeof DirectMessage>;
 
@@ -147,6 +185,15 @@ export const Notification = __t.object("Notification", {
 });
 export type Notification = __Infer<typeof Notification>;
 
+export const SavedBlock = __t.object("SavedBlock", {
+  id: __t.u64(),
+  userIdentity: __t.string(),
+  blockId: __t.u64(),
+  topicId: __t.u64(),
+  createdAt: __t.u64(),
+});
+export type SavedBlock = __Infer<typeof SavedBlock>;
+
 export const Topic = __t.object("Topic", {
   id: __t.u64(),
   slug: __t.string(),
@@ -163,6 +210,24 @@ export const Topic = __t.object("Topic", {
   taxonomyNodeId: __t.option(__t.u64()),
 });
 export type Topic = __Infer<typeof Topic>;
+
+export const TopicBan = __t.object("TopicBan", {
+  id: __t.u64(),
+  topicId: __t.u64(),
+  bannedIdentity: __t.string(),
+  bannedBy: __t.string(),
+  reason: __t.string(),
+  createdAt: __t.u64(),
+});
+export type TopicBan = __Infer<typeof TopicBan>;
+
+export const TopicFollow = __t.object("TopicFollow", {
+  id: __t.u64(),
+  followerIdentity: __t.string(),
+  topicId: __t.u64(),
+  createdAt: __t.u64(),
+});
+export type TopicFollow = __Infer<typeof TopicFollow>;
 
 export const TopicModerator = __t.object("TopicModerator", {
   id: __t.u64(),
@@ -211,6 +276,30 @@ export const TransactionLog = __t.object("TransactionLog", {
 });
 export type TransactionLog = __Infer<typeof TransactionLog>;
 
+export const UserBlock = __t.object("UserBlock", {
+  id: __t.u64(),
+  blockerIdentity: __t.string(),
+  blockedIdentity: __t.string(),
+  createdAt: __t.u64(),
+});
+export type UserBlock = __Infer<typeof UserBlock>;
+
+export const UserFollow = __t.object("UserFollow", {
+  id: __t.u64(),
+  followerIdentity: __t.string(),
+  followingIdentity: __t.string(),
+  createdAt: __t.u64(),
+});
+export type UserFollow = __Infer<typeof UserFollow>;
+
+export const UserMute = __t.object("UserMute", {
+  id: __t.u64(),
+  muterIdentity: __t.string(),
+  mutedIdentity: __t.string(),
+  createdAt: __t.u64(),
+});
+export type UserMute = __Infer<typeof UserMute>;
+
 export const UserProfile = __t.object("UserProfile", {
   identity: __t.string(),
   clerkUserId: __t.string(),
@@ -222,6 +311,26 @@ export const UserProfile = __t.object("UserProfile", {
   credits: __t.u64(),
   isAdmin: __t.bool(),
   createdAt: __t.u64(),
+  bio: __t.option(__t.string()),
+  location: __t.option(__t.string()),
+  websiteUrl: __t.option(__t.string()),
+  socialX: __t.option(__t.string()),
+  socialYoutube: __t.option(__t.string()),
+  socialTiktok: __t.option(__t.string()),
+  socialInstagram: __t.option(__t.string()),
 });
 export type UserProfile = __Infer<typeof UserProfile>;
+
+export const UserReport = __t.object("UserReport", {
+  id: __t.u64(),
+  reporterIdentity: __t.string(),
+  reportedIdentity: __t.string(),
+  reason: __t.string(),
+  description: __t.string(),
+  status: __t.string(),
+  reviewedBy: __t.string(),
+  createdAt: __t.u64(),
+  reviewedAt: __t.u64(),
+});
+export type UserReport = __Infer<typeof UserReport>;
 
