@@ -153,7 +153,7 @@ export function subscribeToConversations(identity: string): void {
 /**
  * Subscribe to block relationships for the authenticated user.
  */
-export function subscribeToUserBlocks_mod(identity: string): void {
+export function subscribeToUserBlockRelationships(identity: string): void {
   if (!connection) return;
   if (blockSubscription) {
     blockSubscription.unsubscribe();

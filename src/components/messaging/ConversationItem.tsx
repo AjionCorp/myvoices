@@ -1,14 +1,7 @@
 "use client";
 
 import type { Conversation } from "@/stores/messages-store";
-
-function timeAgo(ts: number): string {
-  const s = Math.floor((Date.now() - ts / 1000) / 1000);
-  if (s < 60) return "now";
-  if (s < 3600) return `${Math.floor(s / 60)}m`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h`;
-  return `${Math.floor(s / 86400)}d`;
-}
+import { timeAgoCompact } from "@/lib/utils/time";
 
 function Avatar({ name }: { name: string }) {
   const initials = name
@@ -54,7 +47,7 @@ export function ConversationItem({ conversation, isSelected, myIdentity, onClick
           </span>
           {lastMessage && (
             <span className="shrink-0 text-xs text-muted-foreground">
-              {timeAgo(lastMessage.createdAt)}
+              {timeAgoCompact(lastMessage.createdAt)}
             </span>
           )}
         </div>

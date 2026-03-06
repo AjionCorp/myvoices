@@ -20,7 +20,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!email || !email.includes("@") || email.length > 200) {
+    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!email || !EMAIL_REGEX.test(email) || email.length > 200) {
       return NextResponse.json(
         { error: "A valid email is required" },
         { status: 400 }

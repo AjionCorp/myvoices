@@ -51,7 +51,7 @@ export const TopicTile = memo(function TopicTile({
 }: TopicTileProps) {
   const [colorA, colorB] = pickGradient(topic.title);
   const netLikes = topic.totalLikes - topic.totalDislikes;
-  const isTrending = topic.totalViews > 10;
+  const isTrending = topic.totalViews > 100;
   const showDetail = zoom >= 0.55;
 
   // Track the exact position where the pointer went down so we can distinguish

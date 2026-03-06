@@ -25,6 +25,13 @@ export async function POST(request: NextRequest) {
       baseUrl: request.nextUrl.origin,
     });
 
+    if (!checkoutUrl) {
+      return NextResponse.json(
+        { error: "Failed to create checkout URL" },
+        { status: 502 }
+      );
+    }
+
     return NextResponse.json({ url: checkoutUrl });
   } catch (err) {
     console.error("Checkout session error:", err);

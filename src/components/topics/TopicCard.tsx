@@ -35,7 +35,7 @@ export function TopicCard({ topic, thumbnailUrl }: TopicCardProps) {
   const moderators = useTopicStore((s) => s.moderators);
   const [colorA, colorB] = pickGradient(topic.title);
   const netLikes = topic.totalLikes - topic.totalDislikes;
-  const isTrending = topic.totalViews > 10;
+  const isTrending = topic.totalViews > 100;
   const taxonomyPath =
     topic.taxonomyPath ||
     (topic.taxonomyNodeId ? taxonomyNodes.get(topic.taxonomyNodeId)?.path : undefined) ||
@@ -126,7 +126,7 @@ export function TopicCard({ topic, thumbnailUrl }: TopicCardProps) {
           <span className="ml-auto tabular-nums">
             {topic.totalViews > 0 ? `${topic.totalViews.toLocaleString()} views` : "New"}
           </span>
-          <span>{moderatorCount}m</span>
+          {moderatorCount > 0 && <span>{moderatorCount} mod{moderatorCount !== 1 ? "s" : ""}</span>}
           {netLikes > 0 && (
             <span className="text-green-400">+{netLikes.toLocaleString()}</span>
           )}
