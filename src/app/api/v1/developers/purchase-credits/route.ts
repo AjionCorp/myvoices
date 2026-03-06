@@ -73,6 +73,9 @@ export async function POST(request: NextRequest) {
       cancel_url: `${baseUrl}/developers?credits=canceled`,
     });
 
+    if (!session.url) {
+      throw new Error("Stripe did not return a checkout URL");
+    }
     return NextResponse.json({ url: session.url });
   } catch (err) {
     console.error("[developers/purchase-credits]", err);

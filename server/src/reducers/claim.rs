@@ -86,7 +86,7 @@ pub fn mod_remove_block(ctx: &ReducerContext, block_id: u64) -> Result<(), Strin
         .db
         .topic_moderator()
         .iter()
-        .any(|m| m.topic_id == topic_id && m.identity == caller);
+        .any(|m| m.topic_id == topic_id && m.identity == caller && m.status == "active");
 
     if !is_admin && !is_topic_owner && !is_mod {
         return Err("Not authorized — must be topic owner, moderator, or admin".to_string());

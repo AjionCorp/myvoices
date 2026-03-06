@@ -22,22 +22,29 @@ export const IS_MOCK =
   HTTP_BASE.includes("localhost") ||
   HTTP_BASE.includes("127.0.0.1");
 
-let cachedToken: string | null = null;
+let tokenPromise: Promise<string> | null = null;
 
 async function getToken(): Promise<string> {
   const serverToken = process.env.SPACETIMEDB_SERVER_TOKEN;
   if (serverToken) return serverToken;
 
-  if (cachedToken) return cachedToken;
-
-  const res = await fetch(`${HTTP_BASE}/v1/identity`, { method: "POST" });
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`SpacetimeDB identity failed: ${res.status} ${text}`);
+  if (!tokenPromise) {
+    tokenPromise = (async () => {
+      const res = await fetch(`${HTTP_BASE}/v1/identity`, { method: "POST" });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`SpacetimeDB identity failed: ${res.status} ${text}`);
+      }
+      const data = (await res.json()) as { identity: string; token: string };
+      if (!data.token) throw new Error("SpacetimeDB identity returned no token");
+      return data.token;
+    })().catch((err) => {
+      tokenPromise = null; // allow retry on next call
+      throw err;
+    });
   }
-  const data = (await res.json()) as { identity: string; token: string };
-  cachedToken = data.token;
-  return cachedToken;
+
+  return tokenPromise;
 }
 
 export interface SqlResult {

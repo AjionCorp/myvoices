@@ -530,7 +530,7 @@ pub fn claim_block_in_topic(
         topic_id,
         x: temp_x,
         y: temp_y,
-        video_id,
+        video_id: vid_trimmed.to_string(),
         platform,
         owner_identity: caller,
         owner_name,

@@ -187,20 +187,36 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
   loading: true,
 
   setBlock: (block) => {
-    const state = get();
-    const old = state.blocks.get(block.id);
+    const prev = get().blocks;
+    const old = prev.get(block.id);
+
+    // Update spatial + position indexes in-place (these are designed for mutation)
     if (old) {
       state.spatial.remove(old);
       state.positionIndex.delete(posKey(old.x, old.y));
     }
-    const blocks = new Map(state.blocks);
+    get().spatial.insert(block);
+    get().positionIndex.set(posKey(block.x, block.y), block.id);
+
+    const blocks = new Map(prev);
     blocks.set(block.id, block);
-    state.spatial.insert(block);
-    state.positionIndex.set(posKey(block.x, block.y), block.id);
-    const videoIdIndex = new Map(state.videoIdIndex);
+
+    // Update videoIdIndex
+    const videoIdIndex = new Map(get().videoIdIndex);
+    if (old?.videoId && old.videoId !== block.videoId) videoIdIndex.delete(old.videoId);
     if (block.videoId) videoIdIndex.set(block.videoId, block.id);
+
+    // Update totalClaimed if status changed
+    const wasClaimedBefore = old?.status === BlockStatus.Claimed;
+    const isClaimedNow = block.status === BlockStatus.Claimed;
+    const claimedDelta = (isClaimedNow ? 1 : 0) - (wasClaimedBefore ? 1 : 0);
+    const totalClaimed = get().totalClaimed + claimedDelta;
+
+    // Rebuild rankIndex since score or status may have changed
     const rankIndex = rebuildRankIndex(blocks);
-    const cb = state.contentBounds;
+
+    // Expand content bounds incrementally
+    const cb = get().contentBounds;
     const pad = 2;
     const newBounds: ContentBounds = {
       minCol: Math.min(cb.minCol, block.x - pad),
@@ -208,7 +224,8 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
       minRow: Math.min(cb.minRow, block.y - pad),
       maxRow: Math.max(cb.maxRow, block.y + pad),
     };
-    set({ blocks, videoIdIndex, rankIndex, contentBounds: newBounds });
+
+    set({ blocks, videoIdIndex, rankIndex, totalClaimed, contentBounds: newBounds });
   },
 
   setBlocks: (blocks) => {
@@ -230,32 +247,43 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
   },
 
   removeBlock: (id) => {
-    const state = get();
-    const block = state.blocks.get(id);
-    if (!block) return;
-    state.spatial.remove(block);
-    state.positionIndex.delete(posKey(block.x, block.y));
-    const blocks = new Map(state.blocks);
+    const old = get().blocks.get(id);
+    if (!old) return;
+
+    // Mutate spatial + position indexes in-place
+    get().spatial.remove(old);
+    get().positionIndex.delete(posKey(old.x, old.y));
+
+    const blocks = new Map(get().blocks);
     blocks.delete(id);
-    set({ blocks });
+
+    // Clean up videoIdIndex
+    const videoIdIndex = new Map(get().videoIdIndex);
+    if (old.videoId) videoIdIndex.delete(old.videoId);
+
+    // Update totalClaimed and rebuild rankIndex
+    const totalClaimed = get().totalClaimed - (old.status === BlockStatus.Claimed ? 1 : 0);
+    const rankIndex = rebuildRankIndex(blocks);
+
+    set({ blocks, videoIdIndex, rankIndex, totalClaimed });
   },
 
   updateBlockLikes: (id, likes) => {
-    const state = get();
-    const block = state.blocks.get(id);
+    const prev = get().blocks;
+    const block = prev.get(id);
     if (!block) return;
-    const blocks = new Map(state.blocks);
+    const blocks = new Map(prev);
     blocks.set(id, { ...block, likes });
-    set({ blocks });
+    set({ blocks, rankIndex: rebuildRankIndex(blocks) });
   },
 
   updateBlockDislikes: (id, dislikes) => {
-    const state = get();
-    const block = state.blocks.get(id);
+    const prev = get().blocks;
+    const block = prev.get(id);
     if (!block) return;
-    const blocks = new Map(state.blocks);
+    const blocks = new Map(prev);
     blocks.set(id, { ...block, dislikes });
-    set({ blocks });
+    set({ blocks, rankIndex: rebuildRankIndex(blocks) });
   },
 
   setTopBlocks: (blocks) => set({ topBlocks: blocks }),

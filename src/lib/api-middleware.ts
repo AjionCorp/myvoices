@@ -65,10 +65,10 @@ export function withApiKey(handler: RouteHandler) {
         {
           status: 429,
           headers: {
-            "X-RateLimit-Limit": String(FREE_DAILY_LIMIT),
+            "X-RateLimit-Limit": String(rateLimit.limit),
             "X-RateLimit-Remaining": "0",
             "X-RateLimit-Reset": String(rateLimit.resetAt),
-            "Retry-After": String(rateLimit.resetAt - Math.floor(Date.now() / 1000)),
+            "Retry-After": String(Math.max(0, rateLimit.resetAt - Math.floor(Date.now() / 1000))),
           },
         }
       );
@@ -85,7 +85,7 @@ export function withApiKey(handler: RouteHandler) {
     const response = await handler(request, { apiKey, params: resolvedParams });
 
     // Add rate limit headers
-    response.headers.set("X-RateLimit-Limit", String(FREE_DAILY_LIMIT));
+    response.headers.set("X-RateLimit-Limit", String(rateLimit.limit));
     response.headers.set("X-RateLimit-Remaining", String(rateLimit.remaining));
     response.headers.set("X-RateLimit-Reset", String(rateLimit.resetAt));
 

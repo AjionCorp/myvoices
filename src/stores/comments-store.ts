@@ -63,10 +63,9 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
   },
 
   addComment: (comment) => {
-    const state = get();
-    const comments = new Map(state.comments);
+    const comments = new Map(get().comments);
     comments.set(comment.id, comment);
-    const byBlock = new Map(state.byBlock);
+    const byBlock = new Map(get().byBlock);
     const arr = [...(byBlock.get(comment.blockId) ?? [])];
     if (!arr.includes(comment.id)) arr.push(comment.id);
     byBlock.set(comment.blockId, arr);
@@ -80,20 +79,16 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
   },
 
   removeComment: (id) => {
-    const state = get();
-    const comment = state.comments.get(id);
+    const comment = get().comments.get(id);
     if (!comment) return;
-    const comments = new Map(state.comments);
+    const comments = new Map(get().comments);
     comments.delete(id);
-    const byBlock = new Map(state.byBlock);
-    const arr = byBlock.get(comment.blockId);
-    if (arr) {
-      const filtered = arr.filter((cid) => cid !== id);
-      if (filtered.length === 0) {
-        byBlock.delete(comment.blockId);
-      } else {
-        byBlock.set(comment.blockId, filtered);
-      }
+    const byBlock = new Map(get().byBlock);
+    const existing = byBlock.get(comment.blockId);
+    if (existing) {
+      const arr = existing.filter((cid) => cid !== id);
+      if (arr.length === 0) byBlock.delete(comment.blockId);
+      else byBlock.set(comment.blockId, arr);
     }
     set({ comments, byBlock });
   },
@@ -111,29 +106,27 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
   },
 
   addCommentLike: (like) => {
-    const state = get();
-    const commentLikes = new Map(state.commentLikes);
+    const commentLikes = new Map(get().commentLikes);
     commentLikes.set(like.id, like);
-    const likesByComment = new Map(state.likesByComment);
-    const s = new Set(likesByComment.get(like.commentId));
+    const likesByComment = new Map(get().likesByComment);
+    const s = new Set(likesByComment.get(like.commentId) ?? []);
     s.add(like.userIdentity);
     likesByComment.set(like.commentId, s);
     set({ commentLikes, likesByComment });
   },
 
   removeCommentLike: (id) => {
-    const state = get();
-    const like = state.commentLikes.get(id);
+    const like = get().commentLikes.get(id);
     if (!like) return;
-    const commentLikes = new Map(state.commentLikes);
+    const commentLikes = new Map(get().commentLikes);
     commentLikes.delete(id);
-    const likesByComment = new Map(state.likesByComment);
-    const s = new Set(likesByComment.get(like.commentId));
-    s.delete(like.userIdentity);
-    if (s.size === 0) {
-      likesByComment.delete(like.commentId);
-    } else {
-      likesByComment.set(like.commentId, s);
+    const likesByComment = new Map(get().likesByComment);
+    const existing = likesByComment.get(like.commentId);
+    if (existing) {
+      const s = new Set(existing);
+      s.delete(like.userIdentity);
+      if (s.size === 0) likesByComment.delete(like.commentId);
+      else likesByComment.set(like.commentId, s);
     }
     set({ commentLikes, likesByComment });
   },

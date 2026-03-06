@@ -74,7 +74,7 @@ function setCached(
 let statsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 function debouncedRecomputeStats() {
-  if (statsDebounceTimer) return;
+  if (statsDebounceTimer) clearTimeout(statsDebounceTimer);
   statsDebounceTimer = setTimeout(() => {
     statsDebounceTimer = null;
     const { blocks, setStats, setTopBlocks } = useBlocksStore.getState();
@@ -106,10 +106,8 @@ export function AnonymousViewportFetcher({ topicId }: { topicId?: number | null 
       blocks: StoreBlock[],
       comments: Array<{ id: number; blockId: number; userIdentity: string; userName: string; text: string; createdAt: number }>
     ) => {
-      if (blocks.length) {
-        useBlocksStore.getState().setBlocks(blocks);
-        debouncedRecomputeStats();
-      }
+      useBlocksStore.getState().setBlocks(blocks);
+      if (blocks.length) debouncedRecomputeStats();
       if (comments.length) {
         useCommentsStore.getState().setComments(
           comments.map((c) => ({
@@ -223,7 +221,7 @@ export function AnonymousViewportFetcher({ topicId }: { topicId?: number | null 
       if (unsubscribeRef.current) unsubscribeRef.current();
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, []);
+  }, [topicId]);
 
   return null;
 }

@@ -81,9 +81,13 @@ export const useTopicStore = create<TopicState>((set, get) => ({
   activeTopic: null,
 
   setTopic: (topic) => {
+    const { activeTopic } = get();
     const topics = new Map(get().topics);
     topics.set(topic.id, topic);
-    set({ topics });
+    set({
+      topics,
+      activeTopic: activeTopic?.id === topic.id ? topic : activeTopic,
+    });
   },
 
   setTopics: (topics) => {

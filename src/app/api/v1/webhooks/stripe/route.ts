@@ -85,6 +85,7 @@ export async function POST(request: NextRequest) {
           await callReducer("server_add_api_credits", [
             keyId,
             credits,
+            session.id,
             `Purchased ${credits} API credits`,
           ]);
           console.log("[credits webhook] server_add_api_credits succeeded:", keyId, "+", credits);

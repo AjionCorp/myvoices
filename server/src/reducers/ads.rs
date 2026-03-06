@@ -32,11 +32,10 @@ pub fn place_ad(
         serde_json::from_str(&block_ids_json).map_err(|e| format!("Invalid block IDs: {}", e))?;
 
     for &bid in &block_ids {
-        let block = ctx.db.block().id().find(bid);
-        if let Some(b) = &block {
-            if b.status == "claimed" {
-                return Err(format!("Block {} is already claimed by a user", bid));
-            }
+        let block = ctx.db.block().id().find(bid)
+            .ok_or_else(|| format!("Block {} does not exist", bid))?;
+        if block.status == "claimed" {
+            return Err(format!("Block {} is already claimed by a user", bid));
         }
     }
 
@@ -87,7 +86,8 @@ pub fn remove_ad(ctx: &ReducerContext, ad_id: u64) -> Result<(), String> {
         .ok_or("Ad not found")?;
 
     let block_ids: Vec<u64> =
-        serde_json::from_str(&ad.block_ids_json).unwrap_or_default();
+        serde_json::from_str(&ad.block_ids_json)
+            .map_err(|e| format!("Corrupted ad block_ids_json: {e}"))?;
 
     for &bid in &block_ids {
         if let Some(block) = ctx.db.block().id().find(bid) {

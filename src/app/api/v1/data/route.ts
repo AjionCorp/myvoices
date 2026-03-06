@@ -28,7 +28,7 @@ function mapBlock(row: Record<string, unknown>): any {
     status: (row.status as BlockStatus) ?? BlockStatus.Empty,
     adImageUrl: strOrNull(row.ad_image_url ?? row.adImageUrl),
     adLinkUrl: strOrNull(row.ad_link_url ?? row.adLinkUrl),
-    claimedAt: row.claimed_at ?? row.claimedAt ? Number(row.claimed_at ?? row.claimedAt) : null,
+    claimedAt: (() => { const v = row.claimed_at ?? row.claimedAt; return v != null ? Number(v) : null; })(),
   };
 }
 
@@ -66,18 +66,25 @@ export const GET = withApiKey(async (request: NextRequest) => {
 
     const conditions: string[] = [];
     if (topicIdParam) {
-      const topicId = parseInt(topicIdParam, 10);
-      if (!Number.isFinite(topicId)) {
-        return NextResponse.json({ error: "Invalid topicId parameter" }, { status: 400 });
+      const topicIdNum = parseInt(topicIdParam, 10);
+      if (!Number.isFinite(topicIdNum)) {
+        return NextResponse.json({ error: "Invalid topicId" }, { status: 400 });
       }
-      conditions.push(`topic_id = ${topicId}`);
+      conditions.push(`topic_id = ${topicIdNum}`);
     }
     if (hasViewport) {
+      const minXN = parseInt(minX!, 10);
+      const maxXN = parseInt(maxX!, 10);
+      const minYN = parseInt(minY!, 10);
+      const maxYN = parseInt(maxY!, 10);
+      if (!Number.isFinite(minXN) || !Number.isFinite(maxXN) || !Number.isFinite(minYN) || !Number.isFinite(maxYN)) {
+        return NextResponse.json({ error: "Invalid viewport params" }, { status: 400 });
+      }
       conditions.push(
-        `x >= ${Math.max(0, parseInt(minX!, 10))}`,
-        `x <= ${Math.min(GRID_COLS - 1, parseInt(maxX!, 10))}`,
-        `y >= ${Math.max(0, parseInt(minY!, 10))}`,
-        `y <= ${Math.min(GRID_ROWS - 1, parseInt(maxY!, 10))}`,
+        `x >= ${Math.max(0, minXN)}`,
+        `x <= ${Math.min(GRID_COLS - 1, maxXN)}`,
+        `y >= ${Math.max(0, minYN)}`,
+        `y <= ${Math.min(GRID_ROWS - 1, maxYN)}`,
       );
     }
     const blockWhere = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
