@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState } from "react";
 import { Send, ArrowLeft, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useMessagesStore, type DirectMessage } from "@/stores/messages-store";
 import { getConnection } from "@/lib/spacetimedb/client";
@@ -58,7 +59,8 @@ export function ChatPane({
 
   const messages = getConversation(otherIdentity);
   const isRequest = conversationStatus === "request_pending";
-  const isMyRequest = isRequest && requestRecipient === myIdentity;
+  // iAmRecipient is true when the current user received the pending request (they need to approve it)
+  const iAmRecipient = isRequest && requestRecipient === myIdentity;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -109,12 +111,11 @@ export function ChatPane({
         <Avatar name={otherName} size="md" />
         <div>
           <p className="text-sm font-semibold text-foreground">{otherName}</p>
-          <p className="text-xs text-muted-foreground">@{otherName}</p>
         </div>
       </div>
 
       {/* Message Request Banner */}
-      {isMyRequest && (
+      {iAmRecipient && (
         <MessageRequestCard
           conversationId={conversationId}
           senderName={otherName}
@@ -157,9 +158,9 @@ export function ChatPane({
       </ScrollArea>
 
       {/* Input — hidden for requests the user hasn't accepted yet */}
-      {!isMyRequest && (
+      {!iAmRecipient && (
         <div className="flex items-end gap-2 border-t border-border/30 px-4 py-3">
-          <textarea
+          <Textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={handleKeyDown}

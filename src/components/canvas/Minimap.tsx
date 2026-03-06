@@ -14,19 +14,47 @@ import {
 const MAP_W = 180;
 const MAP_H = Math.round(MAP_W * ((GRID_ROWS * TILE_HEIGHT) / (GRID_COLS * TILE_WIDTH)));
 
-// The world is centered at grid (0,0). We display a symmetric window of
-// GRID_COLS × GRID_ROWS cells (same as the old fixed grid), but centered.
-const WORLD_W = GRID_COLS * TILE_WIDTH;   // total display range in world-pixels (x)
-const WORLD_H = GRID_ROWS * TILE_HEIGHT;  // total display range in world-pixels (y)
-const HALF_W = WORLD_W / 2;
-const HALF_H = WORLD_H / 2;
+// Minimum half-range in world-pixels (covers viewer simulation spread of ±150 tiles).
+const MIN_HALF_COLS = 150;
+const MIN_HALF_W = MIN_HALF_COLS * TILE_WIDTH;
+const MIN_HALF_H = MIN_HALF_COLS * TILE_HEIGHT;
 
+interface WorldRange {
+  halfW: number;
+  halfH: number;
+}
+
+/**
+ * Derives the world-pixel half-range that fits all content + 15% padding.
+ * Always at least MIN_HALF so viewer dots stay visible on empty/small maps.
+ */
+function computeRange(
+  contentBounds: { minCol: number; maxCol: number; minRow: number; maxRow: number }
+): WorldRange {
+  const PAD = 1.15;
+  const halfCols = Math.max(
+    MIN_HALF_COLS,
+    Math.abs(contentBounds.minCol) * PAD,
+    Math.abs(contentBounds.maxCol) * PAD,
+  );
+  const halfRows = Math.max(
+    MIN_HALF_COLS,
+    Math.abs(contentBounds.minRow) * PAD,
+    Math.abs(contentBounds.maxRow) * PAD,
+  );
+  return {
+    halfW: halfCols * TILE_WIDTH,
+    halfH: halfRows * TILE_HEIGHT,
+  };
+}
 
 export function Minimap() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const bgImageRef = useRef<ImageData | null>(null);
   const rafRef = useRef(0);
   const lastBlockCountRef = useRef(-1);
+  // Current world-pixel half-range; updated on every rebuildBg.
+  const rangeRef = useRef<WorldRange>({ halfW: MIN_HALF_W, halfH: MIN_HALF_H });
 
   const handleClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -34,9 +62,9 @@ export function Minimap() {
       if (!rect) return;
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
-      // Map minimap pixel → world pixel (centered coordinate system)
-      const worldClickX = (mx / MAP_W - 0.5) * WORLD_W;
-      const worldClickY = (my / MAP_H - 0.5) * WORLD_H;
+      const { halfW, halfH } = rangeRef.current;
+      const worldClickX = (mx / MAP_W - 0.5) * halfW * 2;
+      const worldClickY = (my / MAP_H - 0.5) * halfH * 2;
       const { zoom, screenWidth, screenHeight } = useCanvasStore.getState();
       useCanvasStore.getState().setViewport(
         screenWidth / 2 - worldClickX * zoom,
@@ -52,13 +80,20 @@ export function Minimap() {
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
+    // Derive the display range from the actual content extent.
+    const { contentBounds, blocks } = useBlocksStore.getState();
+    rangeRef.current = computeRange(contentBounds);
+    const { halfW, halfH } = rangeRef.current;
+    const worldW = halfW * 2;
+    const worldH = halfH * 2;
+
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     canvas.width = MAP_W * dpr;
     canvas.height = MAP_H * dpr;
 
     // Scale factors: world-pixel → canvas-pixel (DPR-aware)
-    const sx = (MAP_W / WORLD_W) * dpr;
-    const sy = (MAP_H / WORLD_H) * dpr;
+    const sx = (MAP_W / worldW) * dpr;
+    const sy = (MAP_H / worldH) * dpr;
 
     const imgData = ctx.createImageData(canvas.width, canvas.height);
     const data = imgData.data;
@@ -70,16 +105,21 @@ export function Minimap() {
       data[i - 3] = 13; data[i - 2] = 13; data[i - 1] = 13; data[i] = 255;
     }
 
-    // Plot claimed blocks directly into pixel buffer (much faster than fillRect per block).
-    // Grid (0,0) maps to the center of the minimap — shift by HALF_W / HALF_H.
-    const blocks = useBlocksStore.getState().blocks;
+    // Plot claimed blocks as 2×2 pixel squares.
+    // Grid (0,0) is the world origin — shift by halfW/halfH to center it in the minimap.
     blocks.forEach((b) => {
       if (b.status !== "claimed") return;
-      const px = Math.round((b.x * TILE_WIDTH + HALF_W) * sx);
-      const py = Math.round((b.y * TILE_HEIGHT + HALF_H) * sy);
-      if (px >= 0 && px < cw && py >= 0 && py < ch) {
-        const off = (py * cw + px) * 4;
-        data[off] = 139; data[off + 1] = 92; data[off + 2] = 246; data[off + 3] = 180;
+      const px = Math.round((b.x * TILE_WIDTH + halfW) * sx);
+      const py = Math.round((b.y * TILE_HEIGHT + halfH) * sy);
+      for (let dy = 0; dy < 2; dy++) {
+        for (let dx = 0; dx < 2; dx++) {
+          const ppx = px + dx;
+          const ppy = py + dy;
+          if (ppx >= 0 && ppx < cw && ppy >= 0 && ppy < ch) {
+            const off = (ppy * cw + ppx) * 4;
+            data[off] = 139; data[off + 1] = 92; data[off + 2] = 246; data[off + 3] = 200;
+          }
+        }
       }
     });
 
@@ -96,7 +136,7 @@ export function Minimap() {
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
-      // Check if blocks changed
+      // Rebuild background when block count changes
       const blockCount = useBlocksStore.getState().blocks.size;
       if (blockCount !== lastBlockCountRef.current) {
         lastBlockCountRef.current = blockCount;
@@ -108,6 +148,10 @@ export function Minimap() {
         ctx.putImageData(bgImageRef.current, 0, 0);
       }
 
+      const { halfW, halfH } = rangeRef.current;
+      const worldW = halfW * 2;
+      const worldH = halfH * 2;
+
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       ctx.save();
       ctx.scale(dpr, dpr);
@@ -117,8 +161,8 @@ export function Minimap() {
       for (const v of viewers) {
         ctx.beginPath();
         ctx.arc(
-          (v.worldX + HALF_W) * (MAP_W / WORLD_W),
-          (v.worldY + HALF_H) * (MAP_H / WORLD_H),
+          (v.worldX + halfW) * (MAP_W / worldW),
+          (v.worldY + halfH) * (MAP_H / worldH),
           3, 0, Math.PI * 2,
         );
         ctx.fillStyle = v.color;
@@ -129,10 +173,10 @@ export function Minimap() {
       const { viewportX, viewportY, zoom, screenWidth, screenHeight } = useCanvasStore.getState();
       const worldTLX = -viewportX / zoom;
       const worldTLY = -viewportY / zoom;
-      const vx = (worldTLX + HALF_W) * (MAP_W / WORLD_W);
-      const vy = (worldTLY + HALF_H) * (MAP_H / WORLD_H);
-      const vw = (screenWidth / zoom) * (MAP_W / WORLD_W);
-      const vh = (screenHeight / zoom) * (MAP_H / WORLD_H);
+      const vx = (worldTLX + halfW) * (MAP_W / worldW);
+      const vy = (worldTLY + halfH) * (MAP_H / worldH);
+      const vw = (screenWidth / zoom) * (MAP_W / worldW);
+      const vh = (screenHeight / zoom) * (MAP_H / worldH);
 
       ctx.strokeStyle = "#ffffff";
       ctx.lineWidth = 1.5;

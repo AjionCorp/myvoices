@@ -12,6 +12,7 @@ import { resolveVideoMeta } from "@/lib/utils/video-meta";
 import { getConnection } from "@/lib/spacetimedb/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { VisuallyHidden } from "@radix-ui/react-visually-hidden";
 import { CommentThread } from "@/components/comments/CommentThread";
@@ -579,7 +580,7 @@ export function BlockDetailPanel() {
                 {editMode && isOwner && (
                   <div className="flex flex-col gap-2 rounded-xl border border-accent/30 bg-accent/5 px-4 py-3">
                     <p className="text-xs font-medium text-accent">Swap video URL (likes will reset)</p>
-                    <input
+                    <Input
                       type="text"
                       value={editUrl}
                       onChange={(e) => setEditUrl(e.target.value)}

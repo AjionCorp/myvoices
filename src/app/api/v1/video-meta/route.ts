@@ -137,7 +137,7 @@ async function resolveBiliBili(rawUrl: string): Promise<ResolvedMeta | null> {
       const resp = await fetch(rawUrl, { method: "GET", redirect: "follow" });
       finalUrl = resp.url || rawUrl;
     } catch {
-      // Keep original URL if redirect probe fails.
+      // Keep original URL when redirect probing fails.
     }
   }
   if (!isBiliBiliUrl(finalUrl)) return null;

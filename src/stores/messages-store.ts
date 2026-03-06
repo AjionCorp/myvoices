@@ -46,7 +46,7 @@ export interface Conversation {
   status: "active" | "request_pending" | "request_declined";
   requestRecipient: string;
   messages: DirectMessage[];
-  lastMessage: DirectMessage;
+  lastMessage: DirectMessage | null;
   unreadCount: number;
 }
 
@@ -146,8 +146,6 @@ function buildConversationList(
       }
     }
 
-    if (convMessages.length === 0) continue;
-
     const sorted = [...convMessages].sort((a, b) => b.createdAt - a.createdAt);
     const unreadCount = convMessages.filter(
       (m) => m.recipientIdentity === myIdentity && !m.isRead
@@ -160,7 +158,7 @@ function buildConversationList(
       status: conv.status as Conversation["status"],
       requestRecipient: conv.requestRecipient,
       messages: sorted,
-      lastMessage: sorted[0],
+      lastMessage: sorted[0] ?? null,
       unreadCount,
     });
   }
@@ -201,7 +199,7 @@ function buildConversationList(
     }
   }
 
-  return result.sort((a, b) => b.lastMessage.createdAt - a.lastMessage.createdAt);
+  return result.sort((a, b) => (b.lastMessage?.createdAt ?? 0) - (a.lastMessage?.createdAt ?? 0));
 }
 
 export const useMessagesStore = create<MessagesState>((set, get) => ({
@@ -294,7 +292,7 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
     const primary = buildConversationList(messages, conversations, myIdentity, "active");
     const requests = buildConversationList(messages, conversations, myIdentity, "request_pending");
     return [...primary, ...requests].sort(
-      (a, b) => b.lastMessage.createdAt - a.lastMessage.createdAt
+      (a, b) => (b.lastMessage?.createdAt ?? 0) - (a.lastMessage?.createdAt ?? 0)
     );
   },
 
@@ -328,7 +326,6 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
     }
 
     const sorted = [...convMessages].sort((a, b) => b.createdAt - a.createdAt);
-    if (sorted.length === 0) return null;
 
     const unreadCount = convMessages.filter(
       (m) => m.recipientIdentity === myIdentity && !m.isRead
@@ -341,7 +338,7 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
       status: conv.status as Conversation["status"],
       requestRecipient: conv.requestRecipient,
       messages: sorted,
-      lastMessage: sorted[0],
+      lastMessage: sorted[0] ?? null,
       unreadCount,
     };
   },

@@ -14,7 +14,8 @@ export const GET = withApiKey(async (request: NextRequest) => {
     return NextResponse.json({ error: "Query must be at most 200 characters" }, { status: 400 });
   }
 
-  const limit = Math.max(1, Math.min(parseInt(request.nextUrl.searchParams.get("limit") || "20", 10), 50));
+  const rawLimit = parseInt(request.nextUrl.searchParams.get("limit") || "20", 10);
+  const limit = Math.max(1, Math.min(Number.isNaN(rawLimit) ? 20 : rawLimit, 50));
   // SpacetimeDB SQL doesn't support LIKE with %, so we fetch all and filter server-side
   const qLower = q.toLowerCase();
 
@@ -56,6 +57,7 @@ export const GET = withApiKey(async (request: NextRequest) => {
       })
       .slice(0, limit)
       .map((u) => ({
+        identity: u.identity,
         username: u.username,
         displayName: u.display_name,
         bio: u.bio,

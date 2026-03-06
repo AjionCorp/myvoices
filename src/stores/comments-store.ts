@@ -135,8 +135,8 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
     const { comments, byBlock } = get();
     const ids = byBlock.get(blockId) ?? [];
     return ids
-      .map((id) => comments.get(id)!)
-      .filter(Boolean)
+      .map((id) => comments.get(id))
+      .filter((c): c is Comment => c !== undefined)
       .sort((a, b) => b.createdAt - a.createdAt);
   },
 
@@ -144,8 +144,8 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
     const { comments, byBlock } = get();
     const ids = byBlock.get(blockId) ?? [];
     return ids
-      .map((id) => comments.get(id)!)
-      .filter((c) => c && c.parentCommentId === null && c.repostOfId === null)
+      .map((id) => comments.get(id))
+      .filter((c): c is Comment => c !== undefined && c.parentCommentId === null && c.repostOfId === null)
       .sort((a, b) => b.createdAt - a.createdAt);
   },
 
