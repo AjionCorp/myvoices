@@ -88,6 +88,10 @@ pub fn add_comment(
             .find(parent_id)
             .ok_or("Parent comment not found")?;
 
+        if parent.block_id != block_id {
+            return Err("Parent comment belongs to a different block".to_string());
+        }
+
         // Insert the reply
         let comment_id = ctx
             .db
@@ -174,6 +178,9 @@ pub fn repost_comment(
         .ok_or("Original comment not found")?;
 
     let trimmed = text.trim().to_string();
+    if trimmed.is_empty() {
+        return Err("Repost quote cannot be empty".to_string());
+    }
     if trimmed.len() > 280 {
         return Err("Quote text too long (max 280 chars)".to_string());
     }

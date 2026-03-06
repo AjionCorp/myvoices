@@ -214,10 +214,9 @@ export const useMessagesStore = create<MessagesState>((set, get) => ({
   selectedConversationId: null,
 
   setMyIdentity: (identity) => {
-    set({ myIdentity: identity });
     const { messages, conversations } = get();
     const counts = computeUnreadCounts(messages, conversations, identity);
-    set(counts);
+    set({ myIdentity: identity, ...counts });
   },
 
   addMessage: (message) => {

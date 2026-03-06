@@ -58,41 +58,37 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
   },
 
   addNotification: (notification) => {
-    const { notifications } = get();
-    notifications.set(notification.id, notification);
-    const updated = new Map(notifications);
+    const updated = new Map(get().notifications);
+    updated.set(notification.id, notification);
     set({ notifications: updated, unreadCount: computeUnread(updated) });
   },
 
   updateNotification: (notification) => {
-    const { notifications } = get();
-    notifications.set(notification.id, notification);
-    const updated = new Map(notifications);
+    const updated = new Map(get().notifications);
+    updated.set(notification.id, notification);
     set({ notifications: updated, unreadCount: computeUnread(updated) });
   },
 
   removeNotification: (id) => {
-    const { notifications } = get();
-    notifications.delete(id);
-    const updated = new Map(notifications);
+    const updated = new Map(get().notifications);
+    updated.delete(id);
     set({ notifications: updated, unreadCount: computeUnread(updated) });
   },
 
   markRead: (id) => {
-    const { notifications } = get();
-    const notif = notifications.get(id);
+    const notif = get().notifications.get(id);
     if (!notif || notif.isRead) return;
-    notifications.set(id, { ...notif, isRead: true });
-    const updated = new Map(notifications);
+    const updated = new Map(get().notifications);
+    updated.set(id, { ...notif, isRead: true });
     set({ notifications: updated, unreadCount: computeUnread(updated) });
   },
 
   markAllRead: () => {
-    const { notifications } = get();
-    for (const [id, n] of notifications) {
-      if (!n.isRead) notifications.set(id, { ...n, isRead: true });
+    const updated = new Map(get().notifications);
+    for (const [id, n] of updated) {
+      if (!n.isRead) updated.set(id, { ...n, isRead: true });
     }
-    set({ notifications: new Map(notifications), unreadCount: 0 });
+    set({ notifications: updated, unreadCount: 0 });
   },
 
   getAll: () => {

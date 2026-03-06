@@ -252,6 +252,7 @@ export function connect(
         conversationSubscription = null;
         blockSubscription = null;
         muteSubscription = null;
+        reportSubscription = null;
         callbacks?.onDisconnect?.();
       })
       .onConnectError((_ctx: unknown, error: Error) => {
@@ -368,6 +369,8 @@ export function disconnect(): void {
   blockSubscription = null;
   muteSubscription?.unsubscribe();
   muteSubscription = null;
+  reportSubscription?.unsubscribe();
+  reportSubscription = null;
   connection?.disconnect();
   connection = null;
   connectionPromise = null;

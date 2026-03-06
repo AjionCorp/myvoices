@@ -72,15 +72,26 @@ pub fn server_revoke_api_key(
 }
 
 /// Called server-side to add credits to an API key (after Stripe payment).
+/// `stripe_session_id` is used for idempotency — duplicate calls with the same
+/// session ID are silently ignored rather than double-crediting the key.
 #[reducer]
 pub fn server_add_api_credits(
     ctx: &ReducerContext,
     key_id: u64,
     amount: u64,
+    stripe_session_id: String,
     description: String,
 ) -> Result<(), String> {
     if amount == 0 {
         return Err("amount must be > 0".to_string());
+    }
+
+    // Idempotency: reject if this Stripe session has already been processed.
+    let already_processed = ctx.db.api_usage_log().iter()
+        .any(|r| r.endpoint == stripe_session_id && r.api_key_id == key_id);
+    if already_processed {
+        log::warn!("server_add_api_credits: duplicate session {} for key {} — skipping", stripe_session_id, key_id);
+        return Ok(());
     }
 
     let key = ctx.db.api_key().id().find(key_id)
@@ -98,7 +109,27 @@ pub fn server_add_api_credits(
         ..key
     }).map_err(|e| format!("Insert failed: {e}"))?;
 
-    log::info!("API key {} credits +{}: {} ({})", key_id, amount, new_credits, description);
+    // Record a sentinel usage-log row so we can detect replays above.
+    let now = ctx.timestamp.to_micros_since_unix_epoch() as u64;
+    let today = {
+        let secs = now / 1_000_000;
+        let d = secs / 86400;
+        // YYYYMMDD approximation from days-since-epoch
+        let y = 1970 + d / 365;
+        let m = (d % 365) / 30 + 1;
+        let day = (d % 365) % 30 + 1;
+        (y * 10000 + m * 100 + day) as u32
+    };
+    let _ = ctx.db.api_usage_log().try_insert(crate::tables::ApiUsageLog {
+        id: 0,
+        api_key_id: key_id,
+        endpoint: stripe_session_id.clone(),
+        request_count: 0,
+        day: today,
+        created_at: now,
+    });
+
+    log::info!("API key {} credits +{}: {} ({}, session={})", key_id, amount, new_credits, description, stripe_session_id);
     Ok(())
 }
 

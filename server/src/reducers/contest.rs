@@ -69,7 +69,7 @@ pub fn finalize_contest(ctx: &ReducerContext, contest_id: u64) -> Result<(), Str
         .filter(|b| b.status == "claimed")
         .collect();
 
-    claimed_blocks.sort_by(|a, b| b.likes.cmp(&a.likes));
+    claimed_blocks.sort_by(|a, b| crate::reducers::topic::block_score(b).cmp(&crate::reducers::topic::block_score(a)));
 
     let top_count = 2.min(claimed_blocks.len());
     let prize_per_winner = if top_count > 0 {

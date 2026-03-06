@@ -63,32 +63,34 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
   },
 
   addComment: (comment) => {
-    const { comments, byBlock } = get();
+    const comments = new Map(get().comments);
     comments.set(comment.id, comment);
-    const arr = byBlock.get(comment.blockId) ?? [];
+    const byBlock = new Map(get().byBlock);
+    const arr = [...(byBlock.get(comment.blockId) ?? [])];
     if (!arr.includes(comment.id)) arr.push(comment.id);
     byBlock.set(comment.blockId, arr);
-    set({ comments: new Map(comments), byBlock: new Map(byBlock) });
+    set({ comments, byBlock });
   },
 
   updateComment: (comment) => {
-    const { comments } = get();
+    const comments = new Map(get().comments);
     comments.set(comment.id, comment);
-    set({ comments: new Map(comments) });
+    set({ comments });
   },
 
   removeComment: (id) => {
-    const { comments, byBlock } = get();
-    const comment = comments.get(id);
+    const comment = get().comments.get(id);
     if (!comment) return;
+    const comments = new Map(get().comments);
     comments.delete(id);
-    const arr = byBlock.get(comment.blockId);
-    if (arr) {
-      const idx = arr.indexOf(id);
-      if (idx >= 0) arr.splice(idx, 1);
+    const byBlock = new Map(get().byBlock);
+    const existing = byBlock.get(comment.blockId);
+    if (existing) {
+      const arr = existing.filter((cid) => cid !== id);
       if (arr.length === 0) byBlock.delete(comment.blockId);
+      else byBlock.set(comment.blockId, arr);
     }
-    set({ comments: new Map(comments), byBlock: new Map(byBlock) });
+    set({ comments, byBlock });
   },
 
   setCommentLikes: (likes) => {
@@ -104,25 +106,29 @@ export const useCommentsStore = create<CommentsState>((set, get) => ({
   },
 
   addCommentLike: (like) => {
-    const { commentLikes, likesByComment } = get();
+    const commentLikes = new Map(get().commentLikes);
     commentLikes.set(like.id, like);
-    const s = likesByComment.get(like.commentId) ?? new Set<string>();
+    const likesByComment = new Map(get().likesByComment);
+    const s = new Set(likesByComment.get(like.commentId) ?? []);
     s.add(like.userIdentity);
     likesByComment.set(like.commentId, s);
-    set({ commentLikes: new Map(commentLikes), likesByComment: new Map(likesByComment) });
+    set({ commentLikes, likesByComment });
   },
 
   removeCommentLike: (id) => {
-    const { commentLikes, likesByComment } = get();
-    const like = commentLikes.get(id);
+    const like = get().commentLikes.get(id);
     if (!like) return;
+    const commentLikes = new Map(get().commentLikes);
     commentLikes.delete(id);
-    const s = likesByComment.get(like.commentId);
-    if (s) {
+    const likesByComment = new Map(get().likesByComment);
+    const existing = likesByComment.get(like.commentId);
+    if (existing) {
+      const s = new Set(existing);
       s.delete(like.userIdentity);
       if (s.size === 0) likesByComment.delete(like.commentId);
+      else likesByComment.set(like.commentId, s);
     }
-    set({ commentLikes: new Map(commentLikes), likesByComment: new Map(likesByComment) });
+    set({ commentLikes, likesByComment });
   },
 
   getCommentsForBlock: (blockId) => {

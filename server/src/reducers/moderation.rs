@@ -288,7 +288,7 @@ pub fn ban_user_from_topic(
 
     // Must be topic owner, moderator, or admin
     let is_topic_owner = topic.creator_identity == caller;
-    let is_mod = ctx.db.topic_moderator().iter().any(|m| m.topic_id == topic_id && m.identity == caller);
+    let is_mod = ctx.db.topic_moderator().iter().any(|m| m.topic_id == topic_id && m.identity == caller && m.status == "active");
     if !is_topic_owner && !is_mod && !is_caller_admin(ctx) {
         return Err("Not authorized — must be topic owner, moderator, or admin".to_string());
     }
@@ -328,7 +328,7 @@ pub fn unban_user_from_topic(
     let topic = ctx.db.topic().id().find(topic_id).ok_or("Topic not found")?;
 
     let is_topic_owner = topic.creator_identity == caller;
-    let is_mod = ctx.db.topic_moderator().iter().any(|m| m.topic_id == topic_id && m.identity == caller);
+    let is_mod = ctx.db.topic_moderator().iter().any(|m| m.topic_id == topic_id && m.identity == caller && m.status == "active");
     if !is_topic_owner && !is_mod && !is_caller_admin(ctx) {
         return Err("Not authorized".to_string());
     }

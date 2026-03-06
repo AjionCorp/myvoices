@@ -78,7 +78,9 @@ function mapApiKeyRow(row: Record<string, unknown>): ApiKeyRecord {
     email: String(row.email ?? ""),
     credits: Number(row.credits ?? 0),
     totalRequests: Number(row.total_requests ?? row.totalRequests ?? 0),
-    isActive: Boolean(row.is_active ?? row.isActive),
+    isActive:
+      row.is_active === true || row.is_active === 1 || row.is_active === "true" ||
+      row.isActive === true || row.isActive === 1 || row.isActive === "true",
     createdAt: Number(row.created_at ?? row.createdAt ?? 0),
     lastUsedAt: Number(row.last_used_at ?? row.lastUsedAt ?? 0),
   };
@@ -151,7 +153,7 @@ export function peekRateLimit(keyId: number, credits: number): RateLimitResult {
     return {
       allowed: true,
       remaining: totalAllowed,
-      limit: FREE_DAILY_LIMIT,
+      limit: totalAllowed,
       resetAt: Math.floor(getDayResetTime() / 1000),
       creditsUsed: false,
     };
@@ -164,7 +166,7 @@ export function peekRateLimit(keyId: number, credits: number): RateLimitResult {
   return {
     allowed: bucket.count < totalAllowed,
     remaining,
-    limit: FREE_DAILY_LIMIT,
+    limit: totalAllowed,
     resetAt: Math.floor(bucket.resetAt / 1000),
     creditsUsed,
   };
@@ -188,7 +190,7 @@ export function checkRateLimit(keyId: number, credits: number): RateLimitResult 
     return {
       allowed: false,
       remaining: 0,
-      limit: FREE_DAILY_LIMIT,
+      limit: totalAllowed,
       resetAt: Math.floor(bucket.resetAt / 1000),
       creditsUsed,
     };
@@ -200,7 +202,7 @@ export function checkRateLimit(keyId: number, credits: number): RateLimitResult 
   return {
     allowed: true,
     remaining: Math.max(0, totalAllowed - bucket.count),
-    limit: FREE_DAILY_LIMIT,
+    limit: totalAllowed,
     resetAt: Math.floor(bucket.resetAt / 1000),
     creditsUsed: bucket.count > FREE_DAILY_LIMIT,
   };
@@ -248,6 +250,7 @@ export function trackUsage(keyId: number, endpoint: string, usedCredit: boolean)
   let totalPending = 0;
   for (const b of usageBatches.values()) totalPending += b.count;
   if (totalPending >= FLUSH_THRESHOLD) {
+    if (flushTimer) { clearTimeout(flushTimer); flushTimer = null; }
     void flushUsage();
     return;
   }
@@ -269,7 +272,9 @@ const SPACETIMEDB_MODULE = process.env.NEXT_PUBLIC_SPACETIMEDB_MODULE || "myvoic
 const SPACETIMEDB_SERVER_TOKEN = process.env.SPACETIMEDB_SERVER_TOKEN ?? "";
 
 async function callReducer(reducerName: string, args: unknown[]): Promise<void> {
-  if (!SPACETIMEDB_SERVER_TOKEN) return;
+  if (!SPACETIMEDB_SERVER_TOKEN) {
+    throw new Error(`[api-keys] SPACETIMEDB_SERVER_TOKEN not set — cannot call ${reducerName}`);
+  }
   const url = `${SPACETIMEDB_URI}/v1/database/${SPACETIMEDB_MODULE}/call/${reducerName}`;
   const res = await fetch(url, {
     method: "POST",
@@ -281,17 +286,18 @@ async function callReducer(reducerName: string, args: unknown[]): Promise<void> 
   });
   if (!res.ok) {
     const text = await res.text();
-    console.error(`[api-keys] ${reducerName} failed: ${res.status} ${text}`);
+    throw new Error(`[api-keys] ${reducerName} failed: ${res.status} ${text}`);
   }
 }
 
 export async function flushUsage(): Promise<void> {
   if (usageBatches.size === 0) return;
 
-  const batches = [...usageBatches.values()];
+  // Snapshot and clear — new trackUsage calls during this flush will create fresh entries.
+  const batches = [...usageBatches.entries()];
   usageBatches.clear();
 
-  for (const batch of batches) {
+  for (const [batchKey, batch] of batches) {
     try {
       await callReducer("server_record_api_usage", [
         batch.keyId,
@@ -301,7 +307,15 @@ export async function flushUsage(): Promise<void> {
         batch.creditsToDeduct,
       ]);
     } catch (err) {
-      console.error("[api-keys] flushUsage error:", err);
+      console.error("[api-keys] flushUsage error, re-queuing batch:", err);
+      // Merge failed batch back so it isn't lost.
+      const existing = usageBatches.get(batchKey);
+      if (existing) {
+        existing.count += batch.count;
+        existing.creditsToDeduct += batch.creditsToDeduct;
+      } else {
+        usageBatches.set(batchKey, batch);
+      }
     }
   }
 

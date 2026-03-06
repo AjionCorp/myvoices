@@ -104,18 +104,11 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   openAddVideoModal: () => set({ showAddVideoModal: true }),
   closeAddVideoModal: () => set({ showAddVideoModal: false }),
 
-  centerOnBlock: (gridX, gridY) => {
-    const state = get();
-    const worldX = gridX * TILE_WIDTH + TILE_WIDTH / 2;
-    const worldY = gridY * TILE_HEIGHT + TILE_HEIGHT / 2;
-    set({
-      viewportX: state.screenWidth / 2 - worldX * state.zoom,
-      viewportY: state.screenHeight / 2 - worldY * state.zoom,
-    });
-  },
+  centerOnBlock: (gridX, gridY) => get().centerOn(gridX, gridY),
 
   centerOn: (gridX, gridY) => {
     const state = get();
+    if (state.screenWidth === 0 || state.screenHeight === 0) return;
     const worldX = gridX * TILE_WIDTH + TILE_WIDTH / 2;
     const worldY = gridY * TILE_HEIGHT + TILE_HEIGHT / 2;
     set({
