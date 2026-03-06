@@ -128,6 +128,7 @@ export function SubmissionModal() {
       const conn = getConnection();
       if (!conn) {
         setError("Not connected to server. Please refresh.");
+        setIsSubmitting(false);
         return;
       }
 

@@ -3,19 +3,13 @@
 import { useState } from "react";
 import { Heart, MessageCircle, Pencil, Repeat2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { useCommentsStore, type Comment } from "@/stores/comments-store";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useAuthStore } from "@/stores/auth-store";
 import { getConnection } from "@/lib/spacetimedb/client";
+import { timeAgo } from "@/lib/utils/time";
 import { CommentComposer } from "./CommentComposer";
-
-function timeAgo(ts: number): string {
-  const s = Math.floor((Date.now() - ts / 1000) / 1000);
-  if (s < 60) return "just now";
-  if (s < 3600) return `${Math.floor(s / 60)}m`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h`;
-  return `${Math.floor(s / 86400)}d`;
-}
 
 function Avatar({ name }: { name: string }) {
   const initials = name
@@ -135,13 +129,13 @@ export function CommentItem({ comment, depth = 0 }: Props) {
         {/* Body */}
         {isEditing ? (
           <div className="mt-1 flex flex-col gap-1.5">
-            <textarea
+            <Textarea
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
               maxLength={280}
               rows={2}
               autoFocus
-              className="w-full resize-none rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground focus:border-accent/50 focus:outline-none"
+              className="resize-none bg-surface text-sm"
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleEdit(); } if (e.key === "Escape") setIsEditing(false); }}
             />
             <div className="flex gap-1.5">
@@ -159,9 +153,11 @@ export function CommentItem({ comment, depth = 0 }: Props) {
         {/* Action bar */}
         <div className="mt-2 flex items-center gap-1 -ml-1.5">
           {/* Like */}
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={handleLike}
-            className={`group flex items-center gap-1 rounded-full px-2 py-1 text-xs transition-colors hover:bg-rose-500/10 ${
+            className={`group h-auto gap-1 rounded-full px-2 py-1 text-xs hover:bg-rose-500/10 hover:text-rose-500 ${
               isLiked ? "text-rose-500" : "text-muted-foreground"
             }`}
             title={isLiked ? "Unlike" : "Like"}
@@ -172,59 +168,67 @@ export function CommentItem({ comment, depth = 0 }: Props) {
               }`}
             />
             {comment.likesCount > 0 && <span>{comment.likesCount}</span>}
-          </button>
+          </Button>
 
           {/* Reply — only for non-reposts, non-deep threads */}
           {depth < 3 && (
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => {
                 if (!isAuthenticated) { login(); return; }
                 setShowReplyComposer((v) => !v);
                 setShowRepostComposer(false);
               }}
-              className="group flex items-center gap-1 rounded-full px-2 py-1 text-xs text-muted-foreground transition-colors hover:bg-sky-500/10 hover:text-sky-500"
+              className="group h-auto gap-1 rounded-full px-2 py-1 text-xs text-muted-foreground hover:bg-sky-500/10 hover:text-sky-500"
               title="Reply"
             >
               <MessageCircle className="h-3.5 w-3.5 transition-transform group-hover:scale-110" />
               {comment.repliesCount > 0 && <span>{comment.repliesCount}</span>}
-            </button>
+            </Button>
           )}
 
           {/* Repost */}
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={() => {
               if (!isAuthenticated) { login(); return; }
               setShowRepostComposer((v) => !v);
               setShowReplyComposer(false);
             }}
-            className={`group flex items-center gap-1 rounded-full px-2 py-1 text-xs transition-colors hover:bg-emerald-500/10 hover:text-emerald-500 ${
+            className={`group h-auto gap-1 rounded-full px-2 py-1 text-xs hover:bg-emerald-500/10 hover:text-emerald-500 ${
               showRepostComposer ? "text-emerald-500" : "text-muted-foreground"
             }`}
             title="Repost"
           >
             <Repeat2 className="h-3.5 w-3.5 transition-transform group-hover:scale-110" />
             {comment.repostsCount > 0 && <span>{comment.repostsCount}</span>}
-          </button>
+          </Button>
 
           {/* Edit (own comments) */}
           {isOwn && (
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => { setEditText(comment.text); setIsEditing(true); }}
-              className="ml-auto rounded-full p-1 text-muted-foreground/50 transition-colors hover:bg-accent/10 hover:text-accent"
+              className="ml-auto h-auto rounded-full p-1 text-muted-foreground/50 hover:bg-accent/10 hover:text-accent"
               title="Edit"
             >
               <Pencil className="h-3 w-3" />
-            </button>
+            </Button>
           )}
           {/* Delete (own comments) */}
           {isOwn && (
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={handleDelete}
-              className="rounded-full p-1 text-muted-foreground/50 transition-colors hover:bg-destructive/10 hover:text-destructive"
+              className="h-auto rounded-full p-1 text-muted-foreground/50 hover:bg-destructive/10 hover:text-destructive"
               title="Delete"
             >
               <Trash2 className="h-3 w-3" />
-            </button>
+            </Button>
           )}
         </div>
 
@@ -260,12 +264,14 @@ export function CommentItem({ comment, depth = 0 }: Props) {
         {/* Replies toggle + thread */}
         {replies.length > 0 && depth < 3 && (
           <div className="mt-2">
-            <button
+            <Button
+              variant="link"
+              size="sm"
               onClick={() => setShowReplies((v) => !v)}
-              className="text-xs font-medium text-accent hover:underline"
+              className="h-auto p-0 text-xs font-medium text-accent"
             >
               {showReplies ? "Hide replies" : `View ${replies.length} repl${replies.length === 1 ? "y" : "ies"}`}
-            </button>
+            </Button>
 
             {showReplies && (
               <div className="mt-3 flex flex-col gap-4">
