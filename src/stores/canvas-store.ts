@@ -116,4 +116,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       viewportY: state.screenHeight / 2 - worldY * state.zoom,
     });
   },
+
+  centerOnBlock: (gridX, gridY) => get().centerOn(gridX, gridY),
 }));

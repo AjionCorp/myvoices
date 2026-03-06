@@ -71,14 +71,6 @@ function AuthBridge({ children }: { children: ReactNode }) {
 
     const clerkUsername = clerkUser.username ?? null;
 
-    console.log("[Auth] Clerk data:", {
-      email: clerkEmail ?? "(null)",
-      username: clerkUsername ?? "(null)",
-      displayName: clerkDisplayName,
-      primaryEmail: clerkUser.primaryEmailAddress?.emailAddress ?? "(null)",
-      emailAddresses: clerkUser.emailAddresses?.map((e) => e.emailAddress) ?? [],
-    });
-
     const storedUser = typeof window !== "undefined" ? localStorage.getItem("spacetimedb_user") : null;
     if (storedUser) {
       try {
@@ -93,7 +85,6 @@ function AuthBridge({ children }: { children: ReactNode }) {
           displayName: parsed.displayName || clerkDisplayName,
           imageUrl: clerkUser.imageUrl ?? null,
         };
-        console.log("[Auth] setUser (from stored + Clerk):", { email: userData.email ?? "(null)", username: userData.username ?? "(null)", displayName: userData.displayName });
         setUser(userData);
       } catch { /* ignore corrupt entry */ }
     } else {
@@ -116,7 +107,6 @@ function AuthBridge({ children }: { children: ReactNode }) {
         socialTiktok: null,
         socialInstagram: null,
       };
-      console.log("[Auth] setUser (new):", { email: userData.email ?? "(null)", username: userData.username ?? "(null)", displayName: userData.displayName });
       setUser(userData);
     }
 
@@ -142,8 +132,6 @@ function AuthBridge({ children }: { children: ReactNode }) {
   const loginWithPopup = useCallback(async () => {
     openSignIn();
   }, [openSignIn]);
-
-  const loginSignUp = useCallback(() => openSignUp(), [openSignUp]);
 
   const logout = useCallback(async () => {
     storeLogout();

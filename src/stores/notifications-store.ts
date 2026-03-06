@@ -76,10 +76,10 @@ export const useNotificationsStore = create<NotificationsState>((set, get) => ({
   },
 
   markRead: (id) => {
-    const notif = get().notifications.get(id);
-    if (!notif || notif.isRead) return;
+    const existing = get().notifications.get(id);
+    if (!existing || existing.isRead) return;
     const updated = new Map(get().notifications);
-    updated.set(id, { ...notif, isRead: true });
+    updated.set(id, { ...existing, isRead: true });
     set({ notifications: updated, unreadCount: computeUnread(updated) });
   },
 

@@ -11,6 +11,7 @@ import { extractYouTubeId } from "@/lib/utils/youtube";
 
 const VIDEO_ID_RE = /^[a-zA-Z0-9_-]{11}$/;
 const CACHE_TTL_MS = 60 * 60 * 1000;
+const MAX_CACHE_SIZE = 1000;
 const ENABLE_BILIBILI = process.env.ENABLE_BILIBILI !== "false" && process.env.NEXT_PUBLIC_ENABLE_BILIBILI !== "false";
 
 type ResolvedMeta = {
@@ -29,12 +30,21 @@ function isYouTubeShortUrl(value: string): boolean {
 }
 
 function isTikTokUrl(value: string): boolean {
-  return /(^|\.)tiktok\.com$/i.test(new URL(value).hostname) || /(^|\.)vm\.tiktok\.com$/i.test(new URL(value).hostname);
+  try {
+    const host = new URL(value).hostname;
+    return /(^|\.)tiktok\.com$/i.test(host) || /(^|\.)vm\.tiktok\.com$/i.test(host);
+  } catch {
+    return false;
+  }
 }
 
 function isBiliBiliUrl(value: string): boolean {
-  const host = new URL(value).hostname;
-  return /(^|\.)bilibili\.com$/i.test(host) || /(^|\.)b23\.tv$/i.test(host);
+  try {
+    const host = new URL(value).hostname;
+    return /(^|\.)bilibili\.com$/i.test(host) || /(^|\.)b23\.tv$/i.test(host);
+  } catch {
+    return false;
+  }
 }
 
 async function resolveYouTube(input: string): Promise<ResolvedMeta | null> {
@@ -191,6 +201,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (metaCache.size >= MAX_CACHE_SIZE) {
+      // Evict the oldest (first inserted) entry to cap memory usage.
+      metaCache.delete(metaCache.keys().next().value!);
+    }
     metaCache.set(input, { data: resolved, expiresAt: Date.now() + CACHE_TTL_MS });
     return NextResponse.json(resolved);
   } catch (err) {
