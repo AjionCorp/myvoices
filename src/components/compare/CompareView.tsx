@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -13,14 +13,6 @@ import { getEmbedUrl, getVideoUrl } from "@/lib/utils/video-url";
 import { useTopicStore } from "@/stores/topic-store";
 import { Platform } from "@/lib/constants";
 import type { ComparePanel as ComparePanelData, CompareBlock } from "@/app/api/v1/compare/route";
-
-// Avoid dynamic col-span classes that Tailwind can't detect at build time.
-const COL_SPAN: Record<number, string> = {
-  1: "col-span-1",
-  2: "col-span-2",
-  3: "col-span-3",
-  4: "col-span-4",
-};
 
 const GRID_CLASSES: Record<number, string> = {
   2: "grid-cols-2",
@@ -86,7 +78,7 @@ export function CompareView({ slugs, panels, loading, error }: CompareViewProps)
   }, []);
 
   // Context for the topic picker: use first panel when loaded, fall back to store.
-  const pickerContext = useMemo(() => {
+  const pickerContext = (() => {
     const firstSlug = slugs[0];
     if (!firstSlug) return { category: undefined, taxonomyPath: undefined };
 
@@ -109,11 +101,10 @@ export function CompareView({ slugs, panels, loading, error }: CompareViewProps)
       }
     }
     return { category: undefined, taxonomyPath: undefined };
-  }, [slugs, panels, storeTopics]);
+  })();
 
   const count = panels.length || slugs.length;
   const gridClass = GRID_CLASSES[count] ?? "grid-cols-2";
-  const fullSpan = COL_SPAN[count] ?? "col-span-2";
 
   const isEmpty = !loading && !error && panels.length === 0;
 

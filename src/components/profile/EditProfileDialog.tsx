@@ -36,7 +36,8 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
 
   // Populate fields when dialog opens
   useEffect(() => {
-    if (open && user) {
+    if (!(open && user)) return;
+    const resetTimer = setTimeout(() => {
       setBio(user.bio ?? "");
       setLocation(user.location ?? "");
       setWebsiteUrl(user.websiteUrl ?? "");
@@ -45,7 +46,8 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
       setSocialTiktok(user.socialTiktok ?? "");
       setSocialInstagram(user.socialInstagram ?? "");
       setError(null);
-    }
+    }, 0);
+    return () => clearTimeout(resetTimer);
   }, [open, user]);
 
   const handleSave = async () => {

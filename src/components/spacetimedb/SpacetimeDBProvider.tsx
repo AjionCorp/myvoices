@@ -14,13 +14,43 @@ import { useContestStore } from "@/stores/contest-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useCommentsStore } from "@/stores/comments-store";
 import { useNotificationsStore } from "@/stores/notifications-store";
-import { useMessagesStore } from "@/stores/messages-store";
+import { useMessagesStore, type ConversationMeta } from "@/stores/messages-store";
 import { useFollowsStore } from "@/stores/follows-store";
 import { useModerationStore } from "@/stores/moderation-store";
 import { BlockStatus, Platform } from "@/lib/constants";
 import { batchSpiralCoordinates } from "@/lib/canvas/spiral-layout";
 import { useAuth } from "@/components/auth/AuthProvider";
 import type { DbConnection } from "@/module_bindings";
+
+type NumericLike = number | string | bigint;
+
+type DirectMessageLikeRow = {
+  id: NumericLike;
+  conversationId?: NumericLike;
+  senderIdentity: string;
+  recipientIdentity: string;
+  text: string;
+  isRead: boolean;
+  isDeleted?: boolean;
+  createdAt: NumericLike;
+};
+
+type UserFollowLikeRow = {
+  id: NumericLike;
+  followerIdentity: string;
+  followingIdentity: string;
+  createdAt: NumericLike;
+};
+
+type ConversationLikeRow = {
+  id: NumericLike;
+  participantA: string;
+  participantB: string;
+  status: ConversationMeta["status"];
+  requestRecipient: string;
+  createdAt: NumericLike;
+  updatedAt: NumericLike;
+};
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapBlock(row: any): StoreBlock {
@@ -502,8 +532,7 @@ function registerTableCallbacks(conn: DbConnection) {
   });
 
   conn.db.direct_message.onInsert((_ctx, row) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const r = row as any;
+    const r = row as DirectMessageLikeRow;
     useMessagesStore.getState().addMessage({
       id: Number(r.id),
       conversationId: Number(r.conversationId ?? 0),
@@ -517,8 +546,7 @@ function registerTableCallbacks(conn: DbConnection) {
   });
 
   conn.db.direct_message.onUpdate((_ctx, _old, row) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const r = row as any;
+    const r = row as DirectMessageLikeRow;
     useMessagesStore.getState().updateMessage({
       id: Number(r.id),
       conversationId: Number(r.conversationId ?? 0),
@@ -535,7 +563,7 @@ function registerTableCallbacks(conn: DbConnection) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = conn.db as any;
   if (db.user_follow) {
-    db.user_follow.onInsert((_ctx: unknown, row: any) => {
+    db.user_follow.onInsert((_ctx: unknown, row: UserFollowLikeRow) => {
       useFollowsStore.getState().addFollow({
         id: Number(row.id),
         followerIdentity: row.followerIdentity,
@@ -544,14 +572,14 @@ function registerTableCallbacks(conn: DbConnection) {
       });
     });
 
-    db.user_follow.onDelete((_ctx: unknown, row: any) => {
+    db.user_follow.onDelete((_ctx: unknown, row: UserFollowLikeRow) => {
       useFollowsStore.getState().removeFollow(Number(row.id));
     });
   }
 
   // Conversation callbacks
   if (db.conversation) {
-    db.conversation.onInsert((_ctx: unknown, row: any) => {
+    db.conversation.onInsert((_ctx: unknown, row: ConversationLikeRow) => {
       useMessagesStore.getState().addConversation({
         id: Number(row.id),
         participantA: row.participantA,
@@ -563,7 +591,8 @@ function registerTableCallbacks(conn: DbConnection) {
       });
     });
 
-    db.conversation.onUpdate((_ctx: unknown, _old: any, row: any) => {
+    db.conversation.onUpdate(
+      (_ctx: unknown, _old: ConversationLikeRow, row: ConversationLikeRow) => {
       useMessagesStore.getState().updateConversation({
         id: Number(row.id),
         participantA: row.participantA,
@@ -573,9 +602,10 @@ function registerTableCallbacks(conn: DbConnection) {
         createdAt: Number(row.createdAt),
         updatedAt: Number(row.updatedAt),
       });
-    });
+      }
+    );
 
-    db.conversation.onDelete((_ctx: unknown, row: any) => {
+    db.conversation.onDelete((_ctx: unknown, row: ConversationLikeRow) => {
       useMessagesStore.getState().removeConversation(Number(row.id));
     });
   }
