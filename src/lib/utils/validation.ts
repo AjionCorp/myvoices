@@ -2,14 +2,14 @@ import { z } from "zod";
 import { isYouTubeUrl } from "./youtube";
 import { isTikTokUrl } from "./tiktok";
 import { isBiliBiliUrl } from "./bilibili";
-import { isRumbleUrl } from "./rumble";
+// no rumble support
 
 export const videoUrlSchema = z
   .string()
   .url("Must be a valid URL")
   .refine(
-    (url) => isYouTubeUrl(url) || isTikTokUrl(url) || isBiliBiliUrl(url) || isRumbleUrl(url),
-    "Must be a YouTube, TikTok, BiliBili, or Rumble URL"
+    (url) => isYouTubeUrl(url) || isTikTokUrl(url) || isBiliBiliUrl(url),
+    "Must be a YouTube, TikTok, or BiliBili"
   );
 
 export const adPlacementSchema = z.object({
@@ -29,7 +29,6 @@ export function detectPlatform(
 ): "youtube" | "youtube_short" | "tiktok" | "bilibili" | "rumble" | null {
   if (isBiliBiliUrl(url)) return "bilibili";
   if (isTikTokUrl(url)) return "tiktok";
-  if (isRumbleUrl(url)) return "rumble";
   if (isYouTubeUrl(url)) {
     return /youtube\.com\/shorts\//.test(url) ? "youtube_short" : "youtube";
   }
