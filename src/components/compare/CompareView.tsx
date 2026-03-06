@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -13,14 +13,6 @@ import { getEmbedUrl, getVideoUrl } from "@/lib/utils/video-url";
 import { useTopicStore } from "@/stores/topic-store";
 import { Platform } from "@/lib/constants";
 import type { ComparePanel as ComparePanelData, CompareBlock } from "@/app/api/v1/compare/route";
-
-// Avoid dynamic col-span classes that Tailwind can't detect at build time.
-const COL_SPAN: Record<number, string> = {
-  1: "col-span-1",
-  2: "col-span-2",
-  3: "col-span-3",
-  4: "col-span-4",
-};
 
 const GRID_CLASSES: Record<number, string> = {
   2: "grid-cols-2",
@@ -86,34 +78,36 @@ export function CompareView({ slugs, panels, loading, error }: CompareViewProps)
   }, []);
 
   // Context for the topic picker: use first panel when loaded, fall back to store.
-  const pickerContext = useMemo(() => {
-    const firstSlug = slugs[0];
-    if (!firstSlug) return { category: undefined, taxonomyPath: undefined };
+  const firstSlug = slugs[0];
+  let pickerContext: { category: string | undefined; taxonomyPath: string | undefined } = {
+    category: undefined,
+    taxonomyPath: undefined,
+  };
 
+  if (firstSlug) {
     // Prefer API panel data (fully enriched with taxonomyPath).
     const panel = panels.find((p) => p.topic.slug === firstSlug);
     if (panel?.topic.category) {
-      return {
+      pickerContext = {
         category: panel.topic.category,
         taxonomyPath: panel.topic.taxonomyPath || undefined,
       };
-    }
-
-    // Fall back to the Zustand store (may lack taxonomyPath in WS mode).
-    for (const t of storeTopics.values()) {
-      if (t.slug === firstSlug) {
-        return {
-          category: t.category || undefined,
-          taxonomyPath: t.taxonomyPath || undefined,
-        };
+    } else {
+      // Fall back to the Zustand store (may lack taxonomyPath in WS mode).
+      for (const t of storeTopics.values()) {
+        if (t.slug === firstSlug) {
+          pickerContext = {
+            category: t.category || undefined,
+            taxonomyPath: t.taxonomyPath || undefined,
+          };
+          break;
+        }
       }
     }
-    return { category: undefined, taxonomyPath: undefined };
-  }, [slugs, panels, storeTopics]);
+  }
 
   const count = panels.length || slugs.length;
   const gridClass = GRID_CLASSES[count] ?? "grid-cols-2";
-  const fullSpan = COL_SPAN[count] ?? "col-span-2";
 
   const isEmpty = !loading && !error && panels.length === 0;
 

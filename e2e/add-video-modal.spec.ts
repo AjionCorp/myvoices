@@ -43,10 +43,15 @@ const LANDSCAPE_META = {
 async function openModal(page: Page) {
   // Open SubmissionModal directly via the canvas store (bypasses auth check)
   await page.evaluate(() => {
-    // @ts-ignore — accessing Next.js internal store
-    const store = (window as any).__CANVAS_STORE__;
+    const store = (
+      window as Window & {
+        __CANVAS_STORE__?: {
+          getState: () => { openSubmissionModal?: () => void };
+        };
+      }
+    ).__CANVAS_STORE__;
     if (store) {
-      store.getState().openSubmissionModal();
+      store.getState().openSubmissionModal?.();
     } else {
       // Fallback: dispatch a custom event the store listens to
       window.dispatchEvent(new CustomEvent("open-submission-modal"));
@@ -138,7 +143,7 @@ test.describe("Add Video Modal — Mobile", () => {
 
     // The "Add to Grid" / "Submit" button must be visible without scrolling
     const button = page.locator("button:has-text('Add'), button:has-text('Submit')").first();
-    const buttonVisible = await button.isVisible().catch(() => false);
+    await button.isVisible().catch(() => false);
     // Even if modal isn't open (no auth), the test verifies layout dimensions
     // when the modal IS rendered, nothing overflows the 844px viewport
     const modalEl = page.locator("h2:has-text('Add Video')").first();

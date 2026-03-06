@@ -555,19 +555,30 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
   const [isFollowing, setIsFollowing] = useState(false);
 
   useEffect(() => {
-    if (!user || !topic) { setIsFollowing(false); return; }
-    const conn = getConnection();
-    if (!conn) return;
+    const userIdentity = user?.identity;
+    const topicId = topic?.id;
     const check = () => {
+      if (!userIdentity || topicId == null) {
+        setIsFollowing(false);
+        return;
+      }
+      const conn = getConnection();
+      if (!conn) return;
       const following = [...conn.db.topic_follow.iter()].some(
-        (f) => f.followerIdentity === user.identity && Number(f.topicId) === topic.id
+        (f) => f.followerIdentity === userIdentity && Number(f.topicId) === topicId
       );
       setIsFollowing(following);
     };
-    check();
+
+    const initialCheckTimer = setTimeout(check, 0);
+    const conn = getConnection();
+    if (!conn) {
+      return () => clearTimeout(initialCheckTimer);
+    }
     conn.db.topic_follow.onInsert(() => check());
     conn.db.topic_follow.onDelete(() => check());
-  }, [user, topic]);
+    return () => clearTimeout(initialCheckTimer);
+  }, [user?.identity, topic?.id]);
 
   const handleToggleFollow = () => {
     if (!topic) return;
