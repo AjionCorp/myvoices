@@ -17,7 +17,8 @@ const TOPIC_COLUMNS = [
  */
 export async function GET(request: NextRequest) {
   const topicIdsParam = request.nextUrl.searchParams.get("topicIds");
-  const limit = Math.max(1, Math.min(Number(request.nextUrl.searchParams.get("limit") || 50), 100));
+  const limitParam = parseInt(request.nextUrl.searchParams.get("limit") || "50", 10);
+  const limit = Math.max(1, Math.min(Number.isFinite(limitParam) ? limitParam : 50, 100));
 
   if (!topicIdsParam) {
     return NextResponse.json({ blocks: [], topics: {} });

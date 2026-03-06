@@ -7,10 +7,14 @@ import { SpacetimeDBProvider } from "@/components/spacetimedb/SpacetimeDBProvide
 import { MockDataLoader } from "@/components/dev/MockDataLoader";
 import { WelcomeModal } from "@/components/onboarding/WelcomeModal";
 
-const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY ?? "";
+const clerkPublishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 const USE_MOCK = process.env.NEXT_PUBLIC_USE_MOCK_DATA === "true";
 
 export function Providers({ children }: { children: ReactNode }) {
+  if (!clerkPublishableKey) {
+    return <>{children}</>;
+  }
+
   return (
     <ClerkProvider
       publishableKey={clerkPublishableKey}

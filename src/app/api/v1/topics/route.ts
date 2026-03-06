@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readFileSync } from "fs";
 import { resolve } from "path";
-import { runSql, rowToObject } from "@/lib/spacetimedb/http-sql";
+import { runSql, rowToObject, IS_MOCK } from "@/lib/spacetimedb/http-sql";
 import { withApiKey } from "@/lib/api-middleware";
 
 // ---------------------------------------------------------------------------
@@ -108,7 +108,7 @@ function mapTopic(row: Record<string, unknown>): any {
 
 export const GET = withApiKey(async (_request: NextRequest) => {
   // Fast path: serve pre-generated mock data without hitting SpacetimeDB
-  if (process.env.USE_MOCK_DATA === "true") {
+  if (IS_MOCK) {
     return NextResponse.json(getMockData());
   }
 

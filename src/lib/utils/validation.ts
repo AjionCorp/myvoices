@@ -9,7 +9,7 @@ export const videoUrlSchema = z
   .url("Must be a valid URL")
   .refine(
     (url) => isYouTubeUrl(url) || isTikTokUrl(url) || isBiliBiliUrl(url),
-    "Must be a YouTube, TikTok, or BiliBili URL"
+    "Must be a YouTube, TikTok, BiliBili URL"
   );
 
 export const adPlacementSchema = z.object({
