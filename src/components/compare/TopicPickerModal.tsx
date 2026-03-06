@@ -119,9 +119,13 @@ export function TopicPickerModal({
   // from before panels loaded don't get locked in.
   useEffect(() => {
     if (!open) return;
-    setScope(deriveScope(currentTopicCategory, currentTopicTaxonomyPath));
-    setSearch("");
-    setPage(0);
+    const nextScope = deriveScope(currentTopicCategory, currentTopicTaxonomyPath);
+    const resetTimer = window.setTimeout(() => {
+      setScope(nextScope);
+      setSearch("");
+      setPage(0);
+    }, 0);
+    return () => window.clearTimeout(resetTimer);
   }, [open, currentTopicCategory, currentTopicTaxonomyPath]);
 
   // ── Derived data ─────────────────────────────────────────────────────────
@@ -397,7 +401,7 @@ export function TopicPickerModal({
                     onClick={() => setScope((s) => ({ ...s, taxonomySegment: null }))}
                     className="h-auto p-0 text-xs text-muted-foreground/60"
                   >
-                    Show all of "{scope.category}"
+                    Show all in {scope.category}
                   </Button>
                 ) : null}
               </div>

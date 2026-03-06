@@ -52,11 +52,13 @@ function thumbnailFor(videoId: string, platform: string, url: string | null): st
 export default function SavedPage() {
   const { isAuthenticated, user } = useAuthStore();
   const [items, setItems] = useState<SavedItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const loadSaved = useCallback(() => {
+    setLoading(true);
     const conn = getConnection();
     if (!conn || !user?.identity) {
+      setItems([]);
       setLoading(false);
       return;
     }
@@ -93,16 +95,13 @@ export default function SavedPage() {
     saved.sort((a, b) => b.savedAt - a.savedAt);
     setItems(saved);
     setLoading(false);
-  }, [user?.identity]);
+  }, [user]);
 
   useEffect(() => {
-    if (isAuthenticated && user?.identity) {
-      const t = setTimeout(loadSaved, 500);
-      return () => clearTimeout(t);
-    } else {
-      setLoading(false);
-    }
-  }, [isAuthenticated, user?.identity, loadSaved]);
+    if (!isAuthenticated || !user?.identity) return;
+    const t = setTimeout(loadSaved, 500);
+    return () => clearTimeout(t);
+  }, [isAuthenticated, user, loadSaved]);
 
   const handleUnsave = (blockId: number) => {
     const conn = getConnection();

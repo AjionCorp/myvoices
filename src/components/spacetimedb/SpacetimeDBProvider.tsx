@@ -14,7 +14,7 @@ import { useContestStore } from "@/stores/contest-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useCommentsStore } from "@/stores/comments-store";
 import { useNotificationsStore } from "@/stores/notifications-store";
-import { useMessagesStore } from "@/stores/messages-store";
+import { useMessagesStore, type ConversationMeta } from "@/stores/messages-store";
 import { useFollowsStore } from "@/stores/follows-store";
 import { useModerationStore } from "@/stores/moderation-store";
 import { BlockStatus, Platform } from "@/lib/constants";
@@ -534,8 +534,23 @@ function registerTableCallbacks(conn: DbConnection) {
   // Follow callbacks — tables may not exist until module is republished
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = conn.db as any;
+  type UserFollowRow = {
+    id: number | bigint;
+    followerIdentity: string;
+    followingIdentity: string;
+    createdAt: number | bigint;
+  };
+  type ConversationRow = {
+    id: number | bigint;
+    participantA: string;
+    participantB: string;
+    status: ConversationMeta["status"];
+    requestRecipient: string;
+    createdAt: number | bigint;
+    updatedAt: number | bigint;
+  };
   if (db.user_follow) {
-    db.user_follow.onInsert((_ctx: unknown, row: any) => {
+    db.user_follow.onInsert((_ctx: unknown, row: UserFollowRow) => {
       useFollowsStore.getState().addFollow({
         id: Number(row.id),
         followerIdentity: row.followerIdentity,
@@ -544,14 +559,14 @@ function registerTableCallbacks(conn: DbConnection) {
       });
     });
 
-    db.user_follow.onDelete((_ctx: unknown, row: any) => {
+    db.user_follow.onDelete((_ctx: unknown, row: UserFollowRow) => {
       useFollowsStore.getState().removeFollow(Number(row.id));
     });
   }
 
   // Conversation callbacks
   if (db.conversation) {
-    db.conversation.onInsert((_ctx: unknown, row: any) => {
+    db.conversation.onInsert((_ctx: unknown, row: ConversationRow) => {
       useMessagesStore.getState().addConversation({
         id: Number(row.id),
         participantA: row.participantA,
@@ -563,7 +578,7 @@ function registerTableCallbacks(conn: DbConnection) {
       });
     });
 
-    db.conversation.onUpdate((_ctx: unknown, _old: any, row: any) => {
+    db.conversation.onUpdate((_ctx: unknown, _old: ConversationRow, row: ConversationRow) => {
       useMessagesStore.getState().updateConversation({
         id: Number(row.id),
         participantA: row.participantA,
@@ -575,7 +590,7 @@ function registerTableCallbacks(conn: DbConnection) {
       });
     });
 
-    db.conversation.onDelete((_ctx: unknown, row: any) => {
+    db.conversation.onDelete((_ctx: unknown, row: ConversationRow) => {
       useMessagesStore.getState().removeConversation(Number(row.id));
     });
   }

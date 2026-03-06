@@ -555,7 +555,7 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
   const [isFollowing, setIsFollowing] = useState(false);
 
   useEffect(() => {
-    if (!user || !topic) { setIsFollowing(false); return; }
+    if (!user || !topic) return;
     const conn = getConnection();
     if (!conn) return;
     const check = () => {
