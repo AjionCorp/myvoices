@@ -397,7 +397,7 @@ export function TopicPickerModal({
                     onClick={() => setScope((s) => ({ ...s, taxonomySegment: null }))}
                     className="h-auto p-0 text-xs text-muted-foreground/60"
                   >
-                    Show all of "{scope.category}"
+                    Show all topics in {scope.category}
                   </Button>
                 ) : null}
               </div>

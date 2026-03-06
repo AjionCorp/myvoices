@@ -62,7 +62,7 @@ export function VideoCanvas() {
 
   // Guards against navigation-click leaks: a pointerup from clicking a link to
   // navigate here must not immediately open a modal on the freshly mounted canvas.
-  const mountedAt = useRef(Date.now());
+  const mountedAt = useRef(0);
   const pointerDownOnCanvas = useRef(false);
 
   const { panBy, zoomBy, setScreenSize, setDragging, selectBlock, openSubmissionModal } = useCanvasStore();
@@ -299,6 +299,7 @@ export function VideoCanvas() {
   useEffect(() => {
     const el = canvasRef.current;
     if (!el) return;
+    mountedAt.current = Date.now();
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
