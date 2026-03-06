@@ -9,7 +9,7 @@ export const videoUrlSchema = z
   .url("Must be a valid URL")
   .refine(
     (url) => isYouTubeUrl(url) || isTikTokUrl(url) || isBiliBiliUrl(url),
-    "Must be a YouTube, TikTok, or BiliBili"
+    "Must be a YouTube, TikTok, or BiliBili URL"
   );
 
 export const adPlacementSchema = z.object({
@@ -26,7 +26,7 @@ export const contestSchema = z.object({
 
 export function detectPlatform(
   url: string
-): "youtube" | "youtube_short" | "tiktok" | "bilibili" | "rumble" | null {
+): "youtube" | "youtube_short" | "tiktok" | "bilibili" | null {
   if (isBiliBiliUrl(url)) return "bilibili";
   if (isTikTokUrl(url)) return "tiktok";
   if (isYouTubeUrl(url)) {
