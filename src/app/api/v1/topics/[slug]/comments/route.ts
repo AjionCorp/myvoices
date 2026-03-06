@@ -10,8 +10,10 @@ export const GET = withApiKey(async (request: NextRequest, context) => {
 
   const { searchParams } = new URL(request.url);
   const blockId = searchParams.get("blockId");
-  const limit = Math.max(1, Math.min(parseInt(searchParams.get("limit") ?? "50", 10), 200));
-  const offset = parseInt(searchParams.get("offset") ?? "0", 10);
+  const rawLimit = parseInt(searchParams.get("limit") ?? "50", 10);
+  const limit = Math.max(1, Math.min(Number.isNaN(rawLimit) ? 50 : rawLimit, 200));
+  const rawOffset = parseInt(searchParams.get("offset") ?? "0", 10);
+  const offset = Number.isNaN(rawOffset) || rawOffset < 0 ? 0 : rawOffset;
 
   try {
     // First resolve slug to topic_id

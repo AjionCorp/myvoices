@@ -32,6 +32,9 @@ export const GET = withApiKey(async (_request: NextRequest, context) => {
 
     const row = rowToObject(topicRes.rows[0], topicRes.schema, TOPIC_COLUMNS);
     const topicId = Number(row.id);
+    if (!topicId) {
+      return NextResponse.json({ error: "Topic not found" }, { status: 404 });
+    }
 
     // Fetch top 20 blocks by score
     const blockResults = await runSql(

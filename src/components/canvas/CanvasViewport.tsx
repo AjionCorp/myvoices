@@ -1,7 +1,6 @@
 "use client";
 
 import { useCanvasStore } from "@/stores/canvas-store";
-import { MIN_ZOOM, MAX_ZOOM } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 
 export function CanvasViewport() {
@@ -16,9 +15,10 @@ export function CanvasViewport() {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setZoom(Math.min(MAX_ZOOM, zoom * 1.3), screenWidth / 2, screenHeight / 2)}
+          onClick={() => setZoom(zoom * 1.3, screenWidth / 2, screenHeight / 2)}
           className="h-9 w-9 rounded-lg text-lg text-foreground hover:bg-surface-light"
           title="Zoom In"
+          aria-label="Zoom In"
         >
           +
         </Button>
@@ -30,9 +30,10 @@ export function CanvasViewport() {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setZoom(Math.max(MIN_ZOOM, zoom * 0.7), screenWidth / 2, screenHeight / 2)}
+          onClick={() => setZoom(zoom * 0.7, screenWidth / 2, screenHeight / 2)}
           className="h-9 w-9 rounded-lg text-lg text-foreground hover:bg-surface-light"
           title="Zoom Out"
+          aria-label="Zoom Out"
         >
           -
         </Button>
@@ -44,6 +45,7 @@ export function CanvasViewport() {
         onClick={() => centerOnBlock(0, 0)}
         className="h-9 w-9 rounded-xl border border-border bg-surface/90 text-sm text-muted shadow-xl backdrop-blur-sm hover:bg-surface-light hover:text-foreground"
         title="Center View"
+        aria-label="Center View"
       >
         <svg
           width="16"

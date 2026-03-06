@@ -78,13 +78,16 @@ export function InboxPanel() {
                     <span className="truncate text-xs font-semibold text-foreground">
                       {conv.otherName}
                     </span>
-                    <span className="shrink-0 text-[10px] text-muted-foreground">
-                      {timeAgo(conv.lastMessage.createdAt)}
-                    </span>
+                    {conv.lastMessage && (
+                      <span className="shrink-0 text-[10px] text-muted-foreground">
+                        {timeAgo(conv.lastMessage.createdAt)}
+                      </span>
+                    )}
                   </div>
                   <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
-                    {conv.lastMessage.senderIdentity === myIdentity ? "You: " : ""}
-                    {conv.lastMessage.text}
+                    {conv.lastMessage
+                      ? `${conv.lastMessage.senderIdentity === myIdentity ? "You: " : ""}${conv.lastMessage.text}`
+                      : "No messages yet"}
                   </p>
                 </div>
 

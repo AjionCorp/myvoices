@@ -192,8 +192,8 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
 
     // Update spatial + position indexes in-place (these are designed for mutation)
     if (old) {
-      state.spatial.remove(old);
-      state.positionIndex.delete(posKey(old.x, old.y));
+      get().spatial.remove(old);
+      get().positionIndex.delete(posKey(old.x, old.y));
     }
     get().spatial.insert(block);
     get().positionIndex.set(posKey(block.x, block.y), block.id);

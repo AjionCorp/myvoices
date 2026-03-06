@@ -30,6 +30,8 @@ export function normalizeThumbnailForStorage(
       const match = url.match(/hdslb\.com\/(.+?)(?:@[^?]*)?(?:\?.*)?$/i);
       return match ? match[1] : "";
     }
+    default:
+      return "";
   }
 }
 

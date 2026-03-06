@@ -2,6 +2,7 @@ import { z } from "zod";
 import { isYouTubeUrl } from "./youtube";
 import { isTikTokUrl } from "./tiktok";
 import { isBiliBiliUrl } from "./bilibili";
+// no rumble support
 
 export const videoUrlSchema = z
   .string()
