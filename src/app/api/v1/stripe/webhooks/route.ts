@@ -3,7 +3,13 @@ import { getStripeServer } from "@/lib/stripe/server";
 import Stripe from "stripe";
 
 export async function POST(request: NextRequest) {
-  const stripe = getStripeServer();
+  let stripe: ReturnType<typeof getStripeServer>;
+  try {
+    stripe = getStripeServer();
+  } catch {
+    console.error("Stripe is not configured");
+    return NextResponse.json({ error: "Webhook not configured" }, { status: 500 });
+  }
   const body = await request.text();
   const signature = request.headers.get("stripe-signature");
 
@@ -32,7 +38,17 @@ export async function POST(request: NextRequest) {
       const metadata = session.metadata;
 
       if (metadata?.blockIds) {
-        const blockIds = JSON.parse(metadata.blockIds) as number[];
+        let blockIds: number[];
+        try {
+          const parsed = JSON.parse(metadata.blockIds);
+          if (!Array.isArray(parsed) || !parsed.every((n) => typeof n === "number" && Number.isInteger(n))) {
+            throw new Error("blockIds must be an array of integers");
+          }
+          blockIds = parsed;
+        } catch (e) {
+          console.error("Failed to parse blockIds from webhook metadata:", e);
+          break;
+        }
         const imageUrl = metadata.imageUrl || "";
         const linkUrl = metadata.linkUrl || "";
 

@@ -157,6 +157,13 @@ export function CircuitCanvas() {
   // ── Commit viewport ref → React state ─────────────────────────────────────
   const commitVp = useCallback(() => { setVp({ ...vpRef.current }); }, []);
 
+  // Cancel any active RAF loop on unmount to prevent state updates on unmounted component
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
   // ── Momentum RAF loop ─────────────────────────────────────────────────────
   const startMomentum = useCallback(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);

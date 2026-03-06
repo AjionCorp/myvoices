@@ -231,9 +231,13 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
   setBlocks: (blocks) => {
     const map = new Map<number, Block>();
     let claimedCount = 0;
+    let likesCount = 0;
     for (const b of blocks) {
       map.set(b.id, b);
-      if (b.status === BlockStatus.Claimed) claimedCount++;
+      if (b.status === BlockStatus.Claimed) {
+        claimedCount++;
+        likesCount += b.likes;
+      }
     }
     set({
       blocks: map,
@@ -243,6 +247,7 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
       rankIndex: rebuildRankIndex(map),
       contentBounds: computeContentBounds(map),
       totalClaimed: claimedCount,
+      totalLikes: likesCount,
     });
   },
 
@@ -270,12 +275,13 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
   },
 
   updateBlockLikes: (id, likes) => {
-    const prev = get().blocks;
-    const block = prev.get(id);
+    const state = get();
+    const block = state.blocks.get(id);
     if (!block) return;
-    const blocks = new Map(prev);
+    const blocks = new Map(state.blocks);
     blocks.set(id, { ...block, likes });
-    set({ blocks, rankIndex: rebuildRankIndex(blocks) });
+    const likesDelta = likes - block.likes;
+    set({ blocks, rankIndex: rebuildRankIndex(blocks), totalLikes: state.totalLikes + likesDelta });
   },
 
   updateBlockDislikes: (id, dislikes) => {

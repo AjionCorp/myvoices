@@ -11,9 +11,9 @@ export function isBiliBiliUrl(value: string): boolean {
 
 export function extractBiliBiliBvid(value: string): string | null {
   const direct = value.match(/(?:bilibili\.com\/video\/)(BV[0-9A-Za-z]+)/i);
-  if (direct) return direct[1];
+  if (direct) return direct[1].replace(/^bv/i, "BV");
   const loose = value.match(/\b(BV[0-9A-Za-z]{10})\b/i);
-  return loose ? loose[1] : null;
+  return loose ? loose[1].replace(/^bv/i, "BV") : null;
 }
 
 export function getBiliBiliWatchUrl(bvid: string): string {

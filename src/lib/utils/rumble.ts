@@ -25,7 +25,7 @@ export function extractRumbleVideoId(value: string): string | null {
     const first = parts[0];
     const watchIdMatch = first.match(/^(v[a-z0-9]+)/i);
     if (watchIdMatch) return watchIdMatch[1];
-    return first || null;
+    return null;
   } catch {
     return null;
   }
