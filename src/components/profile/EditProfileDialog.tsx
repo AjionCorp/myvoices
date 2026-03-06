@@ -50,7 +50,10 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
 
   const handleSave = async () => {
     const conn = getConnection();
-    if (!conn) return;
+    if (!conn) {
+      setError("Not connected. Please refresh and try again.");
+      return;
+    }
 
     setSaving(true);
     setError(null);

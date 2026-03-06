@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
-import { connect, disconnect, reconnect, getConnection, subscribeToNotifications, subscribeToMessages, subscribeToFollows, subscribeToConversations, subscribeToUserBlocks_mod, subscribeToUserMutes, type ConnectionCallbacks } from "@/lib/spacetimedb/client";
+import { connect, disconnect, reconnect, getConnection, subscribeToNotifications, subscribeToMessages, subscribeToFollows, subscribeToConversations, subscribeToUserBlockRelationships, subscribeToUserMutes, type ConnectionCallbacks } from "@/lib/spacetimedb/client";
 import { useBlocksStore, type Block as StoreBlock } from "@/stores/blocks-store";
 import {
   useTopicStore,
@@ -102,7 +102,7 @@ function mapTopicModeratorApplication(row: any): TopicModeratorApplication {
     status: row.status,
     reviewedBy: row.reviewedBy,
     createdAt: Number(row.createdAt ?? 0),
-    reviewedAt: Number(row.reviewedAt ?? 0),
+    reviewedAt: row.reviewedAt != null ? Number(row.reviewedAt) : null,
   };
 }
 
@@ -363,57 +363,57 @@ function registerTableCallbacks(conn: DbConnection) {
   });
 
   conn.db.topic_taxonomy_node.onInsert((_ctx, row) => {
-    const { taxonomyNodes } = useTopicStore.getState();
-    taxonomyNodes.set(Number(row.id), mapTaxonomyNode(row));
-    useTopicStore.getState().setTaxonomyNodes([...taxonomyNodes.values()]);
+    const nodes = new Map(useTopicStore.getState().taxonomyNodes);
+    nodes.set(Number(row.id), mapTaxonomyNode(row));
+    useTopicStore.getState().setTaxonomyNodes([...nodes.values()]);
   });
 
   conn.db.topic_taxonomy_node.onUpdate((_ctx, _old, row) => {
-    const { taxonomyNodes } = useTopicStore.getState();
-    taxonomyNodes.set(Number(row.id), mapTaxonomyNode(row));
-    useTopicStore.getState().setTaxonomyNodes([...taxonomyNodes.values()]);
+    const nodes = new Map(useTopicStore.getState().taxonomyNodes);
+    nodes.set(Number(row.id), mapTaxonomyNode(row));
+    useTopicStore.getState().setTaxonomyNodes([...nodes.values()]);
   });
 
   conn.db.topic_taxonomy_node.onDelete((_ctx, row) => {
-    const { taxonomyNodes } = useTopicStore.getState();
-    taxonomyNodes.delete(Number(row.id));
-    useTopicStore.getState().setTaxonomyNodes([...taxonomyNodes.values()]);
+    const nodes = new Map(useTopicStore.getState().taxonomyNodes);
+    nodes.delete(Number(row.id));
+    useTopicStore.getState().setTaxonomyNodes([...nodes.values()]);
   });
 
   conn.db.topic_moderator.onInsert((_ctx, row) => {
-    const { moderators } = useTopicStore.getState();
-    moderators.set(Number(row.id), mapTopicModerator(row));
-    useTopicStore.getState().setModerators([...moderators.values()]);
+    const mods = new Map(useTopicStore.getState().moderators);
+    mods.set(Number(row.id), mapTopicModerator(row));
+    useTopicStore.getState().setModerators([...mods.values()]);
   });
 
   conn.db.topic_moderator.onUpdate((_ctx, _old, row) => {
-    const { moderators } = useTopicStore.getState();
-    moderators.set(Number(row.id), mapTopicModerator(row));
-    useTopicStore.getState().setModerators([...moderators.values()]);
+    const mods = new Map(useTopicStore.getState().moderators);
+    mods.set(Number(row.id), mapTopicModerator(row));
+    useTopicStore.getState().setModerators([...mods.values()]);
   });
 
   conn.db.topic_moderator.onDelete((_ctx, row) => {
-    const { moderators } = useTopicStore.getState();
-    moderators.delete(Number(row.id));
-    useTopicStore.getState().setModerators([...moderators.values()]);
+    const mods = new Map(useTopicStore.getState().moderators);
+    mods.delete(Number(row.id));
+    useTopicStore.getState().setModerators([...mods.values()]);
   });
 
   conn.db.topic_moderator_application.onInsert((_ctx, row) => {
-    const { moderatorApplications } = useTopicStore.getState();
-    moderatorApplications.set(Number(row.id), mapTopicModeratorApplication(row));
-    useTopicStore.getState().setModeratorApplications([...moderatorApplications.values()]);
+    const apps = new Map(useTopicStore.getState().moderatorApplications);
+    apps.set(Number(row.id), mapTopicModeratorApplication(row));
+    useTopicStore.getState().setModeratorApplications([...apps.values()]);
   });
 
   conn.db.topic_moderator_application.onUpdate((_ctx, _old, row) => {
-    const { moderatorApplications } = useTopicStore.getState();
-    moderatorApplications.set(Number(row.id), mapTopicModeratorApplication(row));
-    useTopicStore.getState().setModeratorApplications([...moderatorApplications.values()]);
+    const apps = new Map(useTopicStore.getState().moderatorApplications);
+    apps.set(Number(row.id), mapTopicModeratorApplication(row));
+    useTopicStore.getState().setModeratorApplications([...apps.values()]);
   });
 
   conn.db.topic_moderator_application.onDelete((_ctx, row) => {
-    const { moderatorApplications } = useTopicStore.getState();
-    moderatorApplications.delete(Number(row.id));
-    useTopicStore.getState().setModeratorApplications([...moderatorApplications.values()]);
+    const apps = new Map(useTopicStore.getState().moderatorApplications);
+    apps.delete(Number(row.id));
+    useTopicStore.getState().setModeratorApplications([...apps.values()]);
   });
 
   conn.db.comment.onInsert((_ctx, row) => {
@@ -746,7 +746,7 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
       bulkLoadConversations(connection);
       subscribeToConversations(identity.toHexString());
       bulkLoadUserBlocks(connection);
-      subscribeToUserBlocks_mod(identity.toHexString());
+      subscribeToUserBlockRelationships(identity.toHexString());
       bulkLoadUserMutes(connection);
       subscribeToUserMutes(identity.toHexString());
 

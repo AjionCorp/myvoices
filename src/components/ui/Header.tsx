@@ -14,6 +14,7 @@ import { useTopicStore } from "@/stores/topic-store";
 import { useExploreStore } from "@/stores/explore-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useState } from "react";
 
 export function Header() {
@@ -81,8 +82,7 @@ export function Header() {
         >
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
-            <input
-              type="text"
+            <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search..."
@@ -161,8 +161,7 @@ export function Header() {
         >
           <div className="relative">
             <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted" />
-            <input
-              type="text"
+            <Input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search topics, users..."
