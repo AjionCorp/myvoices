@@ -158,11 +158,13 @@ export function TopicPickerModal({
 
     return availableTopics
       .filter((t) => {
+        const topicCategory = t.category?.trim() || "other";
+        if (topicCategory !== scope.category) return false;
         if (scope.taxonomySegment) {
           const segs = (t.taxonomyPath ?? "").split("/").filter(Boolean);
           return segs.includes(scope.taxonomySegment);
         }
-        return (t.category?.trim() || "other") === scope.category;
+        return true;
       })
       .filter(
         (t) =>
@@ -397,7 +399,7 @@ export function TopicPickerModal({
                     onClick={() => setScope((s) => ({ ...s, taxonomySegment: null }))}
                     className="h-auto p-0 text-xs text-muted-foreground/60"
                   >
-                    Show all of "{scope.category}"
+                    Show all of &quot;{scope.category}&quot;
                   </Button>
                 ) : null}
               </div>

@@ -51,19 +51,20 @@ function thumbnailFor(videoId: string, platform: string, url: string | null): st
 
 export default function SavedPage() {
   const { isAuthenticated, user } = useAuthStore();
+  const userIdentity = user?.identity ?? null;
   const [items, setItems] = useState<SavedItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadSaved = useCallback(() => {
     const conn = getConnection();
-    if (!conn || !user?.identity) {
+    if (!conn || !userIdentity) {
       setLoading(false);
       return;
     }
 
     const saved: SavedItem[] = [];
     for (const sb of conn.db.saved_block.iter()) {
-      if (sb.userIdentity !== user.identity) continue;
+      if (sb.userIdentity !== userIdentity) continue;
 
       const blockId = Number(sb.blockId);
       const block = conn.db.block.id.find(BigInt(blockId));
@@ -93,16 +94,16 @@ export default function SavedPage() {
     saved.sort((a, b) => b.savedAt - a.savedAt);
     setItems(saved);
     setLoading(false);
-  }, [user?.identity]);
+  }, [userIdentity]);
 
   useEffect(() => {
-    if (isAuthenticated && user?.identity) {
+    if (isAuthenticated && userIdentity) {
       const t = setTimeout(loadSaved, 500);
       return () => clearTimeout(t);
     } else {
       setLoading(false);
     }
-  }, [isAuthenticated, user?.identity, loadSaved]);
+  }, [isAuthenticated, userIdentity, loadSaved]);
 
   const handleUnsave = (blockId: number) => {
     const conn = getConnection();
