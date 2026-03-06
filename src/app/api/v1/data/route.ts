@@ -3,14 +3,47 @@ import { runSql, rowToObject, BLOCK_COLUMNS, COMMENT_COLUMNS, type SqlResult } f
 import { BlockStatus, GRID_COLS, GRID_ROWS, type Platform } from "@/lib/constants";
 import { withApiKey } from "@/lib/api-middleware";
 
+interface MappedBlock {
+  id: number;
+  topicId: number;
+  x: number;
+  y: number;
+  videoId: string | null;
+  platform: Platform | null;
+  ownerIdentity: string | null;
+  ownerName: string | null;
+  likes: number;
+  dislikes: number;
+  ytViews: number;
+  ytLikes: number;
+  thumbnailUrl: string | null;
+  status: BlockStatus;
+  adImageUrl: string | null;
+  adLinkUrl: string | null;
+  claimedAt: number | null;
+}
+
+interface MappedComment {
+  id: number;
+  blockId: number;
+  userIdentity: string;
+  userName: string;
+  text: string;
+  createdAt: number;
+  parentCommentId: number | null;
+  repostOfId: number | null;
+  likesCount: number;
+  repliesCount: number;
+  repostsCount: number;
+}
+
 function strOrNull(v: unknown): string | null {
   if (v == null) return null;
   const s = String(v);
   return s === "" ? null : s;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapBlock(row: Record<string, unknown>): any {
+function mapBlock(row: Record<string, unknown>): MappedBlock {
   return {
     id: Number(row.id ?? 0),
     topicId: Number(row.topic_id ?? row.topicId ?? 0),
@@ -32,8 +65,7 @@ function mapBlock(row: Record<string, unknown>): any {
   };
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapComment(row: Record<string, unknown>): any {
+function mapComment(row: Record<string, unknown>): MappedComment {
   const parentRaw = row.parent_comment_id ?? row.parentCommentId;
   const repostRaw = row.repost_of_id ?? row.repostOfId;
   return {
@@ -96,8 +128,8 @@ export const GET = withApiKey(async (request: NextRequest) => {
 
     const [blockResults, commentResults] = await Promise.all([blockPromise, commentPromise]);
 
-    const blocks: ReturnType<typeof mapBlock>[] = [];
-    const comments: ReturnType<typeof mapComment>[] = [];
+    const blocks: MappedBlock[] = [];
+    const comments: MappedComment[] = [];
 
     const blockRes = blockResults[0];
     if (blockRes) {
