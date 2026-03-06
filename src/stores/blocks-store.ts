@@ -261,11 +261,12 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
     const videoIdIndex = new Map(get().videoIdIndex);
     if (old.videoId) videoIdIndex.delete(old.videoId);
 
-    // Update totalClaimed and rebuild rankIndex
+    // Update totalClaimed, rebuild rankIndex, and recompute content bounds
     const totalClaimed = get().totalClaimed - (old.status === BlockStatus.Claimed ? 1 : 0);
     const rankIndex = rebuildRankIndex(blocks);
+    const contentBounds = computeContentBounds(blocks);
 
-    set({ blocks, videoIdIndex, rankIndex, totalClaimed });
+    set({ blocks, videoIdIndex, rankIndex, totalClaimed, contentBounds });
   },
 
   updateBlockLikes: (id, likes) => {

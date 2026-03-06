@@ -497,6 +497,10 @@ function registerTableCallbacks(conn: DbConnection) {
     });
   });
 
+  conn.db.notification.onDelete((_ctx, row) => {
+    useNotificationsStore.getState().removeNotification(Number(row.id));
+  });
+
   conn.db.direct_message.onInsert((_ctx, row) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const r = row as any;
@@ -624,14 +628,18 @@ function registerTableCallbacks(conn: DbConnection) {
   });
 
   conn.db.contest.onUpdate((_ctx, _old, row) => {
-    setActiveContest({
-      id: String(row.id),
-      startAt: Number(row.startAt),
-      endAt: Number(row.endAt),
-      prizePool: Number(row.prizePool),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      status: row.status as any,
-    });
+    if (row.status === "active") {
+      setActiveContest({
+        id: String(row.id),
+        startAt: Number(row.startAt),
+        endAt: Number(row.endAt),
+        prizePool: Number(row.prizePool),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        status: row.status as any,
+      });
+    } else {
+      setActiveContest(null);
+    }
   });
 
   conn.db.contest_winner.onInsert((_ctx, row) => {
@@ -860,6 +868,10 @@ export function SpacetimeDBProvider({ children }: { children: ReactNode }) {
     }
 
     return () => {
+      if (statsDebounceTimer) {
+        clearTimeout(statsDebounceTimer);
+        statsDebounceTimer = null;
+      }
       disconnect();
       prevToken.current = undefined;
     };
