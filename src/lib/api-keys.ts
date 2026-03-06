@@ -320,7 +320,7 @@ export async function flushUsage(): Promise<void> {
   }
 
   // Invalidate cached key records since credits may have changed
-  for (const batch of batches) {
+  for (const [, batch] of batches) {
     if (batch.creditsToDeduct > 0) {
       for (const [hash, entry] of keyCache.entries()) {
         if (entry.record.id === batch.keyId) {
