@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -24,29 +24,24 @@ interface EditProfileDialogProps {
 export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps) {
   const user = useAuthStore((s) => s.user);
 
-  const [bio, setBio] = useState("");
-  const [location, setLocation] = useState("");
-  const [websiteUrl, setWebsiteUrl] = useState("");
-  const [socialX, setSocialX] = useState("");
-  const [socialYoutube, setSocialYoutube] = useState("");
-  const [socialTiktok, setSocialTiktok] = useState("");
-  const [socialInstagram, setSocialInstagram] = useState("");
+  const [bio, setBio] = useState(() => user?.bio ?? "");
+  const [location, setLocation] = useState(() => user?.location ?? "");
+  const [websiteUrl, setWebsiteUrl] = useState(() => user?.websiteUrl ?? "");
+  const [socialX, setSocialX] = useState(() => user?.socialX ?? "");
+  const [socialYoutube, setSocialYoutube] = useState(() => user?.socialYoutube ?? "");
+  const [socialTiktok, setSocialTiktok] = useState(() => user?.socialTiktok ?? "");
+  const [socialInstagram, setSocialInstagram] = useState(() => user?.socialInstagram ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Populate fields when dialog opens
   useEffect(() => {
-    if (open && user) {
-      setBio(user.bio ?? "");
-      setLocation(user.location ?? "");
-      setWebsiteUrl(user.websiteUrl ?? "");
-      setSocialX(user.socialX ?? "");
-      setSocialYoutube(user.socialYoutube ?? "");
-      setSocialTiktok(user.socialTiktok ?? "");
-      setSocialInstagram(user.socialInstagram ?? "");
-      setError(null);
-    }
-  }, [open, user]);
+    return () => {
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleSave = async () => {
     const conn = getConnection();
@@ -69,7 +64,10 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
         socialInstagram,
       });
       // Close after a brief delay to let the subscription update
-      setTimeout(() => {
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+      }
+      closeTimerRef.current = setTimeout(() => {
         setSaving(false);
         onOpenChange(false);
       }, 300);

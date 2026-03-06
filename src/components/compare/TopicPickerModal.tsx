@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -108,21 +108,13 @@ export function TopicPickerModal({
 }: TopicPickerModalProps) {
   const topics = useTopicStore((s) => s.topics);
 
-  const [scope, setScope] = useState<Scope>({ category: null, taxonomySegment: null });
+  const [scope, setScope] = useState<Scope>(() =>
+    deriveScope(currentTopicCategory, currentTopicTaxonomyPath)
+  );
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
 
   const inputRef = useRef<HTMLInputElement>(null);
-
-  // Sync scope every time the modal opens or the context topic changes.
-  // We use a separate effect (not useState initial value) so that stale props
-  // from before panels loaded don't get locked in.
-  useEffect(() => {
-    if (!open) return;
-    setScope(deriveScope(currentTopicCategory, currentTopicTaxonomyPath));
-    setSearch("");
-    setPage(0);
-  }, [open, currentTopicCategory, currentTopicTaxonomyPath]);
 
   // ── Derived data ─────────────────────────────────────────────────────────
 
@@ -397,7 +389,7 @@ export function TopicPickerModal({
                     onClick={() => setScope((s) => ({ ...s, taxonomySegment: null }))}
                     className="h-auto p-0 text-xs text-muted-foreground/60"
                   >
-                    Show all of "{scope.category}"
+                    Show all of &quot;{scope.category}&quot;
                   </Button>
                 ) : null}
               </div>
