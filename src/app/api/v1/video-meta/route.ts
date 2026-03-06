@@ -94,9 +94,14 @@ async function resolveTikTok(url: string): Promise<ResolvedMeta | null> {
     }
   }
 
-  const oembed = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(canonicalUrl)}`, {
-    headers: { "User-Agent": "myVoice/1.0" },
-  });
+  let oembed: Response;
+  try {
+    oembed = await fetch(`https://www.tiktok.com/oembed?url=${encodeURIComponent(canonicalUrl)}`, {
+      headers: { "User-Agent": "myVoice/1.0" },
+    });
+  } catch {
+    return null;
+  }
   if (!oembed.ok) return null;
   const data = await oembed.json() as { title?: string; thumbnail_url?: string; html?: string };
   const htmlVideoId = data.html ? extractTikTokHtmlVideoId(data.html) : null;
@@ -128,8 +133,12 @@ async function resolveBiliBili(rawUrl: string): Promise<ResolvedMeta | null> {
   let finalUrl = rawUrl;
   const host = new URL(rawUrl).hostname;
   if (/(^|\.)b23\.tv$/i.test(host)) {
-    const resp = await fetch(rawUrl, { method: "GET", redirect: "follow" });
-    finalUrl = resp.url || rawUrl;
+    try {
+      const resp = await fetch(rawUrl, { method: "GET", redirect: "follow" });
+      finalUrl = resp.url || rawUrl;
+    } catch {
+      // Keep original URL if redirect probe fails.
+    }
   }
   if (!isBiliBiliUrl(finalUrl)) return null;
 

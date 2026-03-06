@@ -39,7 +39,7 @@ export interface TopicModerator {
   identity: string;
   role: string;
   status: string;
-  grantedBy: string;
+  grantedBy: string | null;
   createdAt: number;
 }
 
@@ -49,9 +49,9 @@ export interface TopicModeratorApplication {
   applicantIdentity: string;
   message: string;
   status: string;
-  reviewedBy: string;
+  reviewedBy: string | null;
   createdAt: number;
-  reviewedAt: number;
+  reviewedAt: number | null;
 }
 
 interface TopicState {
@@ -93,7 +93,11 @@ export const useTopicStore = create<TopicState>((set, get) => ({
   setTopics: (topics) => {
     const map = new Map<number, Topic>();
     for (const t of topics) map.set(t.id, t);
-    set({ topics: map });
+    const activeTopic = get().activeTopic;
+    set({
+      topics: map,
+      activeTopic: activeTopic ? (map.get(activeTopic.id) ?? null) : null,
+    });
   },
 
   setTaxonomyNodes: (nodes) => {
@@ -117,7 +121,11 @@ export const useTopicStore = create<TopicState>((set, get) => ({
   deleteTopic: (id) => {
     const topics = new Map(get().topics);
     topics.delete(id);
-    set({ topics });
+    const activeTopic = get().activeTopic;
+    set({
+      topics,
+      activeTopic: activeTopic?.id === id ? null : activeTopic,
+    });
   },
 
   setActiveTopic: (topic) => set({ activeTopic: topic }),

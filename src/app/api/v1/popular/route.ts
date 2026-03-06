@@ -14,7 +14,8 @@ const TOPIC_COLUMNS = ["id", "slug", "title", "category"];
  * Returns the most-engaged blocks across all topics.
  */
 export async function GET(request: NextRequest) {
-  const limit = Math.max(1, Math.min(Number(request.nextUrl.searchParams.get("limit") || 60), 100));
+  const limitParam = parseInt(request.nextUrl.searchParams.get("limit") || "60", 10);
+  const limit = Math.max(1, Math.min(Number.isFinite(limitParam) ? limitParam : 60, 100));
 
   if (IS_MOCK) {
     return NextResponse.json({ blocks: [], topics: {} });

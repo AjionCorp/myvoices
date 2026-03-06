@@ -12,10 +12,10 @@ function strOrNull(v: unknown): string | null {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapBlock(row: Record<string, unknown>): any {
   return {
-    id: row.id,
+    id: Number(row.id ?? 0),
     topicId: Number(row.topic_id ?? row.topicId ?? 0),
-    x: row.x,
-    y: row.y,
+    x: Number(row.x ?? 0),
+    y: Number(row.y ?? 0),
     videoId: strOrNull(row.video_id ?? row.videoId),
     platform: strOrNull(row.platform) as Platform | null,
     ownerIdentity: strOrNull(row.owner_identity ?? row.ownerIdentity),
@@ -53,7 +53,7 @@ function mapComment(row: Record<string, unknown>): any {
 
 export const GET = withApiKey(async (request: NextRequest) => {
   try {
-    const { searchParams } = new URL(request.url);
+    const { searchParams } = request.nextUrl;
     const minX = searchParams.get("minX");
     const maxX = searchParams.get("maxX");
     const minY = searchParams.get("minY");

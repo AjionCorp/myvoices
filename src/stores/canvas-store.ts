@@ -104,8 +104,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   openAddVideoModal: () => set({ showAddVideoModal: true }),
   closeAddVideoModal: () => set({ showAddVideoModal: false }),
 
-  centerOnBlock: (gridX, gridY) => get().centerOn(gridX, gridY),
-
   centerOn: (gridX, gridY) => {
     const state = get();
     if (state.screenWidth === 0 || state.screenHeight === 0) return;

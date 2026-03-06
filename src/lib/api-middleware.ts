@@ -75,7 +75,7 @@ export function withApiKey(handler: RouteHandler) {
     }
 
     // Track usage
-    const endpoint = new URL(request.url).pathname;
+    const endpoint = request.nextUrl.pathname;
     trackUsage(apiKey.id, endpoint, rateLimit.creditsUsed);
 
     // Resolve params if it's a Promise (Next.js 16 dynamic routes)

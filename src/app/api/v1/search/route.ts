@@ -10,6 +10,9 @@ export const GET = withApiKey(async (request: NextRequest) => {
   if (!q || q.length < 2) {
     return NextResponse.json({ error: "Query must be at least 2 characters" }, { status: 400 });
   }
+  if (q.length > 200) {
+    return NextResponse.json({ error: "Query must be at most 200 characters" }, { status: 400 });
+  }
 
   const limit = Math.max(1, Math.min(parseInt(request.nextUrl.searchParams.get("limit") || "20", 10), 50));
   // SpacetimeDB SQL doesn't support LIKE with %, so we fetch all and filter server-side
