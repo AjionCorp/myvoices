@@ -53,7 +53,6 @@ export default function UserProfilePage() {
   const [filterTopicId, setFilterTopicId] = useState<number | null>(null);
 
   const { centerOn, screenWidth } = useCanvasStore();
-  const loading = useBlocksStore((s) => s.loading);
   const topics = useTopicStore((s) => s.topics);
   const currentUser = useAuthStore((s) => s.user);
   const isOwnProfile = currentUser?.identity === profileUser?.identity;
