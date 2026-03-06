@@ -555,7 +555,7 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
   const [isFollowing, setIsFollowing] = useState(false);
 
   useEffect(() => {
-    if (!user || !topic) { setIsFollowing(false); return; }
+    if (!user || !topic) return;
     const conn = getConnection();
     if (!conn) return;
     const check = () => {
@@ -569,11 +569,13 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
     conn.db.topic_follow.onDelete(() => check());
   }, [user, topic]);
 
+  const effectiveIsFollowing = Boolean(user && topic) && isFollowing;
+
   const handleToggleFollow = () => {
     if (!topic) return;
     const conn = getConnection();
     if (!conn) return;
-    if (isFollowing) {
+    if (effectiveIsFollowing) {
       conn.reducers.unfollowTopic({ topicId: BigInt(topic.id) });
     } else {
       conn.reducers.followTopic({ topicId: BigInt(topic.id) });
@@ -650,11 +652,11 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
           {user && (
             <Button
               onClick={handleToggleFollow}
-              variant={isFollowing ? "outline" : "default"}
+              variant={effectiveIsFollowing ? "outline" : "default"}
               size="sm"
               className="mt-3 w-full text-xs"
             >
-              {isFollowing ? "Following" : "Follow Topic"}
+              {effectiveIsFollowing ? "Following" : "Follow Topic"}
             </Button>
           )}
         </div>
@@ -875,6 +877,7 @@ function TopicHeader({ slug, sidebarOpen, onToggleSidebar }: { slug: string; sid
       </div>
 
       <TopicPickerModal
+        key={`${comparePickerOpen ? "1" : "0"}:${topic?.category ?? ""}:${taxonomyPath ?? ""}:${topic?.slug ?? ""}`}
         open={comparePickerOpen}
         onClose={() => setComparePickerOpen(false)}
         excludeSlugs={topic ? [topic.slug] : []}
