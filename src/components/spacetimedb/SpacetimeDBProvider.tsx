@@ -109,7 +109,7 @@ function mapTopicModeratorApplication(row: any): TopicModeratorApplication {
 let statsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 function debouncedRecomputeStats() {
-  if (statsDebounceTimer) return;
+  if (statsDebounceTimer) clearTimeout(statsDebounceTimer);
   statsDebounceTimer = setTimeout(() => {
     statsDebounceTimer = null;
     recomputeStats();

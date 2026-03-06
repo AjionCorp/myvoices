@@ -12,7 +12,7 @@ import { extractYouTubeId } from "@/lib/utils/youtube";
 const VIDEO_ID_RE = /^[a-zA-Z0-9_-]{11}$/;
 const CACHE_TTL_MS = 60 * 60 * 1000;
 const MAX_CACHE_SIZE = 1000;
-const ENABLE_BILIBILI = process.env.ENABLE_BILIBILI !== "false" && process.env.NEXT_PUBLIC_ENABLE_BILIBILI !== "false";
+const ENABLE_BILIBILI = process.env.ENABLE_BILIBILI === "true" || process.env.NEXT_PUBLIC_ENABLE_BILIBILI === "true";
 
 type ResolvedMeta = {
   platform: Platform;

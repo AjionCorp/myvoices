@@ -74,15 +74,15 @@ export function withApiKey(handler: RouteHandler) {
       );
     }
 
-    // Track usage
-    const endpoint = request.nextUrl.pathname;
-    trackUsage(apiKey.id, endpoint, rateLimit.creditsUsed);
-
     // Resolve params if it's a Promise (Next.js 16 dynamic routes)
     const resolvedParams = routeContext?.params ? await routeContext.params : undefined;
 
     // Call the actual handler
     const response = await handler(request, { apiKey, params: resolvedParams });
+
+    // Track usage only after a successful handler response
+    const endpoint = request.nextUrl.pathname;
+    trackUsage(apiKey.id, endpoint, rateLimit.creditsUsed);
 
     // Add rate limit headers
     response.headers.set("X-RateLimit-Limit", String(rateLimit.limit));

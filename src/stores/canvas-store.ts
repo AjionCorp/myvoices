@@ -67,7 +67,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
   zoomBy: (delta, pivotX, pivotY) => {
     const state = get();
-    const factor = 1 + delta;
+    const safeDelta = Math.max(-0.99, delta);
+    const factor = 1 + safeDelta;
     const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, state.zoom * factor));
     const worldX = (pivotX - state.viewportX) / state.zoom;
     const worldY = (pivotY - state.viewportY) / state.zoom;
@@ -88,7 +89,9 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       if (blockId !== null) {
         window.history.replaceState({}, "", `${window.location.pathname}?block=${blockId}`);
       } else {
-        window.history.replaceState({}, "", window.location.pathname);
+        const url = new URL(window.location.href);
+        url.searchParams.delete("block");
+        window.history.replaceState({}, "", url.toString());
       }
     }
   },

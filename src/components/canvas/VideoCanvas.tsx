@@ -222,7 +222,7 @@ export function VideoCanvas() {
             if (canLoadImages && loads < maxLoads && !pendingLoads.current.has(url)) {
               loads++;
               pendingLoads.current.add(url);
-              loadImage(url).then(() => pendingLoads.current.delete(url));
+              loadImage(url).finally(() => pendingLoads.current.delete(url));
             }
             solidTiles.push({ col, row, r: 0.12, g: 0.10, b: 0.14 });
           }
@@ -310,6 +310,7 @@ export function VideoCanvas() {
       hoveredCell.current = { col: -9999, row: -9999 };
       hoveredBlockId.current = -1;
       pressedBlockId.current = -1;
+      dragDist.current = 0;
     };
     const onMouseMove = (e: MouseEvent) => {
       mouseScreen.current.x = e.clientX;
@@ -338,7 +339,7 @@ export function VideoCanvas() {
       const dx = e.clientX - lastPointer.current.x;
       const dy = e.clientY - lastPointer.current.y;
       dragDist.current += Math.abs(dx) + Math.abs(dy);
-      if (dragDist.current > 5) {
+      if (dragDist.current > 5 && !isDragging.current) {
         isDragging.current = true;
         setDragging(true);
         pressedBlockId.current = -1;

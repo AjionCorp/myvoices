@@ -13,7 +13,7 @@ export function extractTikTokId(url: string): string | null {
 export function isTikTokUrl(url: string): boolean {
   try {
     const host = new URL(url).hostname;
-    return /(^|\.)tiktok\.com$/i.test(host) || /(^|\.)vm\.tiktok\.com$/i.test(host);
+    return /(^|\.)tiktok\.com$/i.test(host);
   } catch {
     return false;
   }

@@ -18,7 +18,7 @@ export function AddVideoModal() {
   const activeTopic = useTopicStore((s) => s.activeTopic);
   const topics = useTopicStore((s) => s.topics);
   const taxonomyNodes = useTopicStore((s) => s.taxonomyNodes);
-  const { user } = useAuth();
+  const { user, isAuthenticated, login } = useAuth();
 
   const [input, setInput] = useState("");
   const [resolvedMeta, setResolvedMeta] = useState<ResolvedVideoMeta | null>(null);
@@ -115,6 +115,11 @@ export function AddVideoModal() {
   const handleSubmit = async () => {
     if (!resolvedMeta || !activeTopic) return;
 
+    if (!isAuthenticated) {
+      login();
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
 
@@ -191,7 +196,7 @@ export function AddVideoModal() {
             Video URL
           </label>
           <Input
-            type="text"
+            type="url"
             value={input}
             onChange={(e) => { setInput(e.target.value); setError(null); }}
             placeholder="YouTube, TikTok, or BiliBili URL"

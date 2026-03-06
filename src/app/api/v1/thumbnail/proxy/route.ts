@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const MAX_RESPONSE_BYTES = 10 * 1024 * 1024; // 10 MB
+
 function isPrivateHost(hostname: string): boolean {
   const h = hostname.toLowerCase();
   if (h === "localhost" || h.endsWith(".localhost")) return true;
-  if (h === "127.0.0.1" || h === "::1") return true;
+  if (h === "127.0.0.1" || h === "::1" || h === "0.0.0.0") return true;
   if (/^10\./.test(h)) return true;
   if (/^192\.168\./.test(h)) return true;
   if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(h)) return true;
+  // Block link-local / cloud instance metadata endpoints (AWS, GCP, Azure)
+  if (/^169\.254\./.test(h)) return true;
+  if (h === "metadata.google.internal") return true;
   return false;
 }
 
@@ -59,8 +64,20 @@ export async function GET(request: NextRequest) {
     if (!contentType.startsWith("image/")) {
       return NextResponse.json({ error: "Upstream is not an image" }, { status: 415 });
     }
+    // Block SVG — can contain embedded <script> tags and cause XSS
+    if (contentType.startsWith("image/svg")) {
+      return NextResponse.json({ error: "SVG images are not allowed" }, { status: 415 });
+    }
+
+    const contentLength = Number(upstream.headers.get("content-length") ?? 0);
+    if (contentLength > MAX_RESPONSE_BYTES) {
+      return NextResponse.json({ error: "Image too large" }, { status: 413 });
+    }
 
     const bytes = await upstream.arrayBuffer();
+    if (bytes.byteLength > MAX_RESPONSE_BYTES) {
+      return NextResponse.json({ error: "Image too large" }, { status: 413 });
+    }
     return new NextResponse(bytes, {
       status: 200,
       headers: {

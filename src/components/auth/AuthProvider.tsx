@@ -39,7 +39,7 @@ export function useAuth() {
 function AuthBridge({ children }: { children: ReactNode }) {
   const { isLoaded, isSignedIn, getToken } = useClerkAuth();
   const { user: clerkUser } = useUser();
-  const { openSignIn, openSignUp, signOut } = useClerk();
+  const { openSignIn, signOut } = useClerk();
   const { user, isAuthenticated, isLoading, setUser, setToken, setLoading, setClerkUserId, logout: storeLogout } =
     useAuthStore();
   const [oidcToken, setOidcToken] = useState<string | null>(null);
@@ -71,7 +71,10 @@ function AuthBridge({ children }: { children: ReactNode }) {
 
     const clerkUsername = clerkUser.username ?? null;
 
-    const storedUser = typeof window !== "undefined" ? localStorage.getItem("spacetimedb_user") : null;
+    const storedUser = (() => {
+      if (typeof window === "undefined") return null;
+      try { return localStorage.getItem("spacetimedb_user"); } catch { return null; }
+    })();
     if (storedUser) {
       try {
         const parsed = JSON.parse(storedUser);
