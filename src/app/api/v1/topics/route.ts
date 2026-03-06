@@ -28,7 +28,7 @@ interface MockTopic {
 }
 
 interface MockCache {
-  topics: ReturnType<typeof mapTopic>[];
+  topics: MappedTopic[];
   topVideos: Record<number, { videoId: string; platform: string; thumbnailUrl: string | null }>;
 }
 
@@ -84,8 +84,26 @@ const MODERATOR_COLUMNS = ["id", "topic_id", "status"];
 
 const TOP_BLOCK_COLUMNS = ["topic_id", "video_id", "platform", "thumbnail_url", "likes", "dislikes"];
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mapTopic(row: Record<string, unknown>): any {
+interface MappedTopic {
+  id: number;
+  slug: string;
+  title: string;
+  description: string;
+  category: string;
+  taxonomyNodeId: number | null;
+  taxonomyPath: string;
+  taxonomyName: string;
+  creatorIdentity: string;
+  videoCount: number;
+  totalLikes: number;
+  totalDislikes: number;
+  totalViews: number;
+  isActive: boolean;
+  createdAt: number;
+  moderatorCount: number;
+}
+
+function mapTopic(row: Record<string, unknown>): MappedTopic {
   return {
     id: Number(row.id),
     slug: String(row.slug ?? ""),
@@ -115,8 +133,8 @@ export const GET = withApiKey(async (_request: NextRequest) => {
   try {
     const topicResults = await runSql("SELECT * FROM topic");
 
-    const topics: ReturnType<typeof mapTopic>[] = [];
-    const topicById = new Map<number, ReturnType<typeof mapTopic>>();
+    const topics: MappedTopic[] = [];
+    const topicById = new Map<number, MappedTopic>();
     const res = topicResults[0];
     if (res) {
       for (const row of res.rows) {

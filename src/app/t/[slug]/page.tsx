@@ -24,6 +24,7 @@ import { AnonymousViewportFetcher } from "@/lib/spacetimedb/AnonymousViewportFet
 import { useAuthStore } from "@/stores/auth-store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -216,6 +217,7 @@ function TopicModerationMenu({ topicId, topicCreatorIdentity }: { topicId: numbe
   const [banTarget, setBanTarget] = useState("");
   const [banReason, setBanReason] = useState("");
   const [showBanForm, setShowBanForm] = useState(false);
+  const [removeConfirmIdentity, setRemoveConfirmIdentity] = useState<string | null>(null);
 
   const reducers = (getConnection()?.reducers as unknown as {
     applyTopicModerator?: (args: { topicId: bigint; message: string }) => void;
@@ -272,11 +274,16 @@ function TopicModerationMenu({ topicId, topicCreatorIdentity }: { topicId: numbe
   };
 
   const handleRemoveModerator = (identity: string) => {
-    if (!window.confirm(`Remove moderator access for ${identity}?`)) return;
+    setRemoveConfirmIdentity(identity);
+  };
+
+  const confirmRemoveModerator = () => {
+    if (!removeConfirmIdentity) return;
     reducers.removeTopicModerator?.({
       topicId: BigInt(topicId),
-      identity,
+      identity: removeConfirmIdentity,
     });
+    setRemoveConfirmIdentity(null);
   };
 
   const resolveUserLabel = (identity: string): string => {
@@ -355,24 +362,47 @@ function TopicModerationMenu({ topicId, topicCreatorIdentity }: { topicId: numbe
               <div className="space-y-2">
                 {activeModerators.map((mod) => (
                   <div key={mod.id} className="rounded-lg border border-border bg-surface p-2">
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="truncate text-xs text-foreground">{resolveUserLabel(mod.identity)}</p>
-                      <div className="flex items-center gap-1.5">
-                        <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
-                          {mod.role}
-                        </Badge>
-                        {(isOwner || isAdmin) && mod.role !== "owner" && (
+                    {removeConfirmIdentity === mod.identity ? (
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-[11px] text-red-300">Remove {resolveUserLabel(mod.identity)}?</p>
+                        <div className="flex items-center gap-1">
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-5 px-1.5 text-[10px] text-red-300 hover:text-red-200"
-                            onClick={() => handleRemoveModerator(mod.identity)}
+                            className="h-5 px-1.5 text-[10px] text-muted"
+                            onClick={() => setRemoveConfirmIdentity(null)}
                           >
-                            Remove
+                            Cancel
                           </Button>
-                        )}
+                          <Button
+                            size="sm"
+                            className="h-5 bg-red-600 px-1.5 text-[10px] text-white hover:bg-red-700"
+                            onClick={confirmRemoveModerator}
+                          >
+                            Confirm
+                          </Button>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate text-xs text-foreground">{resolveUserLabel(mod.identity)}</p>
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                            {mod.role}
+                          </Badge>
+                          {(isOwner || isAdmin) && mod.role !== "owner" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-5 px-1.5 text-[10px] text-red-300 hover:text-red-200"
+                              onClick={() => handleRemoveModerator(mod.identity)}
+                            >
+                              Remove
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -452,19 +482,19 @@ function TopicModerationMenu({ topicId, topicCreatorIdentity }: { topicId: numbe
                       </Button>
                     ) : (
                       <div className="space-y-1.5 rounded-lg border border-border bg-surface p-2">
-                        <input
+                        <Input
                           type="text"
                           placeholder="Username or identity"
                           value={banTarget}
                           onChange={(e) => setBanTarget(e.target.value)}
-                          className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground placeholder:text-muted focus:outline-none"
+                          className="h-7 text-xs"
                         />
-                        <input
+                        <Input
                           type="text"
                           placeholder="Reason (optional)"
                           value={banReason}
                           onChange={(e) => setBanReason(e.target.value)}
-                          className="w-full rounded border border-border bg-background px-2 py-1 text-xs text-foreground placeholder:text-muted focus:outline-none"
+                          className="h-7 text-xs"
                         />
                         <div className="flex gap-1.5">
                           <Button

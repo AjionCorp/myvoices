@@ -49,10 +49,11 @@ function RelatedVideos({ topicId, excludeId }: { topicId: number; excludeId: num
             ? getThumbnailUrl(b.videoId, b.platform, b.thumbnailUrl)
             : null;
           return (
-            <button
+            <Button
               key={b.id}
+              variant="ghost"
               onClick={() => selectBlock(b.id)}
-              className="group relative h-16 w-28 shrink-0 overflow-hidden rounded-lg border border-border/50 bg-surface-light focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+              className="group relative h-16 w-28 shrink-0 overflow-hidden rounded-lg border border-border/50 bg-surface-light p-0 focus-visible:ring-2 focus-visible:ring-accent"
             >
               {thumb ? (
                 <img src={thumb} alt="" className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105" />
@@ -62,7 +63,7 @@ function RelatedVideos({ topicId, excludeId }: { topicId: number; excludeId: num
               <div className="absolute inset-0 flex items-end bg-linear-to-t from-black/60 to-transparent p-1">
                 <span className="line-clamp-1 text-[9px] text-white/80">{b.ownerName || "—"}</span>
               </div>
-            </button>
+            </Button>
           );
         })}
       </div>
