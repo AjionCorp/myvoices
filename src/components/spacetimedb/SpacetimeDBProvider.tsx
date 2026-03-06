@@ -324,6 +324,23 @@ function bulkLoadUserMutes(conn: DbConnection) {
   console.log(`[SpacetimeDB] user mutes loaded: ${all.length}`);
 }
 
+type UserFollowRow = {
+  id: number | bigint | string;
+  followerIdentity: string;
+  followingIdentity: string;
+  createdAt: number | bigint | string;
+};
+
+type ConversationRow = {
+  id: number | bigint | string;
+  participantA: string;
+  participantB: string;
+  status: "active" | "request_pending" | "request_declined";
+  requestRecipient: string;
+  createdAt: number | bigint | string;
+  updatedAt: number | bigint | string;
+};
+
 function registerTableCallbacks(conn: DbConnection) {
   const { setActiveContest, setWinners } = useContestStore.getState();
 
@@ -535,7 +552,7 @@ function registerTableCallbacks(conn: DbConnection) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = conn.db as any;
   if (db.user_follow) {
-    db.user_follow.onInsert((_ctx: unknown, row: any) => {
+    db.user_follow.onInsert((_ctx: unknown, row: UserFollowRow) => {
       useFollowsStore.getState().addFollow({
         id: Number(row.id),
         followerIdentity: row.followerIdentity,
@@ -544,14 +561,14 @@ function registerTableCallbacks(conn: DbConnection) {
       });
     });
 
-    db.user_follow.onDelete((_ctx: unknown, row: any) => {
+    db.user_follow.onDelete((_ctx: unknown, row: UserFollowRow) => {
       useFollowsStore.getState().removeFollow(Number(row.id));
     });
   }
 
   // Conversation callbacks
   if (db.conversation) {
-    db.conversation.onInsert((_ctx: unknown, row: any) => {
+    db.conversation.onInsert((_ctx: unknown, row: ConversationRow) => {
       useMessagesStore.getState().addConversation({
         id: Number(row.id),
         participantA: row.participantA,
@@ -563,7 +580,7 @@ function registerTableCallbacks(conn: DbConnection) {
       });
     });
 
-    db.conversation.onUpdate((_ctx: unknown, _old: any, row: any) => {
+    db.conversation.onUpdate((_ctx: unknown, _old: unknown, row: ConversationRow) => {
       useMessagesStore.getState().updateConversation({
         id: Number(row.id),
         participantA: row.participantA,
@@ -575,7 +592,7 @@ function registerTableCallbacks(conn: DbConnection) {
       });
     });
 
-    db.conversation.onDelete((_ctx: unknown, row: any) => {
+    db.conversation.onDelete((_ctx: unknown, row: ConversationRow) => {
       useMessagesStore.getState().removeConversation(Number(row.id));
     });
   }

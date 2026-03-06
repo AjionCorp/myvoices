@@ -62,10 +62,14 @@ export function VideoCanvas() {
 
   // Guards against navigation-click leaks: a pointerup from clicking a link to
   // navigate here must not immediately open a modal on the freshly mounted canvas.
-  const mountedAt = useRef(Date.now());
+  const mountedAt = useRef<number | null>(null);
   const pointerDownOnCanvas = useRef(false);
 
   const { panBy, zoomBy, setScreenSize, setDragging, selectBlock, openSubmissionModal } = useCanvasStore();
+
+  useEffect(() => {
+    mountedAt.current = performance.now();
+  }, []);
 
   useEffect(() => {
     const unsub1 = useCanvasStore.subscribe((s) => {
@@ -353,7 +357,7 @@ export function VideoCanvas() {
       const hadDown = pointerDownOnCanvas.current;
       pointerDownOnCanvas.current = false;
       pressedBlockId.current = -1;
-      const tooSoonAfterMount = Date.now() - mountedAt.current < 300;
+      const tooSoonAfterMount = mountedAt.current === null || performance.now() - mountedAt.current < 300;
       if (!wasDrag && dragDist.current <= 5 && hadDown && !tooSoonAfterMount) {
         const hBlockId = hoveredBlockId.current;
         if (hBlockId >= 0) {
