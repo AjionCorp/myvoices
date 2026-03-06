@@ -57,7 +57,10 @@ export class SpatialIndex {
     const arr = this.buckets.get(k);
     if (!arr) return;
     const idx = arr.indexOf(block.id);
-    if (idx >= 0) arr[idx] = arr[arr.length - 1], arr.pop();
+    if (idx >= 0) {
+      arr[idx] = arr[arr.length - 1];
+      arr.pop();
+    }
     if (arr.length === 0) this.buckets.delete(k);
   }
 

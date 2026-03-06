@@ -43,8 +43,12 @@ const LANDSCAPE_META = {
 async function openModal(page: Page) {
   // Open SubmissionModal directly via the canvas store (bypasses auth check)
   await page.evaluate(() => {
-    // @ts-ignore — accessing Next.js internal store
-    const store = (window as any).__CANVAS_STORE__;
+    type CanvasStore = {
+      getState: () => {
+        openSubmissionModal: () => void;
+      };
+    };
+    const store = (window as Window & { __CANVAS_STORE__?: CanvasStore }).__CANVAS_STORE__;
     if (store) {
       store.getState().openSubmissionModal();
     } else {
