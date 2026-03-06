@@ -44,12 +44,21 @@ export default function UsersManagement() {
   }, []);
 
   useEffect(() => {
-    loadUsers();
     const conn = getConnection();
     if (!conn) return;
-    conn.db.user_profile.onInsert(() => loadUsers());
-    conn.db.user_profile.onUpdate(() => loadUsers());
-    conn.db.user_profile.onDelete(() => loadUsers());
+    const loadTimer = setTimeout(() => loadUsers(), 0);
+    const unsubInsert: unknown = conn.db.user_profile.onInsert(() => loadUsers());
+    const unsubUpdate: unknown = conn.db.user_profile.onUpdate(() => loadUsers());
+    const unsubDelete: unknown = conn.db.user_profile.onDelete(() => loadUsers());
+    const runCleanup = (unsubscribe: unknown) => {
+      if (typeof unsubscribe === "function") unsubscribe();
+    };
+    return () => {
+      clearTimeout(loadTimer);
+      runCleanup(unsubInsert);
+      runCleanup(unsubUpdate);
+      runCleanup(unsubDelete);
+    };
   }, [loadUsers]);
 
   const handleSort = (col: typeof sortBy) => {

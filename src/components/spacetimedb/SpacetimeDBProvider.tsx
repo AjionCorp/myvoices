@@ -14,7 +14,7 @@ import { useContestStore } from "@/stores/contest-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useCommentsStore } from "@/stores/comments-store";
 import { useNotificationsStore } from "@/stores/notifications-store";
-import { useMessagesStore } from "@/stores/messages-store";
+import { useMessagesStore, type ConversationMeta } from "@/stores/messages-store";
 import { useFollowsStore } from "@/stores/follows-store";
 import { useModerationStore } from "@/stores/moderation-store";
 import { BlockStatus, Platform } from "@/lib/constants";
@@ -105,6 +105,23 @@ function mapTopicModeratorApplication(row: any): TopicModeratorApplication {
     reviewedAt: row.reviewedAt != null ? Number(row.reviewedAt) : null,
   };
 }
+
+type FollowRow = {
+  id: unknown;
+  followerIdentity: string;
+  followingIdentity: string;
+  createdAt: unknown;
+};
+
+type ConversationRow = {
+  id: unknown;
+  participantA: string;
+  participantB: string;
+  status: ConversationMeta["status"];
+  requestRecipient: string | null | undefined;
+  createdAt: unknown;
+  updatedAt: unknown;
+};
 
 let statsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -535,48 +552,53 @@ function registerTableCallbacks(conn: DbConnection) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = conn.db as any;
   if (db.user_follow) {
-    db.user_follow.onInsert((_ctx: unknown, row: any) => {
+    db.user_follow.onInsert((_ctx: unknown, row: unknown) => {
+      const follow = row as FollowRow;
       useFollowsStore.getState().addFollow({
-        id: Number(row.id),
-        followerIdentity: row.followerIdentity,
-        followingIdentity: row.followingIdentity,
-        createdAt: Number(row.createdAt),
+        id: Number(follow.id),
+        followerIdentity: follow.followerIdentity,
+        followingIdentity: follow.followingIdentity,
+        createdAt: Number(follow.createdAt),
       });
     });
 
-    db.user_follow.onDelete((_ctx: unknown, row: any) => {
-      useFollowsStore.getState().removeFollow(Number(row.id));
+    db.user_follow.onDelete((_ctx: unknown, row: unknown) => {
+      const follow = row as Pick<FollowRow, "id">;
+      useFollowsStore.getState().removeFollow(Number(follow.id));
     });
   }
 
   // Conversation callbacks
   if (db.conversation) {
-    db.conversation.onInsert((_ctx: unknown, row: any) => {
+    db.conversation.onInsert((_ctx: unknown, row: unknown) => {
+      const conversation = row as ConversationRow;
       useMessagesStore.getState().addConversation({
-        id: Number(row.id),
-        participantA: row.participantA,
-        participantB: row.participantB,
-        status: row.status,
-        requestRecipient: row.requestRecipient,
-        createdAt: Number(row.createdAt),
-        updatedAt: Number(row.updatedAt),
+        id: Number(conversation.id),
+        participantA: conversation.participantA,
+        participantB: conversation.participantB,
+        status: conversation.status,
+        requestRecipient: conversation.requestRecipient ?? "",
+        createdAt: Number(conversation.createdAt),
+        updatedAt: Number(conversation.updatedAt),
       });
     });
 
-    db.conversation.onUpdate((_ctx: unknown, _old: any, row: any) => {
+    db.conversation.onUpdate((_ctx: unknown, _old: unknown, row: unknown) => {
+      const conversation = row as ConversationRow;
       useMessagesStore.getState().updateConversation({
-        id: Number(row.id),
-        participantA: row.participantA,
-        participantB: row.participantB,
-        status: row.status,
-        requestRecipient: row.requestRecipient,
-        createdAt: Number(row.createdAt),
-        updatedAt: Number(row.updatedAt),
+        id: Number(conversation.id),
+        participantA: conversation.participantA,
+        participantB: conversation.participantB,
+        status: conversation.status,
+        requestRecipient: conversation.requestRecipient ?? "",
+        createdAt: Number(conversation.createdAt),
+        updatedAt: Number(conversation.updatedAt),
       });
     });
 
-    db.conversation.onDelete((_ctx: unknown, row: any) => {
-      useMessagesStore.getState().removeConversation(Number(row.id));
+    db.conversation.onDelete((_ctx: unknown, row: unknown) => {
+      const conversation = row as Pick<ConversationRow, "id">;
+      useMessagesStore.getState().removeConversation(Number(conversation.id));
     });
   }
 
