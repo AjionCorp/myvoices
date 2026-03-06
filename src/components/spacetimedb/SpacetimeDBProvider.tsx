@@ -534,49 +534,70 @@ function registerTableCallbacks(conn: DbConnection) {
   // Follow callbacks — tables may not exist until module is republished
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = conn.db as any;
+  type FollowRow = {
+    id: number | string;
+    followerIdentity: string;
+    followingIdentity: string;
+    createdAt: number | string;
+  };
+  type ConversationRow = {
+    id: number | string;
+    participantA: string;
+    participantB: string;
+    status: "active" | "request_pending" | "request_declined";
+    requestRecipient: string;
+    createdAt: number | string;
+    updatedAt: number | string;
+  };
+
   if (db.user_follow) {
-    db.user_follow.onInsert((_ctx: unknown, row: any) => {
+    db.user_follow.onInsert((_ctx: unknown, row: unknown) => {
+      const follow = row as FollowRow;
       useFollowsStore.getState().addFollow({
-        id: Number(row.id),
-        followerIdentity: row.followerIdentity,
-        followingIdentity: row.followingIdentity,
-        createdAt: Number(row.createdAt),
+        id: Number(follow.id),
+        followerIdentity: follow.followerIdentity,
+        followingIdentity: follow.followingIdentity,
+        createdAt: Number(follow.createdAt),
       });
     });
 
-    db.user_follow.onDelete((_ctx: unknown, row: any) => {
-      useFollowsStore.getState().removeFollow(Number(row.id));
+    db.user_follow.onDelete((_ctx: unknown, row: unknown) => {
+      const follow = row as FollowRow;
+      useFollowsStore.getState().removeFollow(Number(follow.id));
     });
   }
 
   // Conversation callbacks
   if (db.conversation) {
-    db.conversation.onInsert((_ctx: unknown, row: any) => {
+    db.conversation.onInsert((_ctx: unknown, row: unknown) => {
+      const conversation = row as ConversationRow;
       useMessagesStore.getState().addConversation({
-        id: Number(row.id),
-        participantA: row.participantA,
-        participantB: row.participantB,
-        status: row.status,
-        requestRecipient: row.requestRecipient,
-        createdAt: Number(row.createdAt),
-        updatedAt: Number(row.updatedAt),
+        id: Number(conversation.id),
+        participantA: conversation.participantA,
+        participantB: conversation.participantB,
+        status: conversation.status,
+        requestRecipient: conversation.requestRecipient,
+        createdAt: Number(conversation.createdAt),
+        updatedAt: Number(conversation.updatedAt),
       });
     });
 
-    db.conversation.onUpdate((_ctx: unknown, _old: any, row: any) => {
+    db.conversation.onUpdate((_ctx: unknown, _old: unknown, row: unknown) => {
+      const conversation = row as ConversationRow;
       useMessagesStore.getState().updateConversation({
-        id: Number(row.id),
-        participantA: row.participantA,
-        participantB: row.participantB,
-        status: row.status,
-        requestRecipient: row.requestRecipient,
-        createdAt: Number(row.createdAt),
-        updatedAt: Number(row.updatedAt),
+        id: Number(conversation.id),
+        participantA: conversation.participantA,
+        participantB: conversation.participantB,
+        status: conversation.status,
+        requestRecipient: conversation.requestRecipient,
+        createdAt: Number(conversation.createdAt),
+        updatedAt: Number(conversation.updatedAt),
       });
     });
 
-    db.conversation.onDelete((_ctx: unknown, row: any) => {
-      useMessagesStore.getState().removeConversation(Number(row.id));
+    db.conversation.onDelete((_ctx: unknown, row: unknown) => {
+      const conversation = row as ConversationRow;
+      useMessagesStore.getState().removeConversation(Number(conversation.id));
     });
   }
 
