@@ -93,16 +93,16 @@ export default function SavedPage() {
     saved.sort((a, b) => b.savedAt - a.savedAt);
     setItems(saved);
     setLoading(false);
-  }, [user?.identity]);
+  }, [user]);
 
   useEffect(() => {
     if (isAuthenticated && user?.identity) {
       const t = setTimeout(loadSaved, 500);
       return () => clearTimeout(t);
-    } else {
-      setLoading(false);
     }
-  }, [isAuthenticated, user?.identity, loadSaved]);
+    const t = setTimeout(() => setLoading(false), 0);
+    return () => clearTimeout(t);
+  }, [isAuthenticated, user, loadSaved]);
 
   const handleUnsave = (blockId: number) => {
     const conn = getConnection();
