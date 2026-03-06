@@ -105,7 +105,6 @@ export function VideoCanvas() {
 
     const frame = () => {
       rafRef.current = requestAnimationFrame(frame);
-      renderer.resize();
       const v = vp.current;
       if (!v.sw || !v.sh) return;
 
