@@ -552,21 +552,25 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
   const { totalClaimed } = useBlocksStore();
   const user = useAuthStore((s) => s.user);
 
-  const [isFollowing, setIsFollowing] = useState(false);
+  const [followState, setFollowState] = useState(false);
+  const isFollowing = !!user && !!topic && followState;
 
   useEffect(() => {
-    if (!user || !topic) { setIsFollowing(false); return; }
     const conn = getConnection();
-    if (!conn) return;
+    if (!conn || !user || !topic) return;
     const check = () => {
       const following = [...conn.db.topic_follow.iter()].some(
         (f) => f.followerIdentity === user.identity && Number(f.topicId) === topic.id
       );
-      setIsFollowing(following);
+      setFollowState(following);
     };
     check();
-    conn.db.topic_follow.onInsert(() => check());
-    conn.db.topic_follow.onDelete(() => check());
+    conn.db.topic_follow.onInsert(check);
+    conn.db.topic_follow.onDelete(check);
+    return () => {
+      conn.db.topic_follow.removeOnInsert(check);
+      conn.db.topic_follow.removeOnDelete(check);
+    };
   }, [user, topic]);
 
   const handleToggleFollow = () => {
