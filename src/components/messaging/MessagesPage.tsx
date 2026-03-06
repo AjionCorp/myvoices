@@ -10,7 +10,6 @@ import { Header } from "@/components/ui/Header";
 
 export function MessagesPage() {
   const { isAuthenticated } = useAuth();
-  const myIdentity = useMessagesStore((s) => s.myIdentity);
   const getPrimaryConversations = useMessagesStore((s) => s.getPrimaryConversations);
   const getRequestConversations = useMessagesStore((s) => s.getRequestConversations);
 

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { runSql, rowToObject } from "@/lib/spacetimedb/http-sql";
 import { withApiKey } from "@/lib/api-middleware";
 
@@ -9,9 +9,8 @@ const USER_COLUMNS = [
   "social_tiktok", "social_instagram",
 ];
 
-const FOLLOW_COLUMNS = ["id", "follower_identity", "following_identity", "created_at"];
-
-export const GET = withApiKey(async (_request: NextRequest, context) => {
+export const GET = withApiKey(async (request, context) => {
+  void request;
   const username = context.params?.username;
   if (!username) {
     return NextResponse.json({ error: "Username is required" }, { status: 400 });

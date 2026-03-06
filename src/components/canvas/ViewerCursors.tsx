@@ -22,12 +22,12 @@ export function ViewerCursors() {
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    const existing = cursorEls.current;
 
     const frame = () => {
       const { viewportX, viewportY, zoom, screenWidth, screenHeight } = useCanvasStore.getState();
       const { viewers } = useViewersStore.getState();
       const margin = 40;
-      const existing = cursorEls.current;
       const seen = new Set<string>();
 
       for (const v of viewers) {
@@ -55,6 +55,7 @@ export function ViewerCursors() {
             <span class="relative h-3 w-3 rounded-full border border-black/40 shadow-sm" style="background:${v.color}"></span>
             <span class="ml-1 whitespace-nowrap rounded-md px-1.5 py-0.5 text-[9px] font-semibold leading-none text-white shadow" style="background:${v.color}cc">${v.name}</span>
           `;
+          root.style.transform = `translate(${sx - 6}px, ${sy - 6}px)`;
           container.appendChild(root);
           el = { root, lastX: sx, lastY: sy };
           existing.set(v.id, el);
@@ -82,7 +83,10 @@ export function ViewerCursors() {
     rafRef.current = requestAnimationFrame(frame);
     return () => {
       cancelAnimationFrame(rafRef.current);
-      cursorEls.current.clear();
+      for (const { root } of existing.values()) {
+        root.remove();
+      }
+      existing.clear();
     };
   }, []);
 
