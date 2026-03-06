@@ -106,6 +106,39 @@ function mapTopicModeratorApplication(row: any): TopicModeratorApplication {
   };
 }
 
+type NumericLike = number | bigint | string;
+
+type UserFollowRowLike = {
+  id: NumericLike;
+  followerIdentity: string;
+  followingIdentity: string;
+  createdAt: NumericLike;
+};
+
+type ConversationRowLike = {
+  id: NumericLike;
+  participantA: string;
+  participantB: string;
+  status: "active" | "request_pending" | "request_declined";
+  requestRecipient: string;
+  createdAt: NumericLike;
+  updatedAt: NumericLike;
+};
+
+type UserBlockRowLike = {
+  id: NumericLike;
+  blockerIdentity: string;
+  blockedIdentity: string;
+  createdAt: NumericLike;
+};
+
+type UserMuteRowLike = {
+  id: NumericLike;
+  muterIdentity: string;
+  mutedIdentity: string;
+  createdAt: NumericLike;
+};
+
 let statsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 function debouncedRecomputeStats() {
@@ -535,82 +568,91 @@ function registerTableCallbacks(conn: DbConnection) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const db = conn.db as any;
   if (db.user_follow) {
-    db.user_follow.onInsert((_ctx: unknown, row: any) => {
+    db.user_follow.onInsert((_ctx: unknown, row: unknown) => {
+      const followRow = row as UserFollowRowLike;
       useFollowsStore.getState().addFollow({
-        id: Number(row.id),
-        followerIdentity: row.followerIdentity,
-        followingIdentity: row.followingIdentity,
-        createdAt: Number(row.createdAt),
+        id: Number(followRow.id),
+        followerIdentity: followRow.followerIdentity,
+        followingIdentity: followRow.followingIdentity,
+        createdAt: Number(followRow.createdAt),
       });
     });
 
-    db.user_follow.onDelete((_ctx: unknown, row: any) => {
-      useFollowsStore.getState().removeFollow(Number(row.id));
+    db.user_follow.onDelete((_ctx: unknown, row: unknown) => {
+      const followRow = row as UserFollowRowLike;
+      useFollowsStore.getState().removeFollow(Number(followRow.id));
     });
   }
 
   // Conversation callbacks
   if (db.conversation) {
-    db.conversation.onInsert((_ctx: unknown, row: any) => {
+    db.conversation.onInsert((_ctx: unknown, row: unknown) => {
+      const convoRow = row as ConversationRowLike;
       useMessagesStore.getState().addConversation({
-        id: Number(row.id),
-        participantA: row.participantA,
-        participantB: row.participantB,
-        status: row.status,
-        requestRecipient: row.requestRecipient,
-        createdAt: Number(row.createdAt),
-        updatedAt: Number(row.updatedAt),
+        id: Number(convoRow.id),
+        participantA: convoRow.participantA,
+        participantB: convoRow.participantB,
+        status: convoRow.status,
+        requestRecipient: convoRow.requestRecipient ?? "",
+        createdAt: Number(convoRow.createdAt),
+        updatedAt: Number(convoRow.updatedAt),
       });
     });
 
-    db.conversation.onUpdate((_ctx: unknown, _old: any, row: any) => {
+    db.conversation.onUpdate((_ctx: unknown, _old: unknown, row: unknown) => {
+      const convoRow = row as ConversationRowLike;
       useMessagesStore.getState().updateConversation({
-        id: Number(row.id),
-        participantA: row.participantA,
-        participantB: row.participantB,
-        status: row.status,
-        requestRecipient: row.requestRecipient,
-        createdAt: Number(row.createdAt),
-        updatedAt: Number(row.updatedAt),
+        id: Number(convoRow.id),
+        participantA: convoRow.participantA,
+        participantB: convoRow.participantB,
+        status: convoRow.status,
+        requestRecipient: convoRow.requestRecipient ?? "",
+        createdAt: Number(convoRow.createdAt),
+        updatedAt: Number(convoRow.updatedAt),
       });
     });
 
-    db.conversation.onDelete((_ctx: unknown, row: any) => {
-      useMessagesStore.getState().removeConversation(Number(row.id));
+    db.conversation.onDelete((_ctx: unknown, row: unknown) => {
+      const convoRow = row as ConversationRowLike;
+      useMessagesStore.getState().removeConversation(Number(convoRow.id));
     });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if ((db as any).user_block) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (db as any).user_block.onInsert((_ctx: unknown, row: any) => {
+    (db as any).user_block.onInsert((_ctx: unknown, row: unknown) => {
+      const blockRow = row as UserBlockRowLike;
       useModerationStore.getState().addBlock({
-        id: Number(row.id),
-        blockerIdentity: row.blockerIdentity,
-        blockedIdentity: row.blockedIdentity,
-        createdAt: Number(row.createdAt),
+        id: Number(blockRow.id),
+        blockerIdentity: blockRow.blockerIdentity,
+        blockedIdentity: blockRow.blockedIdentity,
+        createdAt: Number(blockRow.createdAt),
       });
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (db as any).user_block.onDelete((_ctx: unknown, row: any) => {
-      useModerationStore.getState().removeBlock(Number(row.id));
+    (db as any).user_block.onDelete((_ctx: unknown, row: unknown) => {
+      const blockRow = row as UserBlockRowLike;
+      useModerationStore.getState().removeBlock(Number(blockRow.id));
     });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if ((db as any).user_mute) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (db as any).user_mute.onInsert((_ctx: unknown, row: any) => {
+    (db as any).user_mute.onInsert((_ctx: unknown, row: unknown) => {
+      const muteRow = row as UserMuteRowLike;
       useModerationStore.getState().addMute({
-        id: Number(row.id),
-        muterIdentity: row.muterIdentity,
-        mutedIdentity: row.mutedIdentity,
-        createdAt: Number(row.createdAt),
+        id: Number(muteRow.id),
+        muterIdentity: muteRow.muterIdentity,
+        mutedIdentity: muteRow.mutedIdentity,
+        createdAt: Number(muteRow.createdAt),
       });
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (db as any).user_mute.onDelete((_ctx: unknown, row: any) => {
-      useModerationStore.getState().removeMute(Number(row.id));
+    (db as any).user_mute.onDelete((_ctx: unknown, row: unknown) => {
+      const muteRow = row as UserMuteRowLike;
+      useModerationStore.getState().removeMute(Number(muteRow.id));
     });
   }
 
