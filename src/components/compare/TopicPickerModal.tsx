@@ -119,12 +119,12 @@ export function TopicPickerModal({
   // from before panels loaded don't get locked in.
   useEffect(() => {
     if (!open) return;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       setScope(deriveScope(currentTopicCategory, currentTopicTaxonomyPath));
       setSearch("");
       setPage(0);
     }, 0);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [open, currentTopicCategory, currentTopicTaxonomyPath]);
 
   // ── Derived data ─────────────────────────────────────────────────────────

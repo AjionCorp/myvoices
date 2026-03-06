@@ -22,6 +22,37 @@ import { batchSpiralCoordinates } from "@/lib/canvas/spiral-layout";
 import { useAuth } from "@/components/auth/AuthProvider";
 import type { DbConnection } from "@/module_bindings";
 
+type FollowRow = {
+  id: number | bigint;
+  followerIdentity: string;
+  followingIdentity: string;
+  createdAt: number | bigint;
+};
+
+type ConversationRow = {
+  id: number | bigint;
+  participantA: string;
+  participantB: string;
+  status: "active" | "request_pending" | "request_declined" | string;
+  requestRecipient: string;
+  createdAt: number | bigint;
+  updatedAt: number | bigint;
+};
+
+type OptionalRealtimeTables = {
+  user_follow?: {
+    iter: () => Iterable<FollowRow>;
+    onInsert: (handler: (_ctx: unknown, row: FollowRow) => void) => void;
+    onDelete: (handler: (_ctx: unknown, row: FollowRow) => void) => void;
+  };
+  conversation?: {
+    iter: () => Iterable<ConversationRow>;
+    onInsert: (handler: (_ctx: unknown, row: ConversationRow) => void) => void;
+    onUpdate: (handler: (_ctx: unknown, _old: ConversationRow, row: ConversationRow) => void) => void;
+    onDelete: (handler: (_ctx: unknown, row: ConversationRow) => void) => void;
+  };
+};
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapBlock(row: any): StoreBlock {
   return {
@@ -263,8 +294,7 @@ function bulkLoadMessages(conn: DbConnection, identity: string) {
 }
 
 function bulkLoadFollows(conn: DbConnection) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = conn.db as any;
+  const db = conn.db as typeof conn.db & OptionalRealtimeTables;
   if (!db.user_follow) return;
   const all = [];
   for (const row of db.user_follow.iter()) {
@@ -282,16 +312,15 @@ function bulkLoadFollows(conn: DbConnection) {
 }
 
 function bulkLoadConversations(conn: DbConnection) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = conn.db as any;
+  const db = conn.db as typeof conn.db & OptionalRealtimeTables;
   if (!db.conversation) return;
-  const all = [];
+  const all: ConversationMeta[] = [];
   for (const row of db.conversation.iter()) {
     all.push({
       id: Number(row.id),
       participantA: row.participantA,
       participantB: row.participantB,
-      status: row.status,
+      status: row.status as ConversationMeta["status"],
       requestRecipient: row.requestRecipient,
       createdAt: Number(row.createdAt),
       updatedAt: Number(row.updatedAt),
@@ -549,8 +578,7 @@ function registerTableCallbacks(conn: DbConnection) {
   });
 
   // Follow callbacks — tables may not exist until module is republished
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = conn.db as any;
+  const db = conn.db as typeof conn.db & OptionalRealtimeTables;
   if (db.user_follow) {
     db.user_follow.onInsert((_ctx: unknown, row: unknown) => {
       const follow = row as FollowRow;

@@ -37,7 +37,7 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
   // Populate fields when dialog opens
   useEffect(() => {
     if (!open || !user) return;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       setBio(user.bio ?? "");
       setLocation(user.location ?? "");
       setWebsiteUrl(user.websiteUrl ?? "");
@@ -47,7 +47,7 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
       setSocialInstagram(user.socialInstagram ?? "");
       setError(null);
     }, 0);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [open, user]);
 
   const handleSave = async () => {

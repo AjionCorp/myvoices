@@ -552,7 +552,8 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
   const { totalClaimed } = useBlocksStore();
   const user = useAuthStore((s) => s.user);
 
-  const [isFollowing, setIsFollowing] = useState(false);
+  const [followState, setFollowState] = useState(false);
+  const isFollowing = !!user && !!topic && followState;
 
   useEffect(() => {
     if (!user || !topic) {
@@ -568,7 +569,7 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
       const following = [...conn.db.topic_follow.iter()].some(
         (f) => f.followerIdentity === user.identity && Number(f.topicId) === topic.id
       );
-      setIsFollowing(following);
+      setFollowState(following);
     };
     const checkTimer = setTimeout(check, 0);
     const unsubInsert: unknown = conn.db.topic_follow.onInsert(() => check());
