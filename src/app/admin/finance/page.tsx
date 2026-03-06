@@ -42,12 +42,23 @@ export default function FinanceDashboard() {
   }, []);
 
   useEffect(() => {
-    loadTransactions();
     const conn = getConnection();
-    if (!conn) return;
-    conn.db.transaction_log.onInsert(() => loadTransactions());
-    conn.db.transaction_log.onUpdate(() => loadTransactions());
-    conn.db.transaction_log.onDelete(() => loadTransactions());
+    const timer = setTimeout(() => loadTransactions(), 0);
+    if (!conn) {
+      return () => clearTimeout(timer);
+    }
+    const handleInsert = () => loadTransactions();
+    const handleUpdate = () => loadTransactions();
+    const handleDelete = () => loadTransactions();
+    conn.db.transaction_log.onInsert(handleInsert);
+    conn.db.transaction_log.onUpdate(handleUpdate);
+    conn.db.transaction_log.onDelete(handleDelete);
+    return () => {
+      clearTimeout(timer);
+      conn.db.transaction_log.removeOnInsert(handleInsert);
+      conn.db.transaction_log.removeOnUpdate(handleUpdate);
+      conn.db.transaction_log.removeOnDelete(handleDelete);
+    };
   }, [loadTransactions]);
 
   const totalRevenue = transactions
