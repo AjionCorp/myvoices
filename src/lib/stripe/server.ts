@@ -1,15 +1,25 @@
 import Stripe from "stripe";
 
 let stripe: Stripe | null = null;
-const DEFAULT_BASE_URL = "http://localhost:3000";
 
 function resolveBaseUrl(baseUrl?: string): string {
-  return baseUrl || process.env.NEXT_PUBLIC_BASE_URL || DEFAULT_BASE_URL;
+  const resolved = baseUrl || process.env.NEXT_PUBLIC_BASE_URL;
+  if (!resolved) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("NEXT_PUBLIC_BASE_URL must be set in production");
+    }
+    return "http://localhost:3000";
+  }
+  return resolved;
 }
 
 export function getStripeServer(): Stripe {
+  const secretKey = process.env.STRIPE_SECRET_KEY;
+  if (!secretKey) {
+    throw new Error("STRIPE_SECRET_KEY environment variable is not set");
+  }
   if (!stripe) {
-    stripe = new Stripe(process.env.STRIPE_SECRET_KEY || "", {
+    stripe = new Stripe(secretKey, {
       apiVersion: "2026-02-25.clover",
     });
   }

@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateApiKey, API_CREDIT_TIERS } from "@/lib/api-keys";
 import { getStripeServer } from "@/lib/stripe/server";
 
-const DEFAULT_BASE_URL = "http://localhost:3000";
-
 function resolveBaseUrl(): string {
-  return process.env.NEXT_PUBLIC_BASE_URL || DEFAULT_BASE_URL;
+  if (!process.env.NEXT_PUBLIC_BASE_URL) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("NEXT_PUBLIC_BASE_URL must be set in production");
+    }
+    return "http://localhost:3000";
+  }
+  return process.env.NEXT_PUBLIC_BASE_URL;
 }
 
 export async function POST(request: NextRequest) {

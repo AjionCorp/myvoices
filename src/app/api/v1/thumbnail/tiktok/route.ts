@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const CACHE_TTL_MS = 5 * 60 * 60 * 1000; // 5 hours — TikTok CDN URLs expire in ~6 h
+const MAX_CACHE_SIZE = 200;
 
 type CachedImage = { imageBytes: ArrayBuffer; contentType: string; expiresAt: number };
 const imageCache = new Map<string, CachedImage>();
@@ -24,6 +25,9 @@ async function fetchAndCacheImage(cacheKey: string, thumbnailUrl: string): Promi
   }
 
   const imageBytes = await imgResponse.arrayBuffer();
+  if (imageCache.size >= MAX_CACHE_SIZE) {
+    imageCache.delete(imageCache.keys().next().value!);
+  }
   imageCache.set(cacheKey, { imageBytes, contentType, expiresAt: Date.now() + CACHE_TTL_MS });
 
   return new NextResponse(imageBytes, {

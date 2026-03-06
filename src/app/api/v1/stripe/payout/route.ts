@@ -2,11 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@clerk/nextjs/server";
 import { createPayout } from "@/lib/stripe/server";
 
+function isAdminUserId(userId: string): boolean {
+  const adminIds = process.env.ADMIN_CLERK_USER_IDS;
+  if (!adminIds) return false;
+  return adminIds.split(",").map((id) => id.trim()).includes(userId);
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    if (!isAdminUserId(userId)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { connectedAccountId, amountCents, description } =

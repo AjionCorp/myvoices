@@ -39,10 +39,6 @@ export class SpatialIndex {
     return `${bx},${by}`;
   }
 
-  private bucketOf(x: number): [number, number] {
-    return [Math.floor(x / BUCKET_SIZE), 0];
-  }
-
   clear() { this.buckets.clear(); }
 
   insert(block: Block) {
@@ -191,19 +187,20 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
   loading: true,
 
   setBlock: (block) => {
-    const blocks = get().blocks;
-    const old = blocks.get(block.id);
+    const state = get();
+    const old = state.blocks.get(block.id);
     if (old) {
-      get().spatial.remove(old);
-      get().positionIndex.delete(posKey(old.x, old.y));
+      state.spatial.remove(old);
+      state.positionIndex.delete(posKey(old.x, old.y));
     }
+    const blocks = new Map(state.blocks);
     blocks.set(block.id, block);
-    get().spatial.insert(block);
-    get().positionIndex.set(posKey(block.x, block.y), block.id);
-    const videoIdIndex = get().videoIdIndex;
+    state.spatial.insert(block);
+    state.positionIndex.set(posKey(block.x, block.y), block.id);
+    const videoIdIndex = new Map(state.videoIdIndex);
     if (block.videoId) videoIdIndex.set(block.videoId, block.id);
-    // Update content bounds incrementally
-    const cb = get().contentBounds;
+    const rankIndex = rebuildRankIndex(blocks);
+    const cb = state.contentBounds;
     const pad = 2;
     const newBounds: ContentBounds = {
       minCol: Math.min(cb.minCol, block.x - pad),
@@ -211,7 +208,7 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
       minRow: Math.min(cb.minRow, block.y - pad),
       maxRow: Math.max(cb.maxRow, block.y + pad),
     };
-    set({ blocks, videoIdIndex, contentBounds: newBounds });
+    set({ blocks, videoIdIndex, rankIndex, contentBounds: newBounds });
   },
 
   setBlocks: (blocks) => {
@@ -233,27 +230,30 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
   },
 
   removeBlock: (id) => {
-    const blocks = get().blocks;
-    const block = blocks.get(id);
+    const state = get();
+    const block = state.blocks.get(id);
     if (!block) return;
-    get().spatial.remove(block);
-    get().positionIndex.delete(posKey(block.x, block.y));
+    state.spatial.remove(block);
+    state.positionIndex.delete(posKey(block.x, block.y));
+    const blocks = new Map(state.blocks);
     blocks.delete(id);
     set({ blocks });
   },
 
   updateBlockLikes: (id, likes) => {
-    const blocks = get().blocks;
-    const block = blocks.get(id);
+    const state = get();
+    const block = state.blocks.get(id);
     if (!block) return;
+    const blocks = new Map(state.blocks);
     blocks.set(id, { ...block, likes });
     set({ blocks });
   },
 
   updateBlockDislikes: (id, dislikes) => {
-    const blocks = get().blocks;
-    const block = blocks.get(id);
+    const state = get();
+    const block = state.blocks.get(id);
     if (!block) return;
+    const blocks = new Map(state.blocks);
     blocks.set(id, { ...block, dislikes });
     set({ blocks });
   },

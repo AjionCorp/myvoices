@@ -231,10 +231,11 @@ export function generateMockBlocks(): Block[] {
   }
 
   // 4. Add ad placeholder blocks at all reserved ad slots
+  const existingBlockIds = new Set(blocks.map((b) => b.id));
   const adSlots = getAdSlots();
   for (const slot of adSlots) {
     const adId = slot.row * GRID_COLS + slot.col;
-    if (blocks.some((b) => b.id === adId)) continue;
+    if (existingBlockIds.has(adId)) continue;
     blocks.push({
       id: adId,
       topicId: 0,

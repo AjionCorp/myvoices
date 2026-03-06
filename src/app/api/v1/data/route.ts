@@ -65,7 +65,13 @@ export const GET = withApiKey(async (request: NextRequest) => {
       minX !== "" && maxX !== "" && minY !== "" && maxY !== "";
 
     const conditions: string[] = [];
-    if (topicIdParam) conditions.push(`topic_id = ${parseInt(topicIdParam, 10)}`);
+    if (topicIdParam) {
+      const topicId = parseInt(topicIdParam, 10);
+      if (!Number.isFinite(topicId)) {
+        return NextResponse.json({ error: "Invalid topicId parameter" }, { status: 400 });
+      }
+      conditions.push(`topic_id = ${topicId}`);
+    }
     if (hasViewport) {
       conditions.push(
         `x >= ${Math.max(0, parseInt(minX!, 10))}`,
