@@ -52,17 +52,20 @@ export function ConversationItem({ conversation, isSelected, myIdentity, onClick
           >
             {otherName}
           </span>
-          <span className="shrink-0 text-xs text-muted-foreground">
-            {timeAgo(lastMessage.createdAt)}
-          </span>
+          {lastMessage && (
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {timeAgo(lastMessage.createdAt)}
+            </span>
+          )}
         </div>
         <p
           className={`mt-0.5 truncate text-xs ${
             unreadCount > 0 ? "font-medium text-foreground" : "text-muted-foreground"
           }`}
         >
-          {lastMessage.senderIdentity === myIdentity ? "You: " : ""}
-          {lastMessage.text}
+          {lastMessage
+            ? `${lastMessage.senderIdentity === myIdentity ? "You: " : ""}${lastMessage.text}`
+            : "No messages yet"}
         </p>
       </div>
 

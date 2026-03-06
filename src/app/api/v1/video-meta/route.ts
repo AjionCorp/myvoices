@@ -128,8 +128,12 @@ async function resolveBiliBili(rawUrl: string): Promise<ResolvedMeta | null> {
   let finalUrl = rawUrl;
   const host = new URL(rawUrl).hostname;
   if (/(^|\.)b23\.tv$/i.test(host)) {
-    const resp = await fetch(rawUrl, { method: "GET", redirect: "follow" });
-    finalUrl = resp.url || rawUrl;
+    try {
+      const resp = await fetch(rawUrl, { method: "GET", redirect: "follow" });
+      finalUrl = resp.url || rawUrl;
+    } catch {
+      // Keep original URL when redirect probing fails.
+    }
   }
   if (!isBiliBiliUrl(finalUrl)) return null;
 
