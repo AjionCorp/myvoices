@@ -32,7 +32,6 @@ function mulberry32(seed) {
   };
 }
 const rng = mulberry32(42);
-function pick(arr) { return arr[Math.floor(rng() * arr.length)]; }
 function randInt(min, max) { return min + Math.floor(rng() * (max - min + 1)); }
 function slugify(str) {
   return str.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");

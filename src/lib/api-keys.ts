@@ -183,7 +183,6 @@ export function checkRateLimit(keyId: number, credits: number): RateLimitResult 
   }
 
   const totalAllowed = FREE_DAILY_LIMIT + credits;
-  const remaining = Math.max(0, totalAllowed - bucket.count);
   const creditsUsed = bucket.count >= FREE_DAILY_LIMIT;
 
   if (bucket.count >= totalAllowed) {

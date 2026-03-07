@@ -9,8 +9,6 @@ const USER_COLUMNS = [
   "social_tiktok", "social_instagram",
 ];
 
-const FOLLOW_COLUMNS = ["id", "follower_identity", "following_identity", "created_at"];
-
 export const GET = withApiKey(async (_request: NextRequest, context) => {
   const username = context.params?.username;
   if (!username) {
