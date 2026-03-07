@@ -22,6 +22,34 @@ import { batchSpiralCoordinates } from "@/lib/canvas/spiral-layout";
 import { useAuth } from "@/components/auth/AuthProvider";
 import type { DbConnection } from "@/module_bindings";
 
+type NumericLike = number | string | bigint;
+
+type DirectMessageLikeRow = {
+  id: NumericLike;
+  conversationId?: NumericLike;
+  senderIdentity: string;
+  recipientIdentity: string;
+  text: string;
+  isRead: boolean;
+  isDeleted?: boolean;
+  createdAt: NumericLike;
+};
+
+type UserFollowLikeRow = {
+  id: NumericLike;
+  followerIdentity: string;
+  followingIdentity: string;
+  createdAt: NumericLike;
+};
+
+type ConversationLikeRow = {
+  id: NumericLike;
+  participantA: string;
+  participantB: string;
+  status: ConversationMeta["status"];
+  requestRecipient: string;
+  createdAt: NumericLike;
+  updatedAt: NumericLike;
 type FollowRow = {
   id: number | bigint;
   followerIdentity: string;
@@ -679,7 +707,8 @@ function registerTableCallbacks(conn: DbConnection) {
         createdAt: Number(conversation.createdAt),
         updatedAt: Number(conversation.updatedAt),
       });
-    });
+      }
+    );
 
     db.conversation.onDelete((_ctx: unknown, row: unknown) => {
       const conversation = row as Pick<ConversationRow, "id">;
