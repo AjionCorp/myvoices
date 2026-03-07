@@ -56,14 +56,16 @@ export default function SavedPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const t = setTimeout(() => {
-      if (!isAuthenticated || !userIdentity) {
+    if (!isAuthenticated || !user?.identity) {
+      const resetTimer = setTimeout(() => {
         setItems([]);
         setLoading(false);
-        return;
-      }
+      }, 0);
+      return () => clearTimeout(resetTimer);
+    }
 
-      setLoading(true);
+    const startTimer = setTimeout(() => setLoading(true), 0);
+    const loadTimer = setTimeout(() => {
       const conn = getConnection();
       if (!conn) {
         setLoading(false);
@@ -72,7 +74,7 @@ export default function SavedPage() {
 
       const saved: SavedItem[] = [];
       for (const sb of conn.db.saved_block.iter()) {
-        if (sb.userIdentity !== userIdentity) continue;
+        if (sb.userIdentity !== user.identity) continue;
 
         const blockId = Number(sb.blockId);
         const block = conn.db.block.id.find(BigInt(blockId));
@@ -98,12 +100,17 @@ export default function SavedPage() {
         });
       }
 
+      // Newest saved first
       saved.sort((a, b) => b.savedAt - a.savedAt);
       setItems(saved);
       setLoading(false);
-    }, isAuthenticated && userIdentity ? 500 : 0);
-    return () => clearTimeout(t);
-  }, [isAuthenticated, userIdentity]);
+    }, 500);
+
+    return () => {
+      clearTimeout(startTimer);
+      clearTimeout(loadTimer);
+    };
+  }, [isAuthenticated, user?.identity]);
 
   const handleUnsave = (blockId: number) => {
     const conn = getConnection();

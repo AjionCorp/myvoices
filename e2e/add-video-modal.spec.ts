@@ -43,10 +43,9 @@ const LANDSCAPE_META = {
 async function openModal(page: Page) {
   // Open SubmissionModal directly via the canvas store (bypasses auth check)
   await page.evaluate(() => {
-    type CanvasStoreHandle = {
-      getState: () => { openSubmissionModal: () => void };
-    };
-    const store = (window as unknown as { __CANVAS_STORE__?: CanvasStoreHandle }).__CANVAS_STORE__;
+    type CanvasStoreState = { openSubmissionModal: () => void };
+    type CanvasStore = { getState: () => CanvasStoreState };
+    const store = (window as Window & { __CANVAS_STORE__?: CanvasStore }).__CANVAS_STORE__;
     if (store) {
       store.getState().openSubmissionModal();
     } else {
