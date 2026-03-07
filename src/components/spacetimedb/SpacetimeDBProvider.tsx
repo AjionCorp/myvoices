@@ -179,23 +179,6 @@ function toConversationStatus(
 }
 type NumericLike = number | bigint | string;
 
-type UserFollowRowLike = {
-  id: NumericLike;
-  followerIdentity: string;
-  followingIdentity: string;
-  createdAt: NumericLike;
-};
-
-type ConversationRowLike = {
-  id: NumericLike;
-  participantA: string;
-  participantB: string;
-  status: "active" | "request_pending" | "request_declined";
-  requestRecipient: string;
-  createdAt: NumericLike;
-  updatedAt: NumericLike;
-};
-
 type UserBlockRowLike = {
   id: NumericLike;
   blockerIdentity: string;
@@ -208,21 +191,6 @@ type UserMuteRowLike = {
   muterIdentity: string;
   mutedIdentity: string;
   createdAt: NumericLike;
-type FollowRow = {
-  id: unknown;
-  followerIdentity: string;
-  followingIdentity: string;
-  createdAt: unknown;
-};
-
-type ConversationRow = {
-  id: unknown;
-  participantA: string;
-  participantB: string;
-  status: ConversationMeta["status"];
-  requestRecipient: string | null | undefined;
-  createdAt: unknown;
-  updatedAt: unknown;
 };
 
 let statsDebounceTimer: ReturnType<typeof setTimeout> | null = null;

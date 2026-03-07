@@ -84,9 +84,9 @@ export function ViewerCursors() {
     rafRef.current = requestAnimationFrame(frame);
     return () => {
       cancelAnimationFrame(rafRef.current);
-      for (const el of cursorMap.values()) {
-        if (el.root.parentElement === container) {
-          container.removeChild(el.root);
+      for (const { root } of cursorMap.values()) {
+        if (root.parentElement === container) {
+          container.removeChild(root);
         }
       }
       cursorMap.clear();
