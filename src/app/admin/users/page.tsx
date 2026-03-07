@@ -44,15 +44,19 @@ export default function UsersManagement() {
   }, []);
 
   useEffect(() => {
-    const initialLoadTimer = setTimeout(() => loadUsers(), 0);
+    const initialLoad = window.setTimeout(() => {
+      loadUsers();
+    }, 0);
     const conn = getConnection();
     if (!conn) {
-      return () => clearTimeout(initialLoadTimer);
+      return () => window.clearTimeout(initialLoad);
     }
     conn.db.user_profile.onInsert(() => loadUsers());
     conn.db.user_profile.onUpdate(() => loadUsers());
     conn.db.user_profile.onDelete(() => loadUsers());
-    return () => clearTimeout(initialLoadTimer);
+    return () => {
+      window.clearTimeout(initialLoad);
+    };
   }, [loadUsers]);
 
   const handleSort = (col: typeof sortBy) => {

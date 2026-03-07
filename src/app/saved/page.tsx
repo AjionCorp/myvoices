@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Header } from "@/components/ui/Header";
@@ -51,6 +51,7 @@ function thumbnailFor(videoId: string, platform: string, url: string | null): st
 
 export default function SavedPage() {
   const { isAuthenticated, user } = useAuthStore();
+  const userIdentity = user?.identity ?? null;
   const [items, setItems] = useState<SavedItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -97,12 +98,51 @@ export default function SavedPage() {
 
   useEffect(() => {
     if (isAuthenticated && user?.identity) {
-      const t = setTimeout(loadSaved, 500);
+      const t = setTimeout(() => {
+        const conn = getConnection();
+        if (!conn || !user.identity) {
+          setLoading(false);
+          return;
+        }
+
+        const saved: SavedItem[] = [];
+        for (const sb of conn.db.saved_block.iter()) {
+          if (sb.userIdentity !== user.identity) continue;
+
+          const blockId = Number(sb.blockId);
+          const block = conn.db.block.id.find(BigInt(blockId));
+          if (!block || block.status !== "claimed") continue;
+
+          const topicId = Number(sb.topicId);
+          const topic = conn.db.topic.id.find(BigInt(topicId));
+
+          saved.push({
+            savedId: Number(sb.id),
+            blockId,
+            topicId,
+            videoId: block.videoId || "",
+            platform: block.platform || "",
+            thumbnailUrl: block.thumbnailUrl || null,
+            likes: Number(block.likes ?? 0),
+            dislikes: Number(block.dislikes ?? 0),
+            ytViews: Number(block.ytViews ?? 0),
+            ownerName: block.ownerName || null,
+            savedAt: Number(sb.createdAt),
+            topicTitle: topic?.title || "Unknown Topic",
+            topicSlug: topic?.slug || "",
+          });
+        }
+
+        // Newest saved first
+        saved.sort((a, b) => b.savedAt - a.savedAt);
+        setItems(saved);
+        setLoading(false);
+      }, 500);
       return () => clearTimeout(t);
     }
     const t = setTimeout(() => setLoading(false), 0);
     return () => clearTimeout(t);
-  }, [isAuthenticated, user, loadSaved]);
+  }, [isAuthenticated, user?.identity, loadSaved]);
 
   const handleUnsave = (blockId: number) => {
     const conn = getConnection();
