@@ -587,7 +587,7 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
   const effectiveIsFollowing = Boolean(user && topic) && isFollowing;
 
   const handleToggleFollow = () => {
-    if (!topic) return;
+    if (!topic || !user) return;
     const conn = getConnection();
     if (!conn) return;
     if (effectiveIsFollowing) {
