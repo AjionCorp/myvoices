@@ -207,7 +207,7 @@ export function BlockDetailPanel() {
       .finally(() => { if (!cancelled) setIsEmbedLoading(false); });
 
     return () => { cancelled = true; };
-  }, [block?.id, block?.platform, block?.videoId, embedUrl, originalUrl]);
+  }, [block, embedUrl, originalUrl]);
 
   useEffect(() => {
     if (!resolvedEmbedUrl) { setIsEmbedLoading(false); return; }

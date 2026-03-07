@@ -57,7 +57,10 @@ export class SpatialIndex {
     const arr = this.buckets.get(k);
     if (!arr) return;
     const idx = arr.indexOf(block.id);
-    if (idx >= 0) arr[idx] = arr[arr.length - 1], arr.pop();
+    if (idx >= 0) {
+      arr[idx] = arr[arr.length - 1];
+      arr.pop();
+    }
     if (arr.length === 0) this.buckets.delete(k);
   }
 
@@ -187,45 +190,56 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
   loading: true,
 
   setBlock: (block) => {
-    const prev = get().blocks;
+    const state = get();
+    const prev = state.blocks;
     const old = prev.get(block.id);
 
     // Update spatial + position indexes in-place (these are designed for mutation)
     if (old) {
-      get().spatial.remove(old);
-      get().positionIndex.delete(posKey(old.x, old.y));
+      state.spatial.remove(old);
+      state.positionIndex.delete(posKey(old.x, old.y));
     }
-    get().spatial.insert(block);
-    get().positionIndex.set(posKey(block.x, block.y), block.id);
+    state.spatial.insert(block);
+    state.positionIndex.set(posKey(block.x, block.y), block.id);
 
     const blocks = new Map(prev);
     blocks.set(block.id, block);
 
     // Update videoIdIndex
-    const videoIdIndex = new Map(get().videoIdIndex);
+    const videoIdIndex = new Map(state.videoIdIndex);
     if (old?.videoId && old.videoId !== block.videoId) videoIdIndex.delete(old.videoId);
     if (block.videoId) videoIdIndex.set(block.videoId, block.id);
 
-    // Update totalClaimed if status changed
+    // Keep aggregate stats in sync for claimed status and likes contribution.
     const wasClaimedBefore = old?.status === BlockStatus.Claimed;
     const isClaimedNow = block.status === BlockStatus.Claimed;
     const claimedDelta = (isClaimedNow ? 1 : 0) - (wasClaimedBefore ? 1 : 0);
-    const totalClaimed = get().totalClaimed + claimedDelta;
+    const totalClaimed = state.totalClaimed + claimedDelta;
+    const oldLikes = wasClaimedBefore && old ? old.likes : 0;
+    const newLikes = isClaimedNow ? block.likes : 0;
+    const totalLikes = state.totalLikes + (newLikes - oldLikes);
 
     // Rebuild rankIndex since score or status may have changed
     const rankIndex = rebuildRankIndex(blocks);
 
     // Expand content bounds incrementally
-    const cb = get().contentBounds;
     const pad = 2;
-    const newBounds: ContentBounds = {
-      minCol: Math.min(cb.minCol, block.x - pad),
-      maxCol: Math.max(cb.maxCol, block.x + pad),
-      minRow: Math.min(cb.minRow, block.y - pad),
-      maxRow: Math.max(cb.maxRow, block.y + pad),
-    };
+    const cb = state.contentBounds;
+    const contentBounds: ContentBounds = prev.size === 0
+      ? {
+          minCol: block.x - pad,
+          maxCol: block.x + pad,
+          minRow: block.y - pad,
+          maxRow: block.y + pad,
+        }
+      : {
+          minCol: Math.min(cb.minCol, block.x - pad),
+          maxCol: Math.max(cb.maxCol, block.x + pad),
+          minRow: Math.min(cb.minRow, block.y - pad),
+          maxRow: Math.max(cb.maxRow, block.y + pad),
+        };
 
-    set({ blocks, videoIdIndex, rankIndex, totalClaimed, contentBounds: newBounds });
+    set({ blocks, videoIdIndex, rankIndex, totalClaimed, totalLikes, contentBounds });
   },
 
   setBlocks: (blocks) => {
@@ -252,26 +266,29 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
   },
 
   removeBlock: (id) => {
-    const old = get().blocks.get(id);
+    const state = get();
+    const old = state.blocks.get(id);
     if (!old) return;
 
     // Mutate spatial + position indexes in-place
-    get().spatial.remove(old);
-    get().positionIndex.delete(posKey(old.x, old.y));
+    state.spatial.remove(old);
+    state.positionIndex.delete(posKey(old.x, old.y));
 
-    const blocks = new Map(get().blocks);
+    const blocks = new Map(state.blocks);
     blocks.delete(id);
 
     // Clean up videoIdIndex
-    const videoIdIndex = new Map(get().videoIdIndex);
+    const videoIdIndex = new Map(state.videoIdIndex);
     if (old.videoId) videoIdIndex.delete(old.videoId);
 
-    // Update totalClaimed, rebuild rankIndex, and recompute content bounds
-    const totalClaimed = get().totalClaimed - (old.status === BlockStatus.Claimed ? 1 : 0);
+    // Update aggregate stats, rebuild rankIndex, and recompute content bounds
+    const wasClaimed = old.status === BlockStatus.Claimed;
+    const totalClaimed = state.totalClaimed - (wasClaimed ? 1 : 0);
+    const totalLikes = state.totalLikes - (wasClaimed ? old.likes : 0);
     const rankIndex = rebuildRankIndex(blocks);
     const contentBounds = computeContentBounds(blocks);
 
-    set({ blocks, videoIdIndex, rankIndex, totalClaimed, contentBounds });
+    set({ blocks, videoIdIndex, rankIndex, totalClaimed, totalLikes, contentBounds });
   },
 
   updateBlockLikes: (id, likes) => {
@@ -281,7 +298,10 @@ export const useBlocksStore = create<BlocksState>((set, get) => ({
     const blocks = new Map(state.blocks);
     blocks.set(id, { ...block, likes });
     const likesDelta = likes - block.likes;
-    set({ blocks, rankIndex: rebuildRankIndex(blocks), totalLikes: state.totalLikes + likesDelta });
+    const totalLikes = block.status === BlockStatus.Claimed
+      ? state.totalLikes + likesDelta
+      : state.totalLikes;
+    set({ blocks, rankIndex: rebuildRankIndex(blocks), totalLikes });
   },
 
   updateBlockDislikes: (id, dislikes) => {
