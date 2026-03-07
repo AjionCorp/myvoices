@@ -9,8 +9,7 @@ const USER_COLUMNS = [
   "social_tiktok", "social_instagram",
 ];
 
-export const GET = withApiKey(async (request, context) => {
-  void request;
+export const GET = withApiKey(async (_request: NextRequest, context) => {
   const username = context.params?.username;
   if (!username) {
     return NextResponse.json({ error: "Username is required" }, { status: 400 });

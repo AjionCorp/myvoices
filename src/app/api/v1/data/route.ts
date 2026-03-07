@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { runSql, rowToObject, BLOCK_COLUMNS, COMMENT_COLUMNS, type SqlResult } from "@/lib/spacetimedb/http-sql";
-import { BlockStatus, GRID_COLS, GRID_ROWS, type Platform } from "@/lib/constants";
+import { runSql, rowToObject, BLOCK_COLUMNS, COMMENT_COLUMNS } from "@/lib/spacetimedb/http-sql";
+import { BlockStatus, type Platform } from "@/lib/constants";
 import { withApiKey } from "@/lib/api-middleware";
 
 interface MappedBlock {
@@ -36,6 +36,9 @@ interface MappedComment {
   repliesCount: number;
   repostsCount: number;
 }
+
+const SAFE_VIEWPORT_LIMIT = 10_000;
+const COMMENT_BLOCK_CHUNK_SIZE = 50;
 
 function strOrNull(v: unknown): string | null {
   if (v == null) return null;
@@ -83,6 +86,27 @@ function mapComment(row: Record<string, unknown>): MappedComment {
   };
 }
 
+async function fetchCommentsForBlockIds(blockIds: number[]) {
+  if (blockIds.length === 0) return [];
+
+  const chunks: number[][] = [];
+  for (let i = 0; i < blockIds.length; i += COMMENT_BLOCK_CHUNK_SIZE) {
+    chunks.push(blockIds.slice(i, i + COMMENT_BLOCK_CHUNK_SIZE));
+  }
+
+  const chunkResults = await Promise.all(
+    chunks.map((chunk) => {
+      const where = chunk.map((id) => `block_id = ${id}`).join(" OR ");
+      return runSql(`SELECT * FROM comment WHERE ${where}`);
+    })
+  );
+
+  return chunkResults.flatMap((results) => {
+    const first = results[0];
+    return first ? [first] : [];
+  });
+}
+
 export const GET = withApiKey(async (request: NextRequest) => {
   try {
     const { searchParams } = request.nextUrl;
@@ -112,22 +136,19 @@ export const GET = withApiKey(async (request: NextRequest) => {
       if (!Number.isFinite(minXN) || !Number.isFinite(maxXN) || !Number.isFinite(minYN) || !Number.isFinite(maxYN)) {
         return NextResponse.json({ error: "Invalid viewport params" }, { status: 400 });
       }
+      if (minXN > maxXN || minYN > maxYN) {
+        return NextResponse.json({ error: "Invalid viewport range" }, { status: 400 });
+      }
       conditions.push(
-        `x >= ${Math.max(0, minXN)}`,
-        `x <= ${Math.min(GRID_COLS - 1, maxXN)}`,
-        `y >= ${Math.max(0, minYN)}`,
-        `y <= ${Math.min(GRID_ROWS - 1, maxYN)}`,
+        `x >= ${Math.max(-SAFE_VIEWPORT_LIMIT, minXN)}`,
+        `x <= ${Math.min(SAFE_VIEWPORT_LIMIT, maxXN)}`,
+        `y >= ${Math.max(-SAFE_VIEWPORT_LIMIT, minYN)}`,
+        `y <= ${Math.min(SAFE_VIEWPORT_LIMIT, maxYN)}`,
       );
     }
     const blockWhere = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
 
-    const blockPromise = runSql(`SELECT * FROM block${blockWhere}`);
-    const commentPromise = hasViewport
-      ? Promise.resolve([] as SqlResult[])
-      : runSql("SELECT * FROM comment");
-
-    const [blockResults, commentResults] = await Promise.all([blockPromise, commentPromise]);
-
+    const blockResults = await runSql(`SELECT * FROM block${blockWhere}`);
     const blocks: MappedBlock[] = [];
     const comments: MappedComment[] = [];
 
@@ -139,8 +160,13 @@ export const GET = withApiKey(async (request: NextRequest) => {
       }
     }
 
-    const commentRes = commentResults[0];
-    if (commentRes) {
+    const shouldScopeComments = hasViewport || topicIdParam != null;
+    const blockIds = [...new Set(blocks.map((b) => b.id))];
+    const commentResults = shouldScopeComments
+      ? await fetchCommentsForBlockIds(blockIds)
+      : await runSql("SELECT * FROM comment");
+
+    for (const commentRes of commentResults) {
       for (const row of commentRes.rows) {
         const obj = rowToObject(row, commentRes.schema, COMMENT_COLUMNS);
         comments.push(mapComment(obj));

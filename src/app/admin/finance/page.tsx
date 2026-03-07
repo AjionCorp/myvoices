@@ -42,22 +42,18 @@ export default function FinanceDashboard() {
   }, []);
 
   useEffect(() => {
+    const initialLoadTimer = window.setTimeout(() => {
+      loadTransactions();
+    }, 0);
     const conn = getConnection();
-    const timer = setTimeout(() => loadTransactions(), 0);
     if (!conn) {
-      return () => clearTimeout(timer);
+      return () => window.clearTimeout(initialLoadTimer);
     }
-    const handleInsert = () => loadTransactions();
-    const handleUpdate = () => loadTransactions();
-    const handleDelete = () => loadTransactions();
-    conn.db.transaction_log.onInsert(handleInsert);
-    conn.db.transaction_log.onUpdate(handleUpdate);
-    conn.db.transaction_log.onDelete(handleDelete);
+    conn.db.transaction_log.onInsert(() => loadTransactions());
+    conn.db.transaction_log.onUpdate(() => loadTransactions());
+    conn.db.transaction_log.onDelete(() => loadTransactions());
     return () => {
-      clearTimeout(timer);
-      conn.db.transaction_log.removeOnInsert(handleInsert);
-      conn.db.transaction_log.removeOnUpdate(handleUpdate);
-      conn.db.transaction_log.removeOnDelete(handleDelete);
+      window.clearTimeout(initialLoadTimer);
     };
   }, [loadTransactions]);
 

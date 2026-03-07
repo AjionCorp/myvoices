@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -108,7 +108,9 @@ export function TopicPickerModal({
 }: TopicPickerModalProps) {
   const topics = useTopicStore((s) => s.topics);
 
-  const [scope, setScope] = useState<Scope>({ category: null, taxonomySegment: null });
+  const [scope, setScope] = useState<Scope>(() =>
+    deriveScope(currentTopicCategory, currentTopicTaxonomyPath)
+  );
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
 
@@ -119,12 +121,12 @@ export function TopicPickerModal({
   // from before panels loaded don't get locked in.
   useEffect(() => {
     if (!open) return;
-    const timer = setTimeout(() => {
+    const resetTimer = setTimeout(() => {
       setScope(deriveScope(currentTopicCategory, currentTopicTaxonomyPath));
       setSearch("");
       setPage(0);
     }, 0);
-    return () => clearTimeout(timer);
+    return () => clearTimeout(resetTimer);
   }, [open, currentTopicCategory, currentTopicTaxonomyPath]);
 
   // ── Derived data ─────────────────────────────────────────────────────────
@@ -161,11 +163,13 @@ export function TopicPickerModal({
 
     return availableTopics
       .filter((t) => {
+        const topicCategory = t.category?.trim() || "other";
+        if (topicCategory !== scope.category) return false;
         if (scope.taxonomySegment) {
           const segs = (t.taxonomyPath ?? "").split("/").filter(Boolean);
           return segs.includes(scope.taxonomySegment);
         }
-        return (t.category?.trim() || "other") === scope.category;
+        return true;
       })
       .filter(
         (t) =>
@@ -400,7 +404,7 @@ export function TopicPickerModal({
                     onClick={() => setScope((s) => ({ ...s, taxonomySegment: null }))}
                     className="h-auto p-0 text-xs text-muted-foreground/60"
                   >
-                    Show all of &quot;{scope.category}&quot;
+                    Show all topics in {scope.category}
                   </Button>
                 ) : null}
               </div>
