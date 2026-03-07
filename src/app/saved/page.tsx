@@ -55,55 +55,55 @@ export default function SavedPage() {
   const [items, setItems] = useState<SavedItem[]>([]);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const identity = user?.identity;
-    if (!isAuthenticated || !identity) {
-      const doneTimer = setTimeout(() => setLoading(false), 0);
-      return () => clearTimeout(doneTimer);
+  const loadSaved = useCallback(() => {
+    const conn = getConnection();
+    if (!conn || !userIdentity) {
+      setLoading(false);
+      return;
     }
 
-    const t = setTimeout(() => {
-      const conn = getConnection();
-      if (!conn) {
-        setLoading(false);
-        return;
-      }
+    const saved: SavedItem[] = [];
+    for (const sb of conn.db.saved_block.iter()) {
+      if (sb.userIdentity !== userIdentity) continue;
 
-      const saved: SavedItem[] = [];
-      for (const sb of conn.db.saved_block.iter()) {
-        if (sb.userIdentity !== identity) continue;
+      const blockId = Number(sb.blockId);
+      const block = conn.db.block.id.find(BigInt(blockId));
+      if (!block || block.status !== "claimed") continue;
 
-        const blockId = Number(sb.blockId);
-        const block = conn.db.block.id.find(BigInt(blockId));
-        if (!block || block.status !== "claimed") continue;
+      const topicId = Number(sb.topicId);
+      const topic = conn.db.topic.id.find(BigInt(topicId));
 
-        const topicId = Number(sb.topicId);
-        const topic = conn.db.topic.id.find(BigInt(topicId));
+      saved.push({
+        savedId: Number(sb.id),
+        blockId,
+        topicId,
+        videoId: block.videoId || "",
+        platform: block.platform || "",
+        thumbnailUrl: block.thumbnailUrl || null,
+        likes: Number(block.likes ?? 0),
+        dislikes: Number(block.dislikes ?? 0),
+        ytViews: Number(block.ytViews ?? 0),
+        ownerName: block.ownerName || null,
+        savedAt: Number(sb.createdAt),
+        topicTitle: topic?.title || "Unknown Topic",
+        topicSlug: topic?.slug || "",
+      });
+    }
 
-        saved.push({
-          savedId: Number(sb.id),
-          blockId,
-          topicId,
-          videoId: block.videoId || "",
-          platform: block.platform || "",
-          thumbnailUrl: block.thumbnailUrl || null,
-          likes: Number(block.likes ?? 0),
-          dislikes: Number(block.dislikes ?? 0),
-          ytViews: Number(block.ytViews ?? 0),
-          ownerName: block.ownerName || null,
-          savedAt: Number(sb.createdAt),
-          topicTitle: topic?.title || "Unknown Topic",
-          topicSlug: topic?.slug || "",
-        });
-      }
+    // Newest saved first
+    saved.sort((a, b) => b.savedAt - a.savedAt);
+    setItems(saved);
+    setLoading(false);
+  }, [userIdentity]);
 
-      // Newest saved first
-      saved.sort((a, b) => b.savedAt - a.savedAt);
-      setItems(saved);
+  useEffect(() => {
+    if (isAuthenticated && userIdentity) {
+      const t = setTimeout(loadSaved, 500);
+      return () => clearTimeout(t);
+    } else {
       setLoading(false);
-    }, 500);
-    return () => clearTimeout(t);
-  }, [isAuthenticated, user?.identity]);
+    }
+  }, [isAuthenticated, userIdentity, loadSaved]);
 
   const handleUnsave = (blockId: number) => {
     const conn = getConnection();
