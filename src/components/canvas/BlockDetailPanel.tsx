@@ -166,22 +166,26 @@ export function BlockDetailPanel() {
     setSaved(foundSaved);
   }, [selectedBlockId, user?.identity]);
 
-  const embedUrl = block?.videoId && block?.platform ? getEmbedUrl(block.videoId, block.platform) : null;
-  const thumbnailUrl = block?.videoId && block?.platform
-    ? getThumbnailUrl(block.videoId, block.platform, block.thumbnailUrl)
+  const blockId = block?.id ?? null;
+  const blockVideoId = block?.videoId ?? null;
+  const blockPlatform = block?.platform ?? null;
+
+  const embedUrl = blockVideoId && blockPlatform ? getEmbedUrl(blockVideoId, blockPlatform) : null;
+  const thumbnailUrl = blockVideoId && blockPlatform
+    ? getThumbnailUrl(blockVideoId, blockPlatform, block?.thumbnailUrl ?? null)
     : null;
-  const originalUrl = block?.videoId && block?.platform ? getVideoUrl(block.videoId, block.platform) : "#";
+  const originalUrl = blockVideoId && blockPlatform ? getVideoUrl(blockVideoId, blockPlatform) : "#";
   const isPortrait = block?.platform === Platform.YouTubeShort || block?.platform === Platform.TikTok;
 
   useEffect(() => {
-    if (!block || !block.videoId || !block.platform) {
+    if (!blockId || !blockVideoId || !blockPlatform) {
       setResolvedEmbedUrl(null);
       return;
     }
 
     const needsResolution =
-      block.platform === Platform.Rumble ||
-      (block.platform === Platform.TikTok && !embedUrl);
+      blockPlatform === Platform.Rumble ||
+      (blockPlatform === Platform.TikTok && !embedUrl);
 
     if (!needsResolution) {
       setResolvedEmbedUrl(embedUrl || null);
@@ -207,7 +211,7 @@ export function BlockDetailPanel() {
       .finally(() => { if (!cancelled) setIsEmbedLoading(false); });
 
     return () => { cancelled = true; };
-  }, [block?.id, block?.platform, block?.videoId, embedUrl, originalUrl]);
+  }, [blockId, blockVideoId, blockPlatform, embedUrl, originalUrl]);
 
   useEffect(() => {
     if (!resolvedEmbedUrl) { setIsEmbedLoading(false); return; }

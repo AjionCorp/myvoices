@@ -163,11 +163,13 @@ export function TopicPickerModal({
 
     return availableTopics
       .filter((t) => {
+        const topicCategory = t.category?.trim() || "other";
+        if (topicCategory !== scope.category) return false;
         if (scope.taxonomySegment) {
           const segs = (t.taxonomyPath ?? "").split("/").filter(Boolean);
           return segs.includes(scope.taxonomySegment);
         }
-        return (t.category?.trim() || "other") === scope.category;
+        return true;
       })
       .filter(
         (t) =>

@@ -64,11 +64,15 @@ type CanvasStoreHandle = {
 async function openModal(page: Page) {
   // Open SubmissionModal directly via the canvas store (bypasses auth check)
   await page.evaluate(() => {
-    type CanvasStoreState = { openSubmissionModal: () => void };
-    type CanvasStore = { getState: () => CanvasStoreState };
-    const store = (window as Window & { __CANVAS_STORE__?: CanvasStore }).__CANVAS_STORE__;
-    if (store) {
-      store.getState().openSubmissionModal();
+    type CanvasStoreWindow = Window & {
+      __CANVAS_STORE__?: {
+        getState: () => { openSubmissionModal?: () => void };
+      };
+    };
+
+    const store = (window as CanvasStoreWindow).__CANVAS_STORE__;
+    if (store?.getState) {
+      store.getState().openSubmissionModal?.();
     } else {
       // Fallback: dispatch a custom event the store listens to
       window.dispatchEvent(new CustomEvent("open-submission-modal"));

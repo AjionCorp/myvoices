@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Edit2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -28,12 +28,8 @@ export function ConversationSidebar({
   const myIdentity = useMessagesStore((s) => s.myIdentity);
   const [search, setSearch] = useState("");
 
-  const moderationBlocks = useModerationStore((s) => s.blocks);
-  const moderationMutes = useModerationStore((s) => s.mutes);
-  const getHiddenIdentities = useModerationStore((s) => s.getHiddenIdentities);
-  const blockedIds = useMemo(
-    () => (myIdentity ? getHiddenIdentities(myIdentity) : new Set<string>()),
-    [moderationBlocks, moderationMutes, myIdentity, getHiddenIdentities]
+  const blockedIds = useModerationStore(
+    (s) => (myIdentity ? s.getHiddenIdentities(myIdentity) : new Set<string>())
   );
 
   const conversations = (
