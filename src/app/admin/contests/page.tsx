@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { getConnection } from "@/lib/spacetimedb/client";
 
 export default function ContestsManagement() {
-  const { activeContest, winners, leaderboard } = useContestStore();
+  const { activeContest, winners } = useContestStore();
 
   const [durationDays, setDurationDays] = useState(30);
   const [prizePool, setPrizePool] = useState(1000);
@@ -45,26 +45,6 @@ export default function ContestsManagement() {
       conn.reducers.finalizeContest({ contestId: BigInt(activeContest.id) });
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Failed to finalize contest");
-    }
-  };
-
-  const handlePayout = async (winnerIdentity: string, amount: number, stripeAccountId: string) => {
-    try {
-      const res = await fetch("/api/v1/stripe/payout", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          connectedAccountId: stripeAccountId,
-          amountCents: amount,
-          description: `Contest #${activeContest?.id} prize payout`,
-        }),
-      });
-
-      if (res.ok) {
-        console.log("Payout initiated for", winnerIdentity);
-      }
-    } catch (err) {
-      console.error("Payout error:", err);
     }
   };
 

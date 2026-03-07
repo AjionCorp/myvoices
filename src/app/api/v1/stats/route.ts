@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { runSql } from "@/lib/spacetimedb/http-sql";
 import { withApiKey } from "@/lib/api-middleware";
 

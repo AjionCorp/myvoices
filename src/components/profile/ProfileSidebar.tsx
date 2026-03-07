@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Video, MessageSquareText, Layers, Shield, ChevronDown, ChevronRight } from "lucide-react";
+import { Video, MessageSquareText, Layers, Shield } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useBlocksStore, type Block } from "@/stores/blocks-store";
+import { useBlocksStore } from "@/stores/blocks-store";
 import { useTopicStore } from "@/stores/topic-store";
 import { useCommentsStore } from "@/stores/comments-store";
 import { useCanvasStore } from "@/stores/canvas-store";

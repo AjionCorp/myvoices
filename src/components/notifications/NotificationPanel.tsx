@@ -119,13 +119,8 @@ export function NotificationPanel() {
   const markAllRead = useNotificationsStore((s) => s.markAllRead);
 
   const myIdentity = useAuthStore((s) => s.user?.identity ?? "");
-  const moderationBlocks = useModerationStore((s) => s.blocks);
-  const moderationMutes = useModerationStore((s) => s.mutes);
-  const getHiddenIdentities = useModerationStore((s) => s.getHiddenIdentities);
-
-  const hiddenIds = useMemo(
-    () => (myIdentity ? getHiddenIdentities(myIdentity) : new Set<string>()),
-    [moderationBlocks, moderationMutes, myIdentity, getHiddenIdentities]
+  const hiddenIds = useModerationStore(
+    (s) => (myIdentity ? s.getHiddenIdentities(myIdentity) : new Set<string>())
   );
 
   const notifications = useMemo(

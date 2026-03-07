@@ -20,7 +20,6 @@ import {
   TOPIC_TILE_SIZE,
   SECTION_PITCH,
   SECTIONS_PER_ROW,
-  SECTION_INNER_W,
   type SortKey,
   type CircuitLayoutNode,
 } from "@/lib/landing/circuit-layout";
@@ -124,7 +123,6 @@ export function CircuitCanvas() {
   // ── Layout ────────────────────────────────────────────────────────────────
   const nodes = useMemo(
     () => computeCircuitLayout(topics, taxonomyNodes, thumbnailMap, sortKey),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [topics, taxonomyNodes, thumbnailMap, sortKey],
   );
 
@@ -243,7 +241,6 @@ export function CircuitCanvas() {
     return () => el.removeEventListener("wheel", onWheel);
   // `ready` must be included: containerRef.current is null during the skeleton
   // early-return; re-running after ready=true attaches the listener to the canvas div.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onWheel, ready]);
 
   // ── HUD actions ───────────────────────────────────────────────────────────
