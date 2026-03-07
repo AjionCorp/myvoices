@@ -14,13 +14,44 @@ import { useContestStore } from "@/stores/contest-store";
 import { useAuthStore } from "@/stores/auth-store";
 import { useCommentsStore } from "@/stores/comments-store";
 import { useNotificationsStore } from "@/stores/notifications-store";
-import { useMessagesStore } from "@/stores/messages-store";
+import { useMessagesStore, type ConversationMeta } from "@/stores/messages-store";
 import { useFollowsStore } from "@/stores/follows-store";
 import { useModerationStore } from "@/stores/moderation-store";
 import { BlockStatus, ContestStatus, Platform } from "@/lib/constants";
 import { batchSpiralCoordinates } from "@/lib/canvas/spiral-layout";
 import { useAuth } from "@/components/auth/AuthProvider";
 import type { DbConnection } from "@/module_bindings";
+
+type FollowRow = {
+  id: number | bigint;
+  followerIdentity: string;
+  followingIdentity: string;
+  createdAt: number | bigint;
+};
+
+type ConversationRow = {
+  id: number | bigint;
+  participantA: string;
+  participantB: string;
+  status: "active" | "request_pending" | "request_declined" | string;
+  requestRecipient: string;
+  createdAt: number | bigint;
+  updatedAt: number | bigint;
+};
+
+type OptionalRealtimeTables = {
+  user_follow?: {
+    iter: () => Iterable<FollowRow>;
+    onInsert: (handler: (_ctx: unknown, row: FollowRow) => void) => void;
+    onDelete: (handler: (_ctx: unknown, row: FollowRow) => void) => void;
+  };
+  conversation?: {
+    iter: () => Iterable<ConversationRow>;
+    onInsert: (handler: (_ctx: unknown, row: ConversationRow) => void) => void;
+    onUpdate: (handler: (_ctx: unknown, _old: ConversationRow, row: ConversationRow) => void) => void;
+    onDelete: (handler: (_ctx: unknown, row: ConversationRow) => void) => void;
+  };
+};
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapBlock(row: any): StoreBlock {
@@ -118,6 +149,53 @@ function toConversationStatus(
       return "active";
   }
 }
+type NumericLike = number | bigint | string;
+
+type UserFollowRowLike = {
+  id: NumericLike;
+  followerIdentity: string;
+  followingIdentity: string;
+  createdAt: NumericLike;
+};
+
+type ConversationRowLike = {
+  id: NumericLike;
+  participantA: string;
+  participantB: string;
+  status: "active" | "request_pending" | "request_declined";
+  requestRecipient: string;
+  createdAt: NumericLike;
+  updatedAt: NumericLike;
+};
+
+type UserBlockRowLike = {
+  id: NumericLike;
+  blockerIdentity: string;
+  blockedIdentity: string;
+  createdAt: NumericLike;
+};
+
+type UserMuteRowLike = {
+  id: NumericLike;
+  muterIdentity: string;
+  mutedIdentity: string;
+  createdAt: NumericLike;
+type FollowRow = {
+  id: unknown;
+  followerIdentity: string;
+  followingIdentity: string;
+  createdAt: unknown;
+};
+
+type ConversationRow = {
+  id: unknown;
+  participantA: string;
+  participantB: string;
+  status: ConversationMeta["status"];
+  requestRecipient: string | null | undefined;
+  createdAt: unknown;
+  updatedAt: unknown;
+};
 
 let statsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -259,8 +337,7 @@ function bulkLoadMessages(conn: DbConnection, identity: string) {
 }
 
 function bulkLoadFollows(conn: DbConnection) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = conn.db as any;
+  const db = conn.db as typeof conn.db & OptionalRealtimeTables;
   if (!db.user_follow) return;
   const all = [];
   for (const row of db.user_follow.iter()) {
@@ -278,16 +355,15 @@ function bulkLoadFollows(conn: DbConnection) {
 }
 
 function bulkLoadConversations(conn: DbConnection) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = conn.db as any;
+  const db = conn.db as typeof conn.db & OptionalRealtimeTables;
   if (!db.conversation) return;
-  const all = [];
+  const all: ConversationMeta[] = [];
   for (const row of db.conversation.iter()) {
     all.push({
       id: Number(row.id),
       participantA: row.participantA,
       participantB: row.participantB,
-      status: row.status,
+      status: row.status as ConversationMeta["status"],
       requestRecipient: row.requestRecipient,
       createdAt: Number(row.createdAt),
       updatedAt: Number(row.updatedAt),
@@ -336,6 +412,23 @@ function bulkLoadUserMutes(conn: DbConnection) {
   }
   console.log(`[SpacetimeDB] user mutes loaded: ${all.length}`);
 }
+
+type UserFollowRow = {
+  id: number | bigint | string;
+  followerIdentity: string;
+  followingIdentity: string;
+  createdAt: number | bigint | string;
+};
+
+type ConversationRow = {
+  id: number | bigint | string;
+  participantA: string;
+  participantB: string;
+  status: "active" | "request_pending" | "request_declined";
+  requestRecipient: string;
+  createdAt: number | bigint | string;
+  updatedAt: number | bigint | string;
+};
 
 function registerTableCallbacks(conn: DbConnection) {
   const { setActiveContest, setWinners } = useContestStore.getState();
@@ -547,74 +640,88 @@ function registerTableCallbacks(conn: DbConnection) {
   if (db.user_follow) {
     db.user_follow.onInsert((_ctx, row) => {
       useFollowsStore.getState().addFollow({
-        id: Number(row.id),
-        followerIdentity: row.followerIdentity,
-        followingIdentity: row.followingIdentity,
-        createdAt: Number(row.createdAt),
+        id: Number(follow.id),
+        followerIdentity: follow.followerIdentity,
+        followingIdentity: follow.followingIdentity,
+        createdAt: Number(follow.createdAt),
       });
     });
 
-    db.user_follow.onDelete((_ctx, row) => {
-      useFollowsStore.getState().removeFollow(Number(row.id));
+    db.user_follow.onDelete((_ctx: unknown, row: unknown) => {
+      const follow = row as Pick<FollowRow, "id">;
+      useFollowsStore.getState().removeFollow(Number(follow.id));
     });
   }
 
   // Conversation callbacks
   if (db.conversation) {
-    db.conversation.onInsert((_ctx, row) => {
+    db.conversation.onInsert((_ctx: unknown, row: unknown) => {
+      const conversation = row as ConversationRow;
       useMessagesStore.getState().addConversation({
-        id: Number(row.id),
-        participantA: row.participantA,
-        participantB: row.participantB,
-        status: toConversationStatus(row.status),
-        requestRecipient: row.requestRecipient,
-        createdAt: Number(row.createdAt),
-        updatedAt: Number(row.updatedAt),
+        id: Number(conversation.id),
+        participantA: conversation.participantA,
+        participantB: conversation.participantB,
+        status: conversation.status,
+        requestRecipient: conversation.requestRecipient ?? "",
+        createdAt: Number(conversation.createdAt),
+        updatedAt: Number(conversation.updatedAt),
       });
     });
 
-    db.conversation.onUpdate((_ctx, _old, row) => {
+    db.conversation.onUpdate((_ctx: unknown, _old: unknown, row: unknown) => {
+      const conversation = row as ConversationRow;
       useMessagesStore.getState().updateConversation({
-        id: Number(row.id),
-        participantA: row.participantA,
-        participantB: row.participantB,
-        status: toConversationStatus(row.status),
-        requestRecipient: row.requestRecipient,
-        createdAt: Number(row.createdAt),
-        updatedAt: Number(row.updatedAt),
+        id: Number(conversation.id),
+        participantA: conversation.participantA,
+        participantB: conversation.participantB,
+        status: conversation.status,
+        requestRecipient: conversation.requestRecipient ?? "",
+        createdAt: Number(conversation.createdAt),
+        updatedAt: Number(conversation.updatedAt),
       });
     });
 
-    db.conversation.onDelete((_ctx, row) => {
-      useMessagesStore.getState().removeConversation(Number(row.id));
+    db.conversation.onDelete((_ctx: unknown, row: unknown) => {
+      const conversation = row as Pick<ConversationRow, "id">;
+      useMessagesStore.getState().removeConversation(Number(conversation.id));
     });
   }
 
-  if (db.user_block) {
-    db.user_block.onInsert((_ctx, row) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((db as any).user_block) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (db as any).user_block.onInsert((_ctx: unknown, row: unknown) => {
+      const blockRow = row as UserBlockRowLike;
       useModerationStore.getState().addBlock({
-        id: Number(row.id),
-        blockerIdentity: row.blockerIdentity,
-        blockedIdentity: row.blockedIdentity,
-        createdAt: Number(row.createdAt),
+        id: Number(blockRow.id),
+        blockerIdentity: blockRow.blockerIdentity,
+        blockedIdentity: blockRow.blockedIdentity,
+        createdAt: Number(blockRow.createdAt),
       });
     });
-    db.user_block.onDelete((_ctx, row) => {
-      useModerationStore.getState().removeBlock(Number(row.id));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (db as any).user_block.onDelete((_ctx: unknown, row: unknown) => {
+      const blockRow = row as UserBlockRowLike;
+      useModerationStore.getState().removeBlock(Number(blockRow.id));
     });
   }
 
-  if (db.user_mute) {
-    db.user_mute.onInsert((_ctx, row) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if ((db as any).user_mute) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (db as any).user_mute.onInsert((_ctx: unknown, row: unknown) => {
+      const muteRow = row as UserMuteRowLike;
       useModerationStore.getState().addMute({
-        id: Number(row.id),
-        muterIdentity: row.muterIdentity,
-        mutedIdentity: row.mutedIdentity,
-        createdAt: Number(row.createdAt),
+        id: Number(muteRow.id),
+        muterIdentity: muteRow.muterIdentity,
+        mutedIdentity: muteRow.mutedIdentity,
+        createdAt: Number(muteRow.createdAt),
       });
     });
-    db.user_mute.onDelete((_ctx, row) => {
-      useModerationStore.getState().removeMute(Number(row.id));
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (db as any).user_mute.onDelete((_ctx: unknown, row: unknown) => {
+      const muteRow = row as UserMuteRowLike;
+      useModerationStore.getState().removeMute(Number(muteRow.id));
     });
   }
 

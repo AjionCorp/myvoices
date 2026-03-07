@@ -108,6 +108,7 @@ export function CompareView({ slugs, panels, loading, error }: CompareViewProps)
 
   const count = panels.length || slugs.length;
   const gridClass = GRID_CLASSES[count] ?? "grid-cols-2";
+  const pickerResetKey = `${pickerOpen ? "1" : "0"}:${pickerContext.category ?? ""}:${pickerContext.taxonomyPath ?? ""}:${slugs.join(",")}`;
 
   const isEmpty = !loading && !error && panels.length === 0;
 
@@ -262,6 +263,7 @@ export function CompareView({ slugs, panels, loading, error }: CompareViewProps)
 
       {/* ─── Topic picker modal ──────────────────────────────────────── */}
       <TopicPickerModal
+        key={pickerResetKey}
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         onSelect={handleAddTopic}

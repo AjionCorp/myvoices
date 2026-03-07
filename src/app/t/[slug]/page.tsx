@@ -552,11 +552,21 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
   const { totalClaimed } = useBlocksStore();
   const user = useAuthStore((s) => s.user);
 
-  const [isFollowing, setIsFollowing] = useState(false);
+  const [followState, setFollowState] = useState(false);
+  const isFollowing = !!user && !!topic && followState;
 
   useEffect(() => {
     const userIdentity = user?.identity;
     const topicId = topic?.id;
+    if (!user || !topic) {
+      const timer = setTimeout(() => setIsFollowing(false), 0);
+      return () => clearTimeout(timer);
+    }
+    const conn = getConnection();
+    if (!conn) {
+      const resetTimer = setTimeout(() => setIsFollowing(false), 0);
+      return () => clearTimeout(resetTimer);
+    }
     const check = () => {
       if (!userIdentity || topicId == null) {
         setIsFollowing(false);
@@ -567,7 +577,18 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
       const following = [...conn.db.topic_follow.iter()].some(
         (f) => f.followerIdentity === userIdentity && Number(f.topicId) === topicId
       );
-      setIsFollowing(following);
+      setFollowState(following);
+    };
+    const checkTimer = setTimeout(check, 0);
+    const unsubInsert: unknown = conn.db.topic_follow.onInsert(() => check());
+    const unsubDelete: unknown = conn.db.topic_follow.onDelete(() => check());
+    const runCleanup = (unsubscribe: unknown) => {
+      if (typeof unsubscribe === "function") unsubscribe();
+    };
+    return () => {
+      clearTimeout(checkTimer);
+      runCleanup(unsubInsert);
+      runCleanup(unsubDelete);
     };
 
     const initialCheckTimer = setTimeout(check, 0);
@@ -580,11 +601,13 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
     return () => clearTimeout(initialCheckTimer);
   }, [user?.identity, topic?.id]);
 
+  const effectiveIsFollowing = Boolean(user && topic) && isFollowing;
+
   const handleToggleFollow = () => {
-    if (!topic) return;
+    if (!topic || !user) return;
     const conn = getConnection();
     if (!conn) return;
-    if (isFollowing) {
+    if (effectiveIsFollowing) {
       conn.reducers.unfollowTopic({ topicId: BigInt(topic.id) });
     } else {
       conn.reducers.followTopic({ topicId: BigInt(topic.id) });
@@ -661,11 +684,11 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
           {user && (
             <Button
               onClick={handleToggleFollow}
-              variant={isFollowing ? "outline" : "default"}
+              variant={effectiveIsFollowing ? "outline" : "default"}
               size="sm"
               className="mt-3 w-full text-xs"
             >
-              {isFollowing ? "Following" : "Follow Topic"}
+              {effectiveIsFollowing ? "Following" : "Follow Topic"}
             </Button>
           )}
         </div>
@@ -886,6 +909,7 @@ function TopicHeader({ slug, sidebarOpen, onToggleSidebar }: { slug: string; sid
       </div>
 
       <TopicPickerModal
+        key={`${comparePickerOpen ? "1" : "0"}:${topic?.category ?? ""}:${taxonomyPath ?? ""}:${topic?.slug ?? ""}`}
         open={comparePickerOpen}
         onClose={() => setComparePickerOpen(false)}
         excludeSlugs={topic ? [topic.slug] : []}
