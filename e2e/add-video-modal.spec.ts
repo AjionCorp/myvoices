@@ -55,6 +55,12 @@ const LANDSCAPE_META = {
   isLiveContent: false,
 };
 
+type CanvasStoreHandle = {
+  getState: () => {
+    openSubmissionModal: () => void;
+  };
+};
+
 async function openModal(page: Page) {
   // Open SubmissionModal directly via the canvas store (bypasses auth check)
   await page.evaluate(() => {

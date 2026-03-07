@@ -42,15 +42,19 @@ export default function FinanceDashboard() {
   }, []);
 
   useEffect(() => {
-    const timer = setTimeout(loadTransactions, 0);
+    const initialLoad = window.setTimeout(() => {
+      loadTransactions();
+    }, 0);
     const conn = getConnection();
     if (!conn) {
-      return () => clearTimeout(timer);
+      return () => window.clearTimeout(initialLoad);
     }
     conn.db.transaction_log.onInsert(() => loadTransactions());
     conn.db.transaction_log.onUpdate(() => loadTransactions());
     conn.db.transaction_log.onDelete(() => loadTransactions());
-    return () => clearTimeout(timer);
+    return () => {
+      window.clearTimeout(initialLoad);
+    };
   }, [loadTransactions]);
 
   const totalRevenue = transactions

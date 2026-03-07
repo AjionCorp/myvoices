@@ -137,6 +137,37 @@ function mapTopicModeratorApplication(row: any): TopicModeratorApplication {
   };
 }
 
+type NumericLike = number | bigint | string;
+
+type UserFollowRowLike = {
+  id: NumericLike;
+  followerIdentity: string;
+  followingIdentity: string;
+  createdAt: NumericLike;
+};
+
+type ConversationRowLike = {
+  id: NumericLike;
+  participantA: string;
+  participantB: string;
+  status: "active" | "request_pending" | "request_declined";
+  requestRecipient: string;
+  createdAt: NumericLike;
+  updatedAt: NumericLike;
+};
+
+type UserBlockRowLike = {
+  id: NumericLike;
+  blockerIdentity: string;
+  blockedIdentity: string;
+  createdAt: NumericLike;
+};
+
+type UserMuteRowLike = {
+  id: NumericLike;
+  muterIdentity: string;
+  mutedIdentity: string;
+  createdAt: NumericLike;
 type FollowRow = {
   id: unknown;
   followerIdentity: string;
@@ -667,34 +698,38 @@ function registerTableCallbacks(conn: DbConnection) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if ((db as any).user_block) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (db as any).user_block.onInsert((_ctx: unknown, row: any) => {
+    (db as any).user_block.onInsert((_ctx: unknown, row: unknown) => {
+      const blockRow = row as UserBlockRowLike;
       useModerationStore.getState().addBlock({
-        id: Number(row.id),
-        blockerIdentity: row.blockerIdentity,
-        blockedIdentity: row.blockedIdentity,
-        createdAt: Number(row.createdAt),
+        id: Number(blockRow.id),
+        blockerIdentity: blockRow.blockerIdentity,
+        blockedIdentity: blockRow.blockedIdentity,
+        createdAt: Number(blockRow.createdAt),
       });
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (db as any).user_block.onDelete((_ctx: unknown, row: any) => {
-      useModerationStore.getState().removeBlock(Number(row.id));
+    (db as any).user_block.onDelete((_ctx: unknown, row: unknown) => {
+      const blockRow = row as UserBlockRowLike;
+      useModerationStore.getState().removeBlock(Number(blockRow.id));
     });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if ((db as any).user_mute) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (db as any).user_mute.onInsert((_ctx: unknown, row: any) => {
+    (db as any).user_mute.onInsert((_ctx: unknown, row: unknown) => {
+      const muteRow = row as UserMuteRowLike;
       useModerationStore.getState().addMute({
-        id: Number(row.id),
-        muterIdentity: row.muterIdentity,
-        mutedIdentity: row.mutedIdentity,
-        createdAt: Number(row.createdAt),
+        id: Number(muteRow.id),
+        muterIdentity: muteRow.muterIdentity,
+        mutedIdentity: muteRow.mutedIdentity,
+        createdAt: Number(muteRow.createdAt),
       });
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (db as any).user_mute.onDelete((_ctx: unknown, row: any) => {
-      useModerationStore.getState().removeMute(Number(row.id));
+    (db as any).user_mute.onDelete((_ctx: unknown, row: unknown) => {
+      const muteRow = row as UserMuteRowLike;
+      useModerationStore.getState().removeMute(Number(muteRow.id));
     });
   }
 

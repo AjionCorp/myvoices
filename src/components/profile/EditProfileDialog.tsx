@@ -37,7 +37,7 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
 
   useEffect(() => {
     if (!open || !user) return;
-    const timer = setTimeout(() => {
+    const timer = window.setTimeout(() => {
       setBio(user.bio ?? "");
       setLocation(user.location ?? "");
       setWebsiteUrl(user.websiteUrl ?? "");
@@ -47,7 +47,7 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
       setSocialInstagram(user.socialInstagram ?? "");
       setError(null);
     }, 0);
-    return () => clearTimeout(timer);
+    return () => window.clearTimeout(timer);
   }, [open, user]);
 
   const handleSave = async () => {

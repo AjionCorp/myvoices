@@ -68,10 +68,8 @@ export function VideoCanvas() {
   const { panBy, zoomBy, setScreenSize, setDragging, selectBlock, openSubmissionModal } = useCanvasStore();
 
   useEffect(() => {
-    mountedAt.current = performance.now();
-  }, []);
+    mountedAt.current = Date.now();
 
-  useEffect(() => {
     const unsub1 = useCanvasStore.subscribe((s) => {
       const v = vp.current;
       v.x = s.viewportX; v.y = s.viewportY; v.z = s.zoom;
