@@ -556,6 +556,8 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
   const isFollowing = !!user && !!topic && followState;
 
   useEffect(() => {
+    const userIdentity = user?.identity;
+    const topicId = topic?.id;
     if (!user || !topic) {
       const timer = setTimeout(() => setIsFollowing(false), 0);
       return () => clearTimeout(timer);
@@ -566,8 +568,14 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
       return () => clearTimeout(resetTimer);
     }
     const check = () => {
+      if (!userIdentity || topicId == null) {
+        setIsFollowing(false);
+        return;
+      }
+      const conn = getConnection();
+      if (!conn) return;
       const following = [...conn.db.topic_follow.iter()].some(
-        (f) => f.followerIdentity === user.identity && Number(f.topicId) === topic.id
+        (f) => f.followerIdentity === userIdentity && Number(f.topicId) === topicId
       );
       setFollowState(following);
     };
@@ -582,7 +590,16 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
       runCleanup(unsubInsert);
       runCleanup(unsubDelete);
     };
-  }, [user, topic]);
+
+    const initialCheckTimer = setTimeout(check, 0);
+    const conn = getConnection();
+    if (!conn) {
+      return () => clearTimeout(initialCheckTimer);
+    }
+    conn.db.topic_follow.onInsert(() => check());
+    conn.db.topic_follow.onDelete(() => check());
+    return () => clearTimeout(initialCheckTimer);
+  }, [user?.identity, topic?.id]);
 
   const effectiveIsFollowing = Boolean(user && topic) && isFollowing;
 

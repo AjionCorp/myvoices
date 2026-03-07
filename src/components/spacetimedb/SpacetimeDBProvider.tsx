@@ -17,7 +17,7 @@ import { useNotificationsStore } from "@/stores/notifications-store";
 import { useMessagesStore, type ConversationMeta } from "@/stores/messages-store";
 import { useFollowsStore } from "@/stores/follows-store";
 import { useModerationStore } from "@/stores/moderation-store";
-import { BlockStatus, Platform } from "@/lib/constants";
+import { BlockStatus, ContestStatus, Platform } from "@/lib/constants";
 import { batchSpiralCoordinates } from "@/lib/canvas/spiral-layout";
 import { useAuth } from "@/components/auth/AuthProvider";
 import type { DbConnection } from "@/module_bindings";
@@ -137,6 +137,18 @@ function mapTopicModeratorApplication(row: any): TopicModeratorApplication {
   };
 }
 
+function toConversationStatus(
+  status: string
+): "active" | "request_pending" | "request_declined" {
+  switch (status) {
+    case "active":
+    case "request_pending":
+    case "request_declined":
+      return status;
+    default:
+      return "active";
+  }
+}
 type NumericLike = number | bigint | string;
 
 type UserFollowRowLike = {
@@ -596,62 +608,37 @@ function registerTableCallbacks(conn: DbConnection) {
   });
 
   conn.db.direct_message.onInsert((_ctx, row) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const r = row as any;
     useMessagesStore.getState().addMessage({
-      id: Number(r.id),
-      conversationId: Number(r.conversationId ?? 0),
-      senderIdentity: r.senderIdentity,
-      recipientIdentity: r.recipientIdentity,
-      text: r.text,
-      isRead: r.isRead,
-      isDeleted: r.isDeleted ?? false,
-      createdAt: Number(r.createdAt),
+      id: Number(row.id),
+      conversationId: Number(row.conversationId ?? 0),
+      senderIdentity: row.senderIdentity,
+      recipientIdentity: row.recipientIdentity,
+      text: row.text,
+      isRead: row.isRead,
+      isDeleted: row.isDeleted ?? false,
+      createdAt: Number(row.createdAt),
     });
   });
 
   conn.db.direct_message.onUpdate((_ctx, _old, row) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const r = row as any;
     useMessagesStore.getState().updateMessage({
-      id: Number(r.id),
-      conversationId: Number(r.conversationId ?? 0),
-      senderIdentity: r.senderIdentity,
-      recipientIdentity: r.recipientIdentity,
-      text: r.text,
-      isRead: r.isRead,
-      isDeleted: r.isDeleted ?? false,
-      createdAt: Number(r.createdAt),
+      id: Number(row.id),
+      conversationId: Number(row.conversationId ?? 0),
+      senderIdentity: row.senderIdentity,
+      recipientIdentity: row.recipientIdentity,
+      text: row.text,
+      isRead: row.isRead,
+      isDeleted: row.isDeleted ?? false,
+      createdAt: Number(row.createdAt),
     });
   });
 
   // Follow callbacks — tables may not exist until module is republished
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = conn.db as any;
-  type FollowRow = {
-    id: number | string;
-    followerIdentity: string;
-    followingIdentity: string;
-    createdAt: number | string;
-  };
-  type ConversationRow = {
-    id: number | string;
-    participantA: string;
-    participantB: string;
-    status: "active" | "request_pending" | "request_declined";
-    requestRecipient: string;
-    createdAt: number | string;
-    updatedAt: number | string;
-  };
-
+  const db = conn.db as Partial<
+    Pick<typeof conn.db, "user_follow" | "conversation" | "user_block" | "user_mute">
+  >;
   if (db.user_follow) {
-    db.user_follow.onInsert((_ctx: unknown, row: unknown) => {
-      const follow = row as {
-        id: unknown;
-        followerIdentity: string;
-        followingIdentity: string;
-        createdAt: unknown;
-      };
+    db.user_follow.onInsert((_ctx, row) => {
       useFollowsStore.getState().addFollow({
         id: Number(follow.id),
         followerIdentity: follow.followerIdentity,
@@ -745,8 +732,7 @@ function registerTableCallbacks(conn: DbConnection) {
         startAt: Number(row.startAt),
         endAt: Number(row.endAt),
         prizePool: Number(row.prizePool),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        status: row.status as any,
+        status: ContestStatus.Active,
       });
     }
   });
@@ -758,8 +744,7 @@ function registerTableCallbacks(conn: DbConnection) {
         startAt: Number(row.startAt),
         endAt: Number(row.endAt),
         prizePool: Number(row.prizePool),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        status: row.status as any,
+        status: ContestStatus.Active,
       });
     } else {
       setActiveContest(null);
