@@ -51,6 +51,7 @@ function thumbnailFor(videoId: string, platform: string, url: string | null): st
 
 export default function SavedPage() {
   const { isAuthenticated, user } = useAuthStore();
+  const userIdentity = user?.identity ?? null;
   const [items, setItems] = useState<SavedItem[]>([]);
   const [loading, setLoading] = useState(true);
 
