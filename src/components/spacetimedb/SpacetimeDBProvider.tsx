@@ -646,7 +646,12 @@ function registerTableCallbacks(conn: DbConnection) {
 
   if (db.user_follow) {
     db.user_follow.onInsert((_ctx: unknown, row: unknown) => {
-      const follow = row as FollowRow;
+      const follow = row as {
+        id: unknown;
+        followerIdentity: string;
+        followingIdentity: string;
+        createdAt: unknown;
+      };
       useFollowsStore.getState().addFollow({
         id: Number(follow.id),
         followerIdentity: follow.followerIdentity,

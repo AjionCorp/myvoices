@@ -56,60 +56,51 @@ export default function SavedPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isAuthenticated || !user?.identity) {
-      const resetTimer = setTimeout(() => {
-        setItems([]);
+    if (isAuthenticated && user?.identity) {
+      const t = setTimeout(() => {
+        const conn = getConnection();
+        if (!conn || !user.identity) {
+          setLoading(false);
+          return;
+        }
+
+        const saved: SavedItem[] = [];
+        for (const sb of conn.db.saved_block.iter()) {
+          if (sb.userIdentity !== user.identity) continue;
+
+          const blockId = Number(sb.blockId);
+          const block = conn.db.block.id.find(BigInt(blockId));
+          if (!block || block.status !== "claimed") continue;
+
+          const topicId = Number(sb.topicId);
+          const topic = conn.db.topic.id.find(BigInt(topicId));
+
+          saved.push({
+            savedId: Number(sb.id),
+            blockId,
+            topicId,
+            videoId: block.videoId || "",
+            platform: block.platform || "",
+            thumbnailUrl: block.thumbnailUrl || null,
+            likes: Number(block.likes ?? 0),
+            dislikes: Number(block.dislikes ?? 0),
+            ytViews: Number(block.ytViews ?? 0),
+            ownerName: block.ownerName || null,
+            savedAt: Number(sb.createdAt),
+            topicTitle: topic?.title || "Unknown Topic",
+            topicSlug: topic?.slug || "",
+          });
+        }
+
+        // Newest saved first
+        saved.sort((a, b) => b.savedAt - a.savedAt);
+        setItems(saved);
         setLoading(false);
-      }, 0);
-      return () => clearTimeout(resetTimer);
+      }, 500);
+      return () => clearTimeout(t);
     }
-
-    const startTimer = setTimeout(() => setLoading(true), 0);
-    const loadTimer = setTimeout(() => {
-      const conn = getConnection();
-      if (!conn) {
-        setLoading(false);
-        return;
-      }
-
-      const saved: SavedItem[] = [];
-      for (const sb of conn.db.saved_block.iter()) {
-        if (sb.userIdentity !== user.identity) continue;
-
-        const blockId = Number(sb.blockId);
-        const block = conn.db.block.id.find(BigInt(blockId));
-        if (!block || block.status !== "claimed") continue;
-
-        const topicId = Number(sb.topicId);
-        const topic = conn.db.topic.id.find(BigInt(topicId));
-
-        saved.push({
-          savedId: Number(sb.id),
-          blockId,
-          topicId,
-          videoId: block.videoId || "",
-          platform: block.platform || "",
-          thumbnailUrl: block.thumbnailUrl || null,
-          likes: Number(block.likes ?? 0),
-          dislikes: Number(block.dislikes ?? 0),
-          ytViews: Number(block.ytViews ?? 0),
-          ownerName: block.ownerName || null,
-          savedAt: Number(sb.createdAt),
-          topicTitle: topic?.title || "Unknown Topic",
-          topicSlug: topic?.slug || "",
-        });
-      }
-
-      // Newest saved first
-      saved.sort((a, b) => b.savedAt - a.savedAt);
-      setItems(saved);
-      setLoading(false);
-    }, 500);
-
-    return () => {
-      clearTimeout(startTimer);
-      clearTimeout(loadTimer);
-    };
+    const t = setTimeout(() => setLoading(false), 0);
+    return () => clearTimeout(t);
   }, [isAuthenticated, user?.identity]);
 
   const handleUnsave = (blockId: number) => {
