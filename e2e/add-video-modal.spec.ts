@@ -8,6 +8,21 @@ import { test, expect, Page } from "@playwright/test";
 const TOPIC_URL = "/t/wwaaa";
 const SHORTS_URL = "https://youtube.com/shorts/TdWrtVFcS1s";
 const LANDSCAPE_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+type CanvasStoreWindow = Window & {
+  __CANVAS_STORE__?: {
+    getState: () => {
+      openSubmissionModal: () => void;
+    };
+  };
+};
+
+type CanvasStoreWindow = Window & typeof globalThis & {
+  __CANVAS_STORE__?: {
+    getState: () => {
+      openSubmissionModal: () => void;
+    };
+  };
+};
 
 // Mocked metadata the API would normally return
 const SHORTS_META = {
@@ -40,14 +55,17 @@ const LANDSCAPE_META = {
   isLiveContent: false,
 };
 
+type CanvasStoreHandle = {
+  getState: () => {
+    openSubmissionModal: () => void;
+  };
+};
+
 async function openModal(page: Page) {
   // Open SubmissionModal directly via the canvas store (bypasses auth check)
   await page.evaluate(() => {
-    type CanvasStore = {
-      getState: () => {
-        openSubmissionModal: () => void;
-      };
-    };
+    type CanvasStoreState = { openSubmissionModal: () => void };
+    type CanvasStore = { getState: () => CanvasStoreState };
     const store = (window as Window & { __CANVAS_STORE__?: CanvasStore }).__CANVAS_STORE__;
     if (store) {
       store.getState().openSubmissionModal();
@@ -142,7 +160,7 @@ test.describe("Add Video Modal — Mobile", () => {
 
     // The "Add to Grid" / "Submit" button must be visible without scrolling
     const button = page.locator("button:has-text('Add'), button:has-text('Submit')").first();
-    const buttonVisible = await button.isVisible().catch(() => false);
+    await button.isVisible().catch(() => false);
     // Even if modal isn't open (no auth), the test verifies layout dimensions
     // when the modal IS rendered, nothing overflows the 844px viewport
     const modalEl = page.locator("h2:has-text('Add Video')").first();
