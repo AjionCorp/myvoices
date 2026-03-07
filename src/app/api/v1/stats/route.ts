@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { runSql } from "@/lib/spacetimedb/http-sql";
 import { withApiKey } from "@/lib/api-middleware";
 
-export const GET = withApiKey(async () => {
+export const GET = withApiKey(async (request) => {
+  void request;
   try {
     const [topicResults, blockResults, userResults, commentResults] =
       await Promise.all([

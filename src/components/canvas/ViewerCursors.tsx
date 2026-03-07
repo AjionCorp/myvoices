@@ -56,6 +56,7 @@ export function ViewerCursors() {
             <span class="relative h-3 w-3 rounded-full border border-black/40 shadow-sm" style="background:${v.color}"></span>
             <span class="ml-1 whitespace-nowrap rounded-md px-1.5 py-0.5 text-[9px] font-semibold leading-none text-white shadow" style="background:${v.color}cc">${v.name}</span>
           `;
+          root.style.transform = `translate(${sx - 6}px, ${sy - 6}px)`;
           container.appendChild(root);
           el = { root, lastX: sx, lastY: sy };
           existing.set(v.id, el);
