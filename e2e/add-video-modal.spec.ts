@@ -16,6 +16,14 @@ type CanvasStoreWindow = Window & {
   };
 };
 
+type CanvasStoreWindow = Window & typeof globalThis & {
+  __CANVAS_STORE__?: {
+    getState: () => {
+      openSubmissionModal: () => void;
+    };
+  };
+};
+
 // Mocked metadata the API would normally return
 const SHORTS_META = {
   videoId: "TdWrtVFcS1s",
