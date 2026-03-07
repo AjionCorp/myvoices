@@ -441,23 +441,6 @@ function bulkLoadUserMutes(conn: DbConnection) {
   console.log(`[SpacetimeDB] user mutes loaded: ${all.length}`);
 }
 
-type UserFollowRow = {
-  id: number | bigint | string;
-  followerIdentity: string;
-  followingIdentity: string;
-  createdAt: number | bigint | string;
-};
-
-type ConversationRow = {
-  id: number | bigint | string;
-  participantA: string;
-  participantB: string;
-  status: "active" | "request_pending" | "request_declined";
-  requestRecipient: string;
-  createdAt: number | bigint | string;
-  updatedAt: number | bigint | string;
-};
-
 function registerTableCallbacks(conn: DbConnection) {
   const { setActiveContest, setWinners } = useContestStore.getState();
 
