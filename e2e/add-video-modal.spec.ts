@@ -8,6 +8,21 @@ import { test, expect, Page } from "@playwright/test";
 const TOPIC_URL = "/t/wwaaa";
 const SHORTS_URL = "https://youtube.com/shorts/TdWrtVFcS1s";
 const LANDSCAPE_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+type CanvasStoreWindow = Window & {
+  __CANVAS_STORE__?: {
+    getState: () => {
+      openSubmissionModal: () => void;
+    };
+  };
+};
+
+type CanvasStoreWindow = Window & typeof globalThis & {
+  __CANVAS_STORE__?: {
+    getState: () => {
+      openSubmissionModal: () => void;
+    };
+  };
+};
 
 // Mocked metadata the API would normally return
 const SHORTS_META = {
@@ -49,8 +64,9 @@ type CanvasStoreHandle = {
 async function openModal(page: Page) {
   // Open SubmissionModal directly via the canvas store (bypasses auth check)
   await page.evaluate(() => {
-    const win = window as Window & { __CANVAS_STORE__?: CanvasStoreHandle };
-    const store = win.__CANVAS_STORE__;
+    type CanvasStoreState = { openSubmissionModal: () => void };
+    type CanvasStore = { getState: () => CanvasStoreState };
+    const store = (window as Window & { __CANVAS_STORE__?: CanvasStore }).__CANVAS_STORE__;
     if (store) {
       store.getState().openSubmissionModal();
     } else {

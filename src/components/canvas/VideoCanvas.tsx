@@ -301,6 +301,7 @@ export function VideoCanvas() {
   useEffect(() => {
     const el = canvasRef.current;
     if (!el) return;
+    mountedAt.current = Date.now();
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
@@ -350,12 +351,14 @@ export function VideoCanvas() {
       lastPointer.current = { x: e.clientX, y: e.clientY };
     };
     const onUp = (e: PointerEvent) => {
-      el.releasePointerCapture(e.pointerId);
+      if (el.hasPointerCapture(e.pointerId)) {
+        el.releasePointerCapture(e.pointerId);
+      }
       const wasDrag = isDragging.current;
       const hadDown = pointerDownOnCanvas.current;
       pointerDownOnCanvas.current = false;
       pressedBlockId.current = -1;
-      const tooSoonAfterMount = Date.now() - mountedAt.current < 300;
+      const tooSoonAfterMount = mountedAt.current === null || performance.now() - mountedAt.current < 300;
       if (!wasDrag && dragDist.current <= 5 && hadDown && !tooSoonAfterMount) {
         const hBlockId = hoveredBlockId.current;
         if (hBlockId >= 0) {
