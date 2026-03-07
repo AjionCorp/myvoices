@@ -23,15 +23,17 @@ export async function GET(request: NextRequest) {
     .split(",")
     .map((s) => Number(s.trim()))
     .filter((n) => Number.isFinite(n) && n > 0);
+  const uniqueBlockIds = [...new Set(blockIds)].slice(0, 200);
 
-  if (blockIds.length === 0 || IS_MOCK) {
+  if (uniqueBlockIds.length === 0 || IS_MOCK) {
     return NextResponse.json({ blocks: [], topics: {} });
   }
 
   try {
-    const idList = blockIds.join(",");
+    // SpacetimeDB does not support IN (...) — build OR chains instead.
+    const blockIdClause = uniqueBlockIds.map((id) => `id = ${id}`).join(" OR ");
     const blockResults = await runSql(
-      `SELECT id, topic_id, video_id, platform, thumbnail_url, likes, dislikes, yt_views, yt_likes, owner_name, owner_identity, claimed_at FROM block WHERE id IN (${idList}) AND status = 'claimed' AND video_id != '' AND platform != ''`
+      `SELECT id, topic_id, video_id, platform, thumbnail_url, likes, dislikes, yt_views, yt_likes, owner_name, owner_identity, claimed_at FROM block WHERE (${blockIdClause}) AND status = 'claimed' AND video_id != '' AND platform != ''`
     );
 
     const blocks: Array<Record<string, unknown>> = [];
@@ -61,8 +63,9 @@ export async function GET(request: NextRequest) {
     // Fetch topics
     const topics: Record<number, { slug: string; title: string; category: string }> = {};
     if (topicIdSet.size > 0) {
+      const topicIdClause = [...topicIdSet].map((id) => `id = ${id}`).join(" OR ");
       const topicResults = await runSql(
-        `SELECT id, slug, title, category FROM topic WHERE id IN (${[...topicIdSet].join(",")})`
+        `SELECT id, slug, title, category FROM topic WHERE ${topicIdClause}`
       );
       const topicRes = topicResults[0];
       if (topicRes) {
