@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -108,7 +108,9 @@ export function TopicPickerModal({
 }: TopicPickerModalProps) {
   const topics = useTopicStore((s) => s.topics);
 
-  const [scope, setScope] = useState<Scope>({ category: null, taxonomySegment: null });
+  const [scope, setScope] = useState<Scope>(() =>
+    deriveScope(currentTopicCategory, currentTopicTaxonomyPath)
+  );
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
 
@@ -119,13 +121,12 @@ export function TopicPickerModal({
   // from before panels loaded don't get locked in.
   useEffect(() => {
     if (!open) return;
-    const nextScope = deriveScope(currentTopicCategory, currentTopicTaxonomyPath);
-    const resetTimer = window.setTimeout(() => {
-      setScope(nextScope);
+    const resetTimer = setTimeout(() => {
+      setScope(deriveScope(currentTopicCategory, currentTopicTaxonomyPath));
       setSearch("");
       setPage(0);
     }, 0);
-    return () => window.clearTimeout(resetTimer);
+    return () => clearTimeout(resetTimer);
   }, [open, currentTopicCategory, currentTopicTaxonomyPath]);
 
   // ── Derived data ─────────────────────────────────────────────────────────
@@ -401,7 +402,7 @@ export function TopicPickerModal({
                     onClick={() => setScope((s) => ({ ...s, taxonomySegment: null }))}
                     className="h-auto p-0 text-xs text-muted-foreground/60"
                   >
-                    Show all in {scope.category}
+                    Show all topics in {scope.category}
                   </Button>
                 ) : null}
               </div>
