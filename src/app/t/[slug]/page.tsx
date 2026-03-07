@@ -552,21 +552,36 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
   const { totalClaimed } = useBlocksStore();
   const user = useAuthStore((s) => s.user);
 
-  const [isFollowing, setIsFollowing] = useState(false);
+  const [followState, setFollowState] = useState(false);
+  const isFollowing = !!user && !!topic && followState;
 
   useEffect(() => {
-    if (!user || !topic) return;
+    if (!user || !topic) {
+      const timer = setTimeout(() => setIsFollowing(false), 0);
+      return () => clearTimeout(timer);
+    }
     const conn = getConnection();
-    if (!conn) return;
+    if (!conn) {
+      const resetTimer = setTimeout(() => setIsFollowing(false), 0);
+      return () => clearTimeout(resetTimer);
+    }
     const check = () => {
       const following = [...conn.db.topic_follow.iter()].some(
         (f) => f.followerIdentity === user.identity && Number(f.topicId) === topic.id
       );
-      setIsFollowing(following);
+      setFollowState(following);
     };
-    check();
-    conn.db.topic_follow.onInsert(() => check());
-    conn.db.topic_follow.onDelete(() => check());
+    const checkTimer = setTimeout(check, 0);
+    const unsubInsert: unknown = conn.db.topic_follow.onInsert(() => check());
+    const unsubDelete: unknown = conn.db.topic_follow.onDelete(() => check());
+    const runCleanup = (unsubscribe: unknown) => {
+      if (typeof unsubscribe === "function") unsubscribe();
+    };
+    return () => {
+      clearTimeout(checkTimer);
+      runCleanup(unsubInsert);
+      runCleanup(unsubDelete);
+    };
   }, [user, topic]);
 
   const effectiveIsFollowing = Boolean(user && topic) && isFollowing;

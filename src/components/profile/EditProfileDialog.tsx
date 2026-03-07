@@ -36,12 +36,19 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    return () => {
-      if (closeTimerRef.current) {
-        clearTimeout(closeTimerRef.current);
-      }
-    };
-  }, []);
+    if (!open || !user) return;
+    const timer = setTimeout(() => {
+      setBio(user.bio ?? "");
+      setLocation(user.location ?? "");
+      setWebsiteUrl(user.websiteUrl ?? "");
+      setSocialX(user.socialX ?? "");
+      setSocialYoutube(user.socialYoutube ?? "");
+      setSocialTiktok(user.socialTiktok ?? "");
+      setSocialInstagram(user.socialInstagram ?? "");
+      setError(null);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [open, user]);
 
   const handleSave = async () => {
     const conn = getConnection();

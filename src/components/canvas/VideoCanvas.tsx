@@ -68,7 +68,7 @@ export function VideoCanvas() {
   const { panBy, zoomBy, setScreenSize, setDragging, selectBlock, openSubmissionModal } = useCanvasStore();
 
   useEffect(() => {
-    mountedAt.current = Date.now();
+    mountedAt.current = performance.now();
   }, []);
 
   useEffect(() => {
@@ -359,8 +359,7 @@ export function VideoCanvas() {
       const hadDown = pointerDownOnCanvas.current;
       pointerDownOnCanvas.current = false;
       pressedBlockId.current = -1;
-      const tooSoonAfterMount =
-        mountedAt.current !== null && Date.now() - mountedAt.current < 300;
+      const tooSoonAfterMount = mountedAt.current === null || performance.now() - mountedAt.current < 300;
       if (!wasDrag && dragDist.current <= 5 && hadDown && !tooSoonAfterMount) {
         const hBlockId = hoveredBlockId.current;
         if (hBlockId >= 0) {

@@ -116,6 +116,19 @@ export function TopicPickerModal({
 
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Sync scope every time the modal opens or the context topic changes.
+  // We use a separate effect (not useState initial value) so that stale props
+  // from before panels loaded don't get locked in.
+  useEffect(() => {
+    if (!open) return;
+    const resetTimer = setTimeout(() => {
+      setScope(deriveScope(currentTopicCategory, currentTopicTaxonomyPath));
+      setSearch("");
+      setPage(0);
+    }, 0);
+    return () => clearTimeout(resetTimer);
+  }, [open, currentTopicCategory, currentTopicTaxonomyPath]);
+
   // ── Derived data ─────────────────────────────────────────────────────────
 
   const excluded = useMemo(() => new Set(excludeSlugs), [excludeSlugs]);
