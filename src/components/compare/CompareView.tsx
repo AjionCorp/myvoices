@@ -78,33 +78,37 @@ export function CompareView({ slugs, panels, loading, error }: CompareViewProps)
   }, []);
 
   // Context for the topic picker: use first panel when loaded, fall back to store.
-  const pickerContext = (() => {
-    const firstSlug = slugs[0];
-    if (!firstSlug) return { category: undefined, taxonomyPath: undefined };
+  const firstSlug = slugs[0];
+  let pickerContext: { category: string | undefined; taxonomyPath: string | undefined } = {
+    category: undefined,
+    taxonomyPath: undefined,
+  };
 
+  if (firstSlug) {
     // Prefer API panel data (fully enriched with taxonomyPath).
     const panel = panels.find((p) => p.topic.slug === firstSlug);
     if (panel?.topic.category) {
-      return {
+      pickerContext = {
         category: panel.topic.category,
         taxonomyPath: panel.topic.taxonomyPath || undefined,
       };
-    }
-
-    // Fall back to the Zustand store (may lack taxonomyPath in WS mode).
-    for (const t of storeTopics.values()) {
-      if (t.slug === firstSlug) {
-        return {
-          category: t.category || undefined,
-          taxonomyPath: t.taxonomyPath || undefined,
-        };
+    } else {
+      // Fall back to the Zustand store (may lack taxonomyPath in WS mode).
+      for (const t of storeTopics.values()) {
+        if (t.slug === firstSlug) {
+          pickerContext = {
+            category: t.category || undefined,
+            taxonomyPath: t.taxonomyPath || undefined,
+          };
+          break;
+        }
       }
     }
-    return { category: undefined, taxonomyPath: undefined };
-  })();
+  }
 
   const count = panels.length || slugs.length;
   const gridClass = GRID_CLASSES[count] ?? "grid-cols-2";
+  const pickerResetKey = `${pickerOpen ? "1" : "0"}:${pickerContext.category ?? ""}:${pickerContext.taxonomyPath ?? ""}:${slugs.join(",")}`;
 
   const isEmpty = !loading && !error && panels.length === 0;
 
@@ -259,6 +263,7 @@ export function CompareView({ slugs, panels, loading, error }: CompareViewProps)
 
       {/* ─── Topic picker modal ──────────────────────────────────────── */}
       <TopicPickerModal
+        key={pickerResetKey}
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
         onSelect={handleAddTopic}

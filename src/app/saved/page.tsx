@@ -51,18 +51,15 @@ function thumbnailFor(videoId: string, platform: string, url: string | null): st
 
 export default function SavedPage() {
   const { isAuthenticated, user } = useAuthStore();
+  const userIdentity = user?.identity ?? null;
   const [items, setItems] = useState<SavedItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     const identity = user?.identity;
-
     if (!isAuthenticated || !identity) {
-      const t = setTimeout(() => {
-        setItems([]);
-        setLoading(false);
-      }, 0);
-      return () => clearTimeout(t);
+      const doneTimer = setTimeout(() => setLoading(false), 0);
+      return () => clearTimeout(doneTimer);
     }
 
     const t = setTimeout(() => {
@@ -105,7 +102,6 @@ export default function SavedPage() {
       setItems(saved);
       setLoading(false);
     }, 500);
-
     return () => clearTimeout(t);
   }, [isAuthenticated, user?.identity]);
 
