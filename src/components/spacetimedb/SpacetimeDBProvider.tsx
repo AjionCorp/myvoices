@@ -50,6 +50,8 @@ type ConversationLikeRow = {
   requestRecipient: string;
   createdAt: NumericLike;
   updatedAt: NumericLike;
+};
+
 type FollowRow = {
   id: number | bigint;
   followerIdentity: string;
@@ -177,8 +179,6 @@ function toConversationStatus(
       return "active";
   }
 }
-type NumericLike = number | bigint | string;
-
 type UserBlockRowLike = {
   id: NumericLike;
   blockerIdentity: string;
@@ -618,6 +618,7 @@ function registerTableCallbacks(conn: DbConnection) {
   >;
   if (db.user_follow) {
     db.user_follow.onInsert((_ctx, row) => {
+      const follow = row as FollowRow;
       useFollowsStore.getState().addFollow({
         id: Number(follow.id),
         followerIdentity: follow.followerIdentity,
@@ -640,7 +641,7 @@ function registerTableCallbacks(conn: DbConnection) {
         id: Number(conversation.id),
         participantA: conversation.participantA,
         participantB: conversation.participantB,
-        status: conversation.status,
+        status: toConversationStatus(conversation.status),
         requestRecipient: conversation.requestRecipient ?? "",
         createdAt: Number(conversation.createdAt),
         updatedAt: Number(conversation.updatedAt),
@@ -653,7 +654,7 @@ function registerTableCallbacks(conn: DbConnection) {
         id: Number(conversation.id),
         participantA: conversation.participantA,
         participantB: conversation.participantB,
-        status: conversation.status,
+        status: toConversationStatus(conversation.status),
         requestRecipient: conversation.requestRecipient ?? "",
         createdAt: Number(conversation.createdAt),
         updatedAt: Number(conversation.updatedAt),

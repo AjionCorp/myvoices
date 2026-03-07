@@ -569,7 +569,7 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
     }
     const check = () => {
       if (!userIdentity || topicId == null) {
-        setIsFollowing(false);
+        setFollowState(false);
         return;
       }
       const conn = getConnection();
@@ -590,15 +590,6 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
       runCleanup(unsubInsert);
       runCleanup(unsubDelete);
     };
-
-    const initialCheckTimer = setTimeout(check, 0);
-    const conn = getConnection();
-    if (!conn) {
-      return () => clearTimeout(initialCheckTimer);
-    }
-    conn.db.topic_follow.onInsert(() => check());
-    conn.db.topic_follow.onDelete(() => check());
-    return () => clearTimeout(initialCheckTimer);
   }, [user?.identity, topic?.id]);
 
   const effectiveIsFollowing = Boolean(user && topic) && isFollowing;

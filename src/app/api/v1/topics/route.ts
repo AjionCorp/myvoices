@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import { runSql, rowToObject, IS_MOCK } from "@/lib/spacetimedb/http-sql";
