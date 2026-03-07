@@ -557,12 +557,12 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
 
   useEffect(() => {
     if (!user || !topic) {
-      const timer = setTimeout(() => setIsFollowing(false), 0);
+      const timer = setTimeout(() => setFollowState(false), 0);
       return () => clearTimeout(timer);
     }
     const conn = getConnection();
     if (!conn) {
-      const resetTimer = setTimeout(() => setIsFollowing(false), 0);
+      const resetTimer = setTimeout(() => setFollowState(false), 0);
       return () => clearTimeout(resetTimer);
     }
     const check = () => {
