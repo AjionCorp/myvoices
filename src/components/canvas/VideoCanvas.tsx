@@ -352,7 +352,9 @@ export function VideoCanvas() {
       lastPointer.current = { x: e.clientX, y: e.clientY };
     };
     const onUp = (e: PointerEvent) => {
-      el.releasePointerCapture(e.pointerId);
+      if (el.hasPointerCapture(e.pointerId)) {
+        el.releasePointerCapture(e.pointerId);
+      }
       const wasDrag = isDragging.current;
       const hadDown = pointerDownOnCanvas.current;
       pointerDownOnCanvas.current = false;

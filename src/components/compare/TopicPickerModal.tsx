@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -108,7 +108,9 @@ export function TopicPickerModal({
 }: TopicPickerModalProps) {
   const topics = useTopicStore((s) => s.topics);
 
-  const [scope, setScope] = useState<Scope>({ category: null, taxonomySegment: null });
+  const [scope, setScope] = useState<Scope>(() =>
+    deriveScope(currentTopicCategory, currentTopicTaxonomyPath)
+  );
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
 

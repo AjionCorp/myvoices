@@ -584,13 +584,13 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
     };
   }, [user, topic]);
 
-  const showFollowing = !!user && !!topic && isFollowing;
+  const effectiveIsFollowing = Boolean(user && topic) && isFollowing;
 
   const handleToggleFollow = () => {
     if (!topic) return;
     const conn = getConnection();
     if (!conn) return;
-    if (showFollowing) {
+    if (effectiveIsFollowing) {
       conn.reducers.unfollowTopic({ topicId: BigInt(topic.id) });
     } else {
       conn.reducers.followTopic({ topicId: BigInt(topic.id) });
@@ -667,11 +667,11 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
           {user && (
             <Button
               onClick={handleToggleFollow}
-              variant={showFollowing ? "outline" : "default"}
+              variant={effectiveIsFollowing ? "outline" : "default"}
               size="sm"
               className="mt-3 w-full text-xs"
             >
-              {showFollowing ? "Following" : "Follow Topic"}
+              {effectiveIsFollowing ? "Following" : "Follow Topic"}
             </Button>
           )}
         </div>
@@ -892,6 +892,7 @@ function TopicHeader({ slug, sidebarOpen, onToggleSidebar }: { slug: string; sid
       </div>
 
       <TopicPickerModal
+        key={`${comparePickerOpen ? "1" : "0"}:${topic?.category ?? ""}:${taxonomyPath ?? ""}:${topic?.slug ?? ""}`}
         open={comparePickerOpen}
         onClose={() => setComparePickerOpen(false)}
         excludeSlugs={topic ? [topic.slug] : []}

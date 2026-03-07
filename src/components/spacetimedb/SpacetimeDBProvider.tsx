@@ -595,7 +595,24 @@ function registerTableCallbacks(conn: DbConnection) {
   });
 
   // Follow callbacks — tables may not exist until module is republished
-  const db = conn.db as typeof conn.db & OptionalRealtimeTables;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const db = conn.db as any;
+  type FollowRow = {
+    id: number | string;
+    followerIdentity: string;
+    followingIdentity: string;
+    createdAt: number | string;
+  };
+  type ConversationRow = {
+    id: number | string;
+    participantA: string;
+    participantB: string;
+    status: "active" | "request_pending" | "request_declined";
+    requestRecipient: string;
+    createdAt: number | string;
+    updatedAt: number | string;
+  };
+
   if (db.user_follow) {
     db.user_follow.onInsert((_ctx: unknown, row: unknown) => {
       const follow = row as FollowRow;

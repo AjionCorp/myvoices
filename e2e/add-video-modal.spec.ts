@@ -8,6 +8,13 @@ import { test, expect, Page } from "@playwright/test";
 const TOPIC_URL = "/t/wwaaa";
 const SHORTS_URL = "https://youtube.com/shorts/TdWrtVFcS1s";
 const LANDSCAPE_URL = "https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+type CanvasStoreWindow = Window & {
+  __CANVAS_STORE__?: {
+    getState: () => {
+      openSubmissionModal: () => void;
+    };
+  };
+};
 
 // Mocked metadata the API would normally return
 const SHORTS_META = {
