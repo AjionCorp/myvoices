@@ -53,11 +53,13 @@ export default function SavedPage() {
   const { isAuthenticated, user } = useAuthStore();
   const userIdentity = user?.identity ?? null;
   const [items, setItems] = useState<SavedItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const loadSaved = useCallback(() => {
+    setLoading(true);
     const conn = getConnection();
     if (!conn || !user?.identity) {
+      setItems([]);
       setLoading(false);
       return;
     }
