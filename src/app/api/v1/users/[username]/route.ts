@@ -10,6 +10,7 @@ const USER_COLUMNS = [
 ];
 
 export const GET = withApiKey(async (_request: NextRequest, context) => {
+  void _request;
   const username = context.params?.username;
   if (!username) {
     return NextResponse.json({ error: "Username is required" }, { status: 400 });

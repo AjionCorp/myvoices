@@ -124,8 +124,8 @@ function mapTopic(row: Record<string, unknown>): MappedTopic {
   };
 }
 
-export const GET = withApiKey(async (request) => {
-  void request;
+export const GET = withApiKey(async (_request: NextRequest) => {
+  void _request;
   // Fast path: serve pre-generated mock data without hitting SpacetimeDB
   if (IS_MOCK) {
     return NextResponse.json(getMockData());
