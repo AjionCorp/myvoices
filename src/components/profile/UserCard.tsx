@@ -364,7 +364,11 @@ export function UserCard({ profileUser, isOwnProfile, stats }: UserCardProps) {
       </div>
 
       {isOwnProfile && (
-        <EditProfileDialog open={editOpen} onOpenChange={setEditOpen} />
+        <EditProfileDialog
+          key={`${profileUser.identity}:${editOpen ? "open" : "closed"}`}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+        />
       )}
 
       <ReportDialog

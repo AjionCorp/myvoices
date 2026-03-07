@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Header } from "@/components/ui/Header";
@@ -53,7 +53,7 @@ export default function SavedPage() {
   const { isAuthenticated, user } = useAuthStore();
   const userIdentity = user?.identity ?? null;
   const [items, setItems] = useState<SavedItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const loadSaved = useCallback(() => {
     const conn = getConnection();
