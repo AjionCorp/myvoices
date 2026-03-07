@@ -45,21 +45,19 @@ export default function UsersManagement() {
 
   useEffect(() => {
     const conn = getConnection();
-    const timer = setTimeout(() => loadUsers(), 0);
-    if (!conn) {
-      return () => clearTimeout(timer);
-    }
-    const handleInsert = () => loadUsers();
-    const handleUpdate = () => loadUsers();
-    const handleDelete = () => loadUsers();
-    conn.db.user_profile.onInsert(handleInsert);
-    conn.db.user_profile.onUpdate(handleUpdate);
-    conn.db.user_profile.onDelete(handleDelete);
+    if (!conn) return;
+    const loadTimer = setTimeout(() => loadUsers(), 0);
+    const unsubInsert: unknown = conn.db.user_profile.onInsert(() => loadUsers());
+    const unsubUpdate: unknown = conn.db.user_profile.onUpdate(() => loadUsers());
+    const unsubDelete: unknown = conn.db.user_profile.onDelete(() => loadUsers());
+    const runCleanup = (unsubscribe: unknown) => {
+      if (typeof unsubscribe === "function") unsubscribe();
+    };
     return () => {
-      clearTimeout(timer);
-      conn.db.user_profile.removeOnInsert(handleInsert);
-      conn.db.user_profile.removeOnUpdate(handleUpdate);
-      conn.db.user_profile.removeOnDelete(handleDelete);
+      clearTimeout(loadTimer);
+      runCleanup(unsubInsert);
+      runCleanup(unsubUpdate);
+      runCleanup(unsubDelete);
     };
   }, [loadUsers]);
 

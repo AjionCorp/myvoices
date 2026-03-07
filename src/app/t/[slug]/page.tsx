@@ -556,28 +556,41 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
   const isFollowing = !!user && !!topic && followState;
 
   useEffect(() => {
+    if (!user || !topic) {
+      const resetTimer = setTimeout(() => setIsFollowing(false), 0);
+      return () => clearTimeout(resetTimer);
+    }
     const conn = getConnection();
-    if (!conn || !user || !topic) return;
+    if (!conn) {
+      const resetTimer = setTimeout(() => setIsFollowing(false), 0);
+      return () => clearTimeout(resetTimer);
+    }
     const check = () => {
       const following = [...conn.db.topic_follow.iter()].some(
         (f) => f.followerIdentity === user.identity && Number(f.topicId) === topic.id
       );
       setFollowState(following);
     };
-    check();
-    conn.db.topic_follow.onInsert(check);
-    conn.db.topic_follow.onDelete(check);
+    const checkTimer = setTimeout(check, 0);
+    const unsubInsert: unknown = conn.db.topic_follow.onInsert(() => check());
+    const unsubDelete: unknown = conn.db.topic_follow.onDelete(() => check());
+    const runCleanup = (unsubscribe: unknown) => {
+      if (typeof unsubscribe === "function") unsubscribe();
+    };
     return () => {
-      conn.db.topic_follow.removeOnInsert(check);
-      conn.db.topic_follow.removeOnDelete(check);
+      clearTimeout(checkTimer);
+      runCleanup(unsubInsert);
+      runCleanup(unsubDelete);
     };
   }, [user, topic]);
+
+  const showFollowing = !!user && !!topic && isFollowing;
 
   const handleToggleFollow = () => {
     if (!topic) return;
     const conn = getConnection();
     if (!conn) return;
-    if (isFollowing) {
+    if (showFollowing) {
       conn.reducers.unfollowTopic({ topicId: BigInt(topic.id) });
     } else {
       conn.reducers.followTopic({ topicId: BigInt(topic.id) });
@@ -654,11 +667,11 @@ function TopicSidebarPanel({ slug, open }: { slug: string; open: boolean }) {
           {user && (
             <Button
               onClick={handleToggleFollow}
-              variant={isFollowing ? "outline" : "default"}
+              variant={showFollowing ? "outline" : "default"}
               size="sm"
               className="mt-3 w-full text-xs"
             >
-              {isFollowing ? "Following" : "Follow Topic"}
+              {showFollowing ? "Following" : "Follow Topic"}
             </Button>
           )}
         </div>
