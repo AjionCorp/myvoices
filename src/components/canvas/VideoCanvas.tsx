@@ -360,7 +360,8 @@ export function VideoCanvas() {
       const hadDown = pointerDownOnCanvas.current;
       pointerDownOnCanvas.current = false;
       pressedBlockId.current = -1;
-      const tooSoonAfterMount = mountedAt.current === null || performance.now() - mountedAt.current < 300;
+      const mountedAtMs = mountedAt.current ?? 0;
+      const tooSoonAfterMount = performance.now() - mountedAtMs < 300;
       if (!wasDrag && dragDist.current <= 5 && hadDown && !tooSoonAfterMount) {
         const hBlockId = hoveredBlockId.current;
         if (hBlockId >= 0) {

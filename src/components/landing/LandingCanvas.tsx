@@ -120,7 +120,6 @@ export function LandingCanvas() {
   // ── Layout ───────────────────────────────────────────────────
   const nodes = useMemo(
     () => computeLayout(topics, taxonomyNodes, thumbnailMap, sortKey),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [topics, taxonomyNodes, thumbnailMap, sortKey],
   );
 
@@ -438,7 +437,6 @@ export function LandingCanvas() {
           const tileTop = node.y - half;
 
           if (node.type === "category") {
-            const dimAmount = getDimAmount(node.id, node.categoryName);
             const isActive = activeCategory === node.categoryName;
             const isFiltered = activeCategory !== null && !isActive;
 

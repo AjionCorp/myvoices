@@ -34,6 +34,17 @@ export const GET = withApiKey(async (request: NextRequest, context) => {
       if (!Number.isFinite(blockIdNum) || blockIdNum <= 0) {
         return NextResponse.json({ error: "Invalid blockId" }, { status: 400 });
       }
+      // Ensure the requested block belongs to the slug's topic.
+      const blockResults = await runSql(
+        `SELECT id FROM block WHERE id = ${blockIdNum} AND topic_id = ${topicId}`
+      );
+      const blockRes = blockResults[0];
+      if (!blockRes || blockRes.rows.length === 0) {
+        return NextResponse.json(
+          { error: "Block not found for this topic" },
+          { status: 404 }
+        );
+      }
       sql = `SELECT * FROM comment WHERE block_id = ${blockIdNum}`;
     } else {
       // Get all block IDs for this topic, then fetch comments

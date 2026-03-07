@@ -17,11 +17,39 @@ import { useNotificationsStore } from "@/stores/notifications-store";
 import { useMessagesStore, type ConversationMeta } from "@/stores/messages-store";
 import { useFollowsStore } from "@/stores/follows-store";
 import { useModerationStore } from "@/stores/moderation-store";
-import { BlockStatus, Platform } from "@/lib/constants";
+import { BlockStatus, ContestStatus, Platform } from "@/lib/constants";
 import { batchSpiralCoordinates } from "@/lib/canvas/spiral-layout";
 import { useAuth } from "@/components/auth/AuthProvider";
 import type { DbConnection } from "@/module_bindings";
 
+type NumericLike = number | string | bigint;
+
+type DirectMessageLikeRow = {
+  id: NumericLike;
+  conversationId?: NumericLike;
+  senderIdentity: string;
+  recipientIdentity: string;
+  text: string;
+  isRead: boolean;
+  isDeleted?: boolean;
+  createdAt: NumericLike;
+};
+
+type UserFollowLikeRow = {
+  id: NumericLike;
+  followerIdentity: string;
+  followingIdentity: string;
+  createdAt: NumericLike;
+};
+
+type ConversationLikeRow = {
+  id: NumericLike;
+  participantA: string;
+  participantB: string;
+  status: ConversationMeta["status"];
+  requestRecipient: string;
+  createdAt: NumericLike;
+  updatedAt: NumericLike;
 type FollowRow = {
   id: number | bigint;
   followerIdentity: string;
@@ -136,6 +164,66 @@ function mapTopicModeratorApplication(row: any): TopicModeratorApplication {
     reviewedAt: row.reviewedAt != null ? Number(row.reviewedAt) : null,
   };
 }
+
+function toConversationStatus(
+  status: string
+): "active" | "request_pending" | "request_declined" {
+  switch (status) {
+    case "active":
+    case "request_pending":
+    case "request_declined":
+      return status;
+    default:
+      return "active";
+  }
+}
+type NumericLike = number | bigint | string;
+
+type UserFollowRowLike = {
+  id: NumericLike;
+  followerIdentity: string;
+  followingIdentity: string;
+  createdAt: NumericLike;
+};
+
+type ConversationRowLike = {
+  id: NumericLike;
+  participantA: string;
+  participantB: string;
+  status: "active" | "request_pending" | "request_declined";
+  requestRecipient: string;
+  createdAt: NumericLike;
+  updatedAt: NumericLike;
+};
+
+type UserBlockRowLike = {
+  id: NumericLike;
+  blockerIdentity: string;
+  blockedIdentity: string;
+  createdAt: NumericLike;
+};
+
+type UserMuteRowLike = {
+  id: NumericLike;
+  muterIdentity: string;
+  mutedIdentity: string;
+  createdAt: NumericLike;
+type FollowRow = {
+  id: unknown;
+  followerIdentity: string;
+  followingIdentity: string;
+  createdAt: unknown;
+};
+
+type ConversationRow = {
+  id: unknown;
+  participantA: string;
+  participantB: string;
+  status: ConversationMeta["status"];
+  requestRecipient: string | null | undefined;
+  createdAt: unknown;
+  updatedAt: unknown;
+};
 
 let statsDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -531,57 +619,37 @@ function registerTableCallbacks(conn: DbConnection) {
   });
 
   conn.db.direct_message.onInsert((_ctx, row) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const r = row as any;
     useMessagesStore.getState().addMessage({
-      id: Number(r.id),
-      conversationId: Number(r.conversationId ?? 0),
-      senderIdentity: r.senderIdentity,
-      recipientIdentity: r.recipientIdentity,
-      text: r.text,
-      isRead: r.isRead,
-      isDeleted: r.isDeleted ?? false,
-      createdAt: Number(r.createdAt),
+      id: Number(row.id),
+      conversationId: Number(row.conversationId ?? 0),
+      senderIdentity: row.senderIdentity,
+      recipientIdentity: row.recipientIdentity,
+      text: row.text,
+      isRead: row.isRead,
+      isDeleted: row.isDeleted ?? false,
+      createdAt: Number(row.createdAt),
     });
   });
 
   conn.db.direct_message.onUpdate((_ctx, _old, row) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const r = row as any;
     useMessagesStore.getState().updateMessage({
-      id: Number(r.id),
-      conversationId: Number(r.conversationId ?? 0),
-      senderIdentity: r.senderIdentity,
-      recipientIdentity: r.recipientIdentity,
-      text: r.text,
-      isRead: r.isRead,
-      isDeleted: r.isDeleted ?? false,
-      createdAt: Number(r.createdAt),
+      id: Number(row.id),
+      conversationId: Number(row.conversationId ?? 0),
+      senderIdentity: row.senderIdentity,
+      recipientIdentity: row.recipientIdentity,
+      text: row.text,
+      isRead: row.isRead,
+      isDeleted: row.isDeleted ?? false,
+      createdAt: Number(row.createdAt),
     });
   });
 
   // Follow callbacks — tables may not exist until module is republished
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const db = conn.db as any;
-  type FollowRow = {
-    id: number | string;
-    followerIdentity: string;
-    followingIdentity: string;
-    createdAt: number | string;
-  };
-  type ConversationRow = {
-    id: number | string;
-    participantA: string;
-    participantB: string;
-    status: "active" | "request_pending" | "request_declined";
-    requestRecipient: string;
-    createdAt: number | string;
-    updatedAt: number | string;
-  };
-
+  const db = conn.db as Partial<
+    Pick<typeof conn.db, "user_follow" | "conversation" | "user_block" | "user_mute">
+  >;
   if (db.user_follow) {
-    db.user_follow.onInsert((_ctx: unknown, row: unknown) => {
-      const follow = row as FollowRow;
+    db.user_follow.onInsert((_ctx, row) => {
       useFollowsStore.getState().addFollow({
         id: Number(follow.id),
         followerIdentity: follow.followerIdentity,
@@ -622,7 +690,8 @@ function registerTableCallbacks(conn: DbConnection) {
         createdAt: Number(conversation.createdAt),
         updatedAt: Number(conversation.updatedAt),
       });
-    });
+      }
+    );
 
     db.conversation.onDelete((_ctx: unknown, row: unknown) => {
       const conversation = row as Pick<ConversationRow, "id">;
@@ -633,34 +702,38 @@ function registerTableCallbacks(conn: DbConnection) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if ((db as any).user_block) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (db as any).user_block.onInsert((_ctx: unknown, row: any) => {
+    (db as any).user_block.onInsert((_ctx: unknown, row: unknown) => {
+      const blockRow = row as UserBlockRowLike;
       useModerationStore.getState().addBlock({
-        id: Number(row.id),
-        blockerIdentity: row.blockerIdentity,
-        blockedIdentity: row.blockedIdentity,
-        createdAt: Number(row.createdAt),
+        id: Number(blockRow.id),
+        blockerIdentity: blockRow.blockerIdentity,
+        blockedIdentity: blockRow.blockedIdentity,
+        createdAt: Number(blockRow.createdAt),
       });
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (db as any).user_block.onDelete((_ctx: unknown, row: any) => {
-      useModerationStore.getState().removeBlock(Number(row.id));
+    (db as any).user_block.onDelete((_ctx: unknown, row: unknown) => {
+      const blockRow = row as UserBlockRowLike;
+      useModerationStore.getState().removeBlock(Number(blockRow.id));
     });
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if ((db as any).user_mute) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (db as any).user_mute.onInsert((_ctx: unknown, row: any) => {
+    (db as any).user_mute.onInsert((_ctx: unknown, row: unknown) => {
+      const muteRow = row as UserMuteRowLike;
       useModerationStore.getState().addMute({
-        id: Number(row.id),
-        muterIdentity: row.muterIdentity,
-        mutedIdentity: row.mutedIdentity,
-        createdAt: Number(row.createdAt),
+        id: Number(muteRow.id),
+        muterIdentity: muteRow.muterIdentity,
+        mutedIdentity: muteRow.mutedIdentity,
+        createdAt: Number(muteRow.createdAt),
       });
     });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (db as any).user_mute.onDelete((_ctx: unknown, row: any) => {
-      useModerationStore.getState().removeMute(Number(row.id));
+    (db as any).user_mute.onDelete((_ctx: unknown, row: unknown) => {
+      const muteRow = row as UserMuteRowLike;
+      useModerationStore.getState().removeMute(Number(muteRow.id));
     });
   }
 
@@ -671,8 +744,7 @@ function registerTableCallbacks(conn: DbConnection) {
         startAt: Number(row.startAt),
         endAt: Number(row.endAt),
         prizePool: Number(row.prizePool),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        status: row.status as any,
+        status: ContestStatus.Active,
       });
     }
   });
@@ -684,8 +756,7 @@ function registerTableCallbacks(conn: DbConnection) {
         startAt: Number(row.startAt),
         endAt: Number(row.endAt),
         prizePool: Number(row.prizePool),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        status: row.status as any,
+        status: ContestStatus.Active,
       });
     } else {
       setActiveContest(null);
